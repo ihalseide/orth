@@ -6,5 +6,8 @@ test:
 	cat std.crunch.fth tst.fth | ./bin/femtoforth
 
 run:
-	cat std.cruch.fth - | ./bin/femtoforth
+	cat std.crunch.fth - | ./bin/femtoforth
 
+clean:
+	rm bin/*
+	rm std.crunch.fth
