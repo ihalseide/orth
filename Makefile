@@ -1,15 +1,9 @@
-femtoforth: crunch
-	gcc -nostdlib -static -Wl,--build-id=none -o bin/femtoforth femto_forth.s
+ff: femtoforth.s
+	gcc -nostdlib -static -Wl,--build-id=none -o femtoforth femtoforth.s
 
-test:
-	cat std.crunch.fth tst.fth | ./bin/femtoforth
+test: ff
+	cat asm_test.fs | ./femtoforth
 
-crunch:
-	./crunch_std.py
+run: ff
+	cat femtoforth.fs - | ./femtoforth
 
-run: femtoforth
-	cat std.crunch.fth - | ./bin/femtoforth
-
-clean:
-	rm bin/*
-	rm std.crunch.fth

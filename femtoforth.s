@@ -1,6 +1,6 @@
-@ FemtoForth version 2 for ARM v71 with Linux eabi.
-
+@ FemtoForth version 2 for ARM v71 with Linux eabi.  
 @ See the end of this file for more information. 
+
 @ This program reserves three registers for specific use.
 @ DSP (r13) points to the top of the data stack.
 @ RSP (r11) points to the top of the return stack.
@@ -9,7 +9,7 @@
 	.set FEMTOFORTH_VERSION, 2 
 
 @ Define some values for Linux System Calls and File Descriptor values:
-@ (I couldn't get "#include <asm/unistd.h>" to work on my mahine.) 
+@ (I couldn't get "#include <asm/unistd.h>" to work on my machine.) 
 	.set __NR_brk,   45
 	.set __NR_read,  3
 	.set __NR_write, 4
@@ -32,15 +32,7 @@
 	bx r1
 	.endm
 
-@ Define macros to push and pop from the data and return stacks
-	.macro PUSHRSP reg
-	str \reg, [r11, #-4]!
-	.endm
-
-	.macro POPRSP reg
-	ldr \reg, [r11], #4
-	.endm
-
+@ Define macros to push and pop from the data and return stacks 
 	.macro push reg
 	str \reg, [r13, #-4]!
 	.endm
@@ -55,7 +47,7 @@
 	.text
 	.align 2
 DOCOL:
-	PUSHRSP r10
+	str r10, [r11, #-4]!
 	add r10, r0, #4
 	NEXT
 
@@ -86,7 +78,7 @@ setup_data_segment:
 	bx      lr
 
 @ This cold_start is used to bootstrap the interpreter, the first word executed
-@ is "QUIT" 
+@ is "quit" 
 	.section .rodata
 cold_start:
 	.int QUIT
@@ -101,7 +93,7 @@ cold_start:
 @ link is used to chain the words in the dictionary as they are defined
 	.set link,0
 
-@ The "defword" macro helps defining new forth words in assembly
+@ The "defword" macro helps defining new forth words
 	.macro defword name, namelen, flags=0, label
 	.section .rodata
 	.align 2
@@ -113,35 +105,15 @@ name_\label :
 	.ascii "\name"          @ the name
 	.align 2                @ padding to next 4 byte boundary
 	.global \label
-\label :
-	.int DOCOL              @ codeword - the interpreter
-	@ list of word pointers follow
-	.endm
-
-@ The "defcode" macro helps defining new native words in assembly 
-	.macro defcode name, namelen, flags=0, label
-	.section .rodata
-	.align 2
-	.globl name_\label
-name_\label :
-	.int link               @ link
-	.set link,name_\label
-	.byte \flags+\namelen   @ flags + length byte
-	.ascii "\name"          @ the name
-	.align 2                @ padding to next 4 byte boundary
-	.global \label
-\label :
-	.int code_\label        @ codeword
-	.text
-	.global code_\label
-code_\label :                   @ assembler code follows
-	.endm
+code_\label :
+	@ list of word pointers follow. Forth words will begin with "DOCOL".
+	.endm 
 
 @ The "defvar" macro helps defining Forth variables in assembly 
 	.macro defvar name, namelen, flags=0, label, initial=0
-	defcode \name,\namelen,\flags,\label
-	ldr r0, =var_\name
-	push r0
+	defword \name,\namelen,\flags,\label
+	ldr r0, =var_\label
+	ldr r0, [r11], #4
 	NEXT
 	.data
 	.align 2
@@ -151,17 +123,17 @@ var_\name :
 
 @ The "defconst" macro helps defining Forth constants in assembly 
 	.macro defconst name, namelen, flags=0, label, value
-	defcode \name,\namelen,\flags,\label
+	defword \name,\namelen,\flags,\label
 	ldr r0, =\value
-	push r0
+	ldr r0, [r11], #4
 	NEXT
 	.endm
 
 @ EXIT is meant to be the last codeword of a forth word.
 @ It restores the IP and returns to the caller using NEXT.
 @ (See DOCOL) 
-defcode "EXIT",4,,EXIT
-        POPRSP r10 
+defword "exit",4,,EXIT
+		ldr r10, [r11], #4
         NEXT
 
 @ DIVMOD computes the unsigned integer division and remainder.
@@ -171,7 +143,7 @@ defcode "EXIT",4,,EXIT
 @ lesser than a and then subtract it and all b^(2^i) (for i from 0 to n)
 @ to a.
 @ ( a b -- r q ) where a = q * b + r 
-defcode "/MOD",4,,DIVMOD
+defword "/mod",4,,DIVMOD
 	pop     r1                      @ Get b
 	pop     r0                      @ Get a
 	mov     r3, r1                  @ Put b in tmp 
@@ -180,8 +152,7 @@ defcode "/MOD",4,,DIVMOD
 	movls   r3, r3, LSL #1          @ Double tmp
 	cmp     r3, r0, LSR #1
 	bls     1b                      @ Jump until 2 * tmp > a 
-	mov     r2, #0                  @ Initialize q
-
+	mov     r2, #0                  @ Initialize q 
 2:  
 	cmp     r0, r3                  @ If a - tmp > 0
 	subcs   r0, r0, r3              @ a <= a - tmp
@@ -189,17 +160,18 @@ defcode "/MOD",4,,DIVMOD
 	mov     r3, r3, LSR #1          @ Halve tmp
 	cmp     r3, r1                  @ Jump until tmp < b
 	bhs     2b 
-	push    r0                      @ Put r
-	push    r2                      @ Put q
+
+	ldr r0, [r11], #4				@ Put r
+	ldr r2, [r11], #4				@ put q
 	NEXT
 
 @ Alternative to DIVMOD: signed implementation using Euclidean division.
-defcode "S/MOD",5,,SDIVMOD
+defword "s/mod",5,,SDIVMOD
 	pop r2 @ Denominator
 	pop r1 @ Numerator 
 	bl _DIVMOD 
-	push r1 @ Remainder
-	push r0 @ Quotient
+	ldr r1, [r11], #4				@ Remainder 
+	str r0, [r13, #-4]!				@ Quotient
 	NEXT
 
 _DIVMOD:
@@ -222,8 +194,7 @@ _DIVMOD:
 	rsblt r3, r3, #0 @ r3 = -r3 if negative numerator
 	rsblt r1, r1, #0 @ numerator = abs(numerator) 
 	cmp r3, #-1
-	beq 2f
-
+	beq 2f 
 1:                    @ Case where denominator and numerator have the same sign.
 	cmp r1, r2
 	blt 3f
@@ -232,8 +203,7 @@ _DIVMOD:
 	sub r1, r1, r2
 	cmp r1, r2
 	bge 11b 
-	b 3f
-
+	b 3f 
 2:                   @ Case where denominator and numerator have different sign.
 	cmp r1, #0
 	beq 3f
@@ -241,15 +211,13 @@ _DIVMOD:
 	sub r0, r0, #1
 	sub r1, r1, r2
 	cmp r1, #0
-	bgt 21b
-
+	bgt 21b 
 3:
 	@ If numerator and denominator were negative:
 	@ remainder = -remainder
 	cmp r4, #-1
 	rsbeq r1, r1, #0
-	b 5f
-
+	b 5f 
 4:                                      @ Error, division by 0.
 	# Display error message on stderr.
 	mov r0, #stderr
@@ -257,199 +225,200 @@ _DIVMOD:
 	mov r2, #msg_div0_end-msg_div0
 	mov r7, #__NR_write
 	swi 0
-
+	mov r0, #0 @ Push 0 to the stack
+	ldr r0, [r11], #4
 5:
 	bx lr
 
 	.section .rodata
 msg_div0:
-	.ascii " #DIV/0! "
+	.ascii " Error: #DIV/0! "
 msg_div0_end:
 
 @ DROP ( a -- ) drops the top element of the stack 
-defcode "DROP",4,,DROP
+defword "drop",4,,DROP
 	pop r0
 	NEXT
 
 @ SWAP ( a b -- b a ) swaps the two top elements
-defcode "SWAP",4,,SWAP
+defword "swap",4,,SWAP
 	pop r0
-	pop r1
-	push r0
-	push r1
+	pop r1 
+	ldr r0, [r11], #4
+	ldr r1, [r11], #4
 	NEXT
 
 @ DUP ( a -- a a ) duplicates the top element 
-defcode "DUP",3,,DUP
+defword "dup",3,,DUP
 	pop r0          @ (  ) , r0 = a
-	push r0         @ ( a  ) , r0 = a
-	push r0         @ ( a a  ) , r0 = a
+	str r0, [r13, #-4]!
 	NEXT
 
 @ OVER ( a b c -- a b c b ) pushes the second element on top 
-defcode "OVER",4,,OVER
+defword "over",4,,OVER
 	@ ( a b c) r0 = b we take the element at DSP + 4
 	@ and since DSP is the top of the stack we will load
 	@ the second element of the stack in r0
 	ldr r0, [r13, #4]
-	push r0         @ ( a b c b )
+	str r0, [r13, #-4]!
 	NEXT
 
 @ ROT ( a b c -- b c a) rotation 
-defcode "ROT",3,,ROT
+defword "rot",3,,ROT
 	pop r0          @ ( a b ) r0 = c
 	pop r1          @ ( a ) r1 = b
 	pop r2          @ ( ) r2 = a
-	push r1         @ ( b )
-	push r0         @ ( b c )
-	push r2         @ ( b c a )
+	str r1, [r13, #-4]!
+	str r0, [r13, #-4]!
+	str r2, [r13, #-4]!
 	NEXT
 
 @ -ROT ( a b c -- c a b ) backwards rotation 
-defcode "-ROT",4,,NROT
+defword "-rot",4,,NROT
 	pop r0          @ ( a b ) r0 = c
 	pop r1          @ ( a ) r1 = b
 	pop r2          @ ( ) r2 = a
 	push r0         @ ( c )
-	push r2         @ ( c a )
-	push r1         @ ( c a b )
+	str r0, [r13, #-4]!
+	str r2, [r13, #-4]!
+	str r1, [r13, #-4]!
 	NEXT
 
 @ ?DUP ( 0 -- 0 | a -- a a ) duplicates if non-zero 
-defcode "?DUP", 4,,QDUP
+defword "?dup", 4,,QDUP
 	@ (x --)
 	ldr r0, [r13]   @ r0 = x
 	cmp r0, #0      @ test if x==0
 	beq 1f          @ if x==0 we jump to 1
-	push r0         @ ( a a ) it's now duplicated
+	str r0, [r13, #-4]!
 1:
 	NEXT         @ ( a a / 0 )
 
 @ + ( a b -- a+b) 
-defcode "+",1,,ADD
+defword "+",1,,ADD
 	pop r0
 	pop r1
 	add r0,r0,r1
-	push r0
+	str r0, [r13, #-4]!
 	NEXT
 
 @ + ( a b -- a-b) 
-defcode "-",1,,SUB
+defword "-",1,,SUB
 	pop r1
 	pop r0
 	sub r0,r0,r1
-	push r0
+	str r0, [r13, #-4]!
 	NEXT
 
 @ * ( a b -- a*b) 
-defcode "*",1,,MUL
+defword "*",1,,MUL
 	pop r0
 	pop r1
 	mul r2,r0,r1
-	push r2
+	str r2, [r13, #-4]!
 	NEXT
 
 @ = ( a b -- p ) where p is 1 when a and b are equal (0 otherwise) 
-defcode "=",1,,EQU
+defword "=",1,,EQU
 	pop r1
 	pop r0
 	cmp r0, r1
 	moveq r0, #-1
 	movne r0, #0
-	push r0
+	str r0, [r13, #-4]!
 	NEXT
 
 @ < ( a b -- p) where p = a < b 
-defcode "<",1,,LT
+defword "<",1,,LT
 	pop r1
 	pop r0
 	cmp r0, r1
 	movlt r0, #-1
 	movge r0, #0
-	push r0
+	str r0, [r13, #-4]!
 	NEXT
 
 @ > ( a b -- p) where p = a < b 
-defcode ">",1,,GT
+defword ">",1,,GT
 	pop r1
 	pop r0
 	cmp r0, r1
 	movgt r0, #-1
 	movle r0, #0
-	push r0
+	str r0, [r13, #-4]!
 	NEXT
 
 @ & AND ( a b -- a&b) bitwise and 
-defcode "&",1,,AND
+defword "&",1,,AND
 	pop r0
 	pop r1
 	and r0, r1, r0
-	push r0
+	str r0, [r13, #-4]!
 	NEXT
 
 @ | OR ( a b -- a|b) bitwise or 
-defcode "|",1,,OR
+defword "|",1,,OR
 	pop r0
 	pop r1
 	orr r0, r1, r0
-	push r0
+	str r0, [r13, #-4]!
 	NEXT
 
 @ ^ XOR ( a b -- a^b) bitwise xor 
-defcode "^",1,,XOR
+defword "^",1,,XOR
 	pop r0
 	pop r1
 	eor r0, r1, r0
-	push r0
+	str r0, [r13, #-4]!
 	NEXT
 
 @ ~ INVERT ( a -- ~a ) bitwise not 
-defcode "~",1,,INVERT
+defword "~",1,,INVERT
 	pop r0
 	mvn r0, r0
-	push r0
+	str r0, [r13, #-4]!
 	NEXT
 
 @ LIT is used to compile literals in forth word.
 @ When LIT is executed it pushes the literal (which is the next codeword)
 @ into the stack and skips it (since the literal is not executable).  
-defcode "LIT", 3,,LIT
+defword "lit", 3,,LIT
 	ldr r1, [r10], #4
-	push r1
+	str r1, [r13, #-4]!
 	NEXT
 
 @ ! ( value address -- ) write value at address 
-defcode "!",1,,STORE
+defword "!",1,,STORE
 	pop r0
 	pop r1
 	str r1, [r0]
 	NEXT
 
 @ @ ( address -- value ) reads value from address 
-defcode "@",1,,FETCH
+defword "@",1,,FETCH
 	pop r1
 	ldr r0, [r1]
-	push r0
+	str r0, [r13, #-4]!
 	NEXT
 
 @ C! does what "!" does for a single byte
-defcode "C!",2,,STOREBYTE
+defword "c!",2,,STOREBYTE
 	pop r0
 	pop r1
 	strb r1, [r0]
 	NEXT 
 
 @ C@ does what "@" does for a single byte
-defcode "C@",2,,FETCHBYTE
+defword "c@",2,,FETCHBYTE
 	pop r0
 	mov r1, #0
 	ldrb r1, [r0]
-	push r1
+	str r1, [r13, #-4]!
 	NEXT 
 
 @ CMOVE ( source dest length -- )
 @ copies a chunk of length bytes from source address to dest address 
-defcode "CMOVE",5,,CMOVE
+defword "cmove",5,,CMOVE
 	pop r0
 	pop r1
 	pop r2
@@ -462,12 +431,11 @@ defcode "CMOVE",5,,CMOVE
 	NEXT 
 
 @ Define some variables and constants needed by the Forth interpreter 
-	defvar "STATE",5,,STATE
-	defvar "HERE",4,,HERE
-	defvar "LATEST",6,,LATEST,name_SYSCALL @ must point to the last word
-											@ defined in assembly, SYSCALL
+	defvar "State",5,,STATE
+	defvar "Here",4,,HERE
+	defvar "Latest",6,,LATEST,name_SYSCALL @ Should point to the last word defined in assembly (syscall).
 	defvar "S0",2,,SZ
-	defvar "BASE",4,,BASE,10
+	defvar "Base",4,,BASE,10
 
 	defconst "VERSION",7,,VERSION,FEMTOFORTH_VERSION
 	defconst "R0",2,,RZ,return_stack_top
@@ -494,37 +462,37 @@ defcode "CMOVE",5,,CMOVE
 	defconst "O_NONBLOCK",10,,__O_NONBLOCK,04000 
 
 @ >R ( a -- ) move the top element from the data stack to the return stack 
-defcode ">R",2,,TOR
+defword ">R",2,,TOR
 	pop r0
-	PUSHRSP r0
+	str r0, [r11, #-4]!
 	NEXT
 
 @ R> ( -- a ) move the top element from the return stack to the data stack 
-defcode "R>",2,,FROMR
-	POPRSP r0
-	push r0
+defword "R>",2,,FROMR
+	ldr r0, [r11], #4
+	str r0, [r13, #-4]!
 	NEXT
 
 @ RDROP drops the top element from the return stack 
-defcode "RDROP",5,,RDROP
+defword "Rdrop",5,,RDROP
 	add r11, r11,#4
 	NEXT
 
 @ RSP@, RSP!, DSP@, DSP! manipulate the return and data stack pointers 
-defcode "RSP@",4,,RSPFETCH
-	push r11
+defword "RSP@",4,,RSPFETCH
+	str r11, [r13, #-4]!
 	NEXT
 
-defcode "RSP!",4,,RSPSTORE
+defword "RSP!",4,,RSPSTORE
 	pop r11 
 	NEXT
 
-defcode "DSP@",4,,DSPFETCH
+defword "DSP@",4,,DSPFETCH
 	mov r0, r13
-	push r0
+	str r0, [r13, #-4]!
 	NEXT
 
-defcode "DSP!",4,,DSPSTORE
+defword "DSP!",4,,DSPSTORE
 	pop r0
 	mov r0, r13
 	NEXT
@@ -532,9 +500,9 @@ defcode "DSP!",4,,DSPSTORE
 @ KEY ( -- c ) Reads a key from the user
 @ the implementation uses a cached buffer that is
 @ refilled, when empty, with a read syscall.  
-defcode "KEY",3,,KEY 
+defword "key",3,,KEY 
 	bl _KEY                 @ Call _KEY
-	push r0                 @ push the return value on the stack
+	str r0, [r13, #-4]!		@ Push the return value
 	NEXT
 
 _KEY: 
@@ -580,7 +548,7 @@ bufftop:
 	.int buffer
 
 @ EMIT ( c -- ) outputs character c to stdout 
-defcode "EMIT",4,,EMIT
+defword "emit",4,,EMIT
 	pop r0
 	bl      _EMIT
 	NEXT
@@ -603,10 +571,10 @@ emit_scratch:
 
 @ WORD ( -- addr length ) reads next word from stdin
 @ skips spaces and comments, limited to 32 characters 
-defcode "WORD",4,,WORD
+defword "word",4,,WORD
 	bl _WORD
-	push r0                 @ adress
-	push r1                 @ length
+	str r0, [r13, #-4]!
+	str r1, [r13, #-4]!
 	NEXT
 
 _WORD:
@@ -645,12 +613,12 @@ word_buffer:
 @ n is the parsed number
 @ e is the number of unparsed characters
 
-defcode "NUMBER",6,,NUMBER
+defword "number",6,,NUMBER
 	pop r1
 	pop r0
 	bl _NUMBER
-	push r0
-	push r1
+	str r0, [r13, #-4]!
+	str r1, [r13, #-4]!
 	NEXT
 
 _NUMBER:
@@ -735,11 +703,11 @@ _NUMBER:
 @ FIND ( addr length -- dictionary_address )
 @ Tries to find a word in the dictionary and returns its address.
 @ If the word is not found, NULL is returned.  
-defcode "FIND",4,,FIND
+defword "find",4,,FIND
     pop r1 @length
     pop r0 @addr
 	bl _FIND
-	push r0
+	str r0, [r13, #-4]!
 	NEXT
 
 _FIND:
@@ -783,10 +751,10 @@ _FIND:
 
 @ >CFA ( dictionary_address -- executable_address )
 @ Transformat a dictionary address into a code field address 
-defcode ">CFA",4,,TCFA
+defword ">CFA",4,,TCFA
 	pop r0
 	bl _TCFA
-	push r0
+	str r0, [r13, #-4]!
 	NEXT
 _TCFA:
 	add r0,r0,#4            @ skip link field
@@ -801,6 +769,7 @@ _TCFA:
 @ Return the address of the first data field 
 @ NOTE: the original "INCR4" was replaced with "LIT 4 ADD"
 defword ">DFA",4,,TDFA
+	.int DOCOL
 	.int TCFA
 	.int LIT
 	.int 4
@@ -811,7 +780,7 @@ defword ">DFA",4,,TDFA
 @ in the data segment.
 @ CREATE ( address length -- ) Creates a new dictionary entry
 @ in the data segment.  
-defcode "CREATE",6,,CREATE 
+defword "create",6,,CREATE 
 	pop r1          @ length of the word to insert into the dictionnary
 	pop r0          @ address of the word to insert into the dictionnary
 
@@ -855,7 +824,7 @@ defcode "CREATE",6,,CREATE
 
 @ , ( n -- ) writes the top element from the stack at HERE
 
-defcode ",",1,,COMMA
+defword ",",1,,COMMA
 	pop r0
 	bl _COMMA
 	NEXT
@@ -867,14 +836,14 @@ _COMMA:
 	bx      lr
 
 @ [ ( -- ) Change interpreter state to Immediate mode 
-defcode "[",1,F_IMMED,LBRAC
+defword "[",1,F_IMMED,LBRAC
 	ldr     r0, =var_STATE
 	mov     r1, #0
 	str     r1, [r0]
 	NEXT
 
 @ ] ( -- ) Change interpreter state to Compilation mode 
-defcode "]",1,,RBRAC
+defword "]",1,,RBRAC
 	ldr     r0, =var_STATE
 	mov     r1, #1
 	str     r1, [r0]
@@ -882,6 +851,7 @@ defcode "]",1,,RBRAC
 
 @ : ( -- ) Define a new forth word 
 defword ":",1,,COLON
+	.int DOCOL
 	.int WORD                       @ Get the name of the new word
 	.int CREATE                     @ CREATE the dictionary entry / header
 	.int LIT, DOCOL, COMMA          @ Append DOCOL  (the codeword).
@@ -891,6 +861,7 @@ defword ":",1,,COLON
 	.int EXIT                       @ Return from the function.
 
 defword ";",1,F_IMMED,SEMICOLON
+	.int DOCOL
 	.int LIT, EXIT, COMMA           @ Append EXIT (so the word will return).
 	.int LATEST, FETCH, HIDDEN      @ Toggle hidden flag -- unhide the word
 									@ (see below for definition).
@@ -898,7 +869,7 @@ defword ";",1,F_IMMED,SEMICOLON
 	.int EXIT                       @ Return from the function.
 
 @ IMMEDIATE ( -- ) sets IMMEDIATE flag of last defined word 
-defcode "IMMEDIATE",9,F_IMMED,IMMEDIATE
+defword "immediate",9,F_IMMED,IMMEDIATE
 	ldr r0, =var_LATEST     @
 	ldr r1, [r0]            @ get the Last word
 	add r1, r1, #4          @ points to the flag byte
@@ -911,7 +882,7 @@ defcode "IMMEDIATE",9,F_IMMED,IMMEDIATE
 	NEXT
 
 @ HIDDEN ( dictionary_address -- ) sets HIDDEN flag of a word 
-defcode "HIDDEN",6,,HIDDEN
+defword "hidden",6,,HIDDEN
 	pop  r0
 	ldr r1, [r0, #4]!
 	eor r1, r1, #F_HIDDEN
@@ -919,7 +890,8 @@ defcode "HIDDEN",6,,HIDDEN
 	NEXT
 
 @ HIDE ( -- ) hide a word 
-defword "HIDE",4,,HIDE
+defword "hide",4,,HIDE
+	.int DOCOL
 	.int WORD               @ Get the word (after HIDE).
 	.int FIND               @ Look up in the dictionary.
 	.int HIDDEN             @ Set F_HIDDEN flag.
@@ -927,19 +899,19 @@ defword "HIDE",4,,HIDE
 
 @ TICK ( -- ) returns the codeword address of next read word
 @ Tick only works in compile mode. Implementation is identical to LIT.  
-defcode "'",1,,TICK
+defword "'",1,,TICK
 	ldr r1, [r10], #4
-	push r1
+	str r1, [r13, #-4]!
 	NEXT
 
 @ BRANCH ( -- ) changes IP by offset which is found in the next codeword 
-defcode "BRANCH",6,,BRANCH
+defword "branch",6,,BRANCH
 	ldr r1, [r10]
 	add r10, r10, r1
 	NEXT
 
 @ 0BRANCH ( p -- ) branch if the top of the stack is zero 
-defcode "0BRANCH",7,,ZBRANCH
+defword "0branch",7,,ZBRANCH
 	pop r0
 	cmp r0, #0              @ if the top of the stack is zero
 	beq code_BRANCH         @ then branch
@@ -947,17 +919,17 @@ defcode "0BRANCH",7,,ZBRANCH
 	NEXT
 
 @ LITSTRING ( -- ) same as LIT but for strings ??
-defcode "LITSTRING",9,,LITSTRING
+defword "litstring",9,,LITSTRING
 	ldr r0, [r10], #4        @ read length
-	push r10 @ push address
-	push r0                 @ push string
+	str r10, [r13, #-4]!
+	str r0, [r13, #-4]!
 	add r10, r10, r0          @ skip the string
 	add r10, r10, #3          @ find the next 4-byte boundary
 	and r10, r10, #~3
 	NEXT
 
 @ TELL ( addr length -- ) writes a string to stdout 
-defcode "TELL",4,,TELL
+defword "tell",4,,TELL
 	mov r0, #stdout
 	pop r2 @length
 	pop r1 @addr
@@ -966,13 +938,14 @@ defcode "TELL",4,,TELL
 	NEXT
 
 @ QUIT ( -- ) the first word to be executed 
-defword "QUIT", 4,, QUIT
+defword "quit", 4,, QUIT
+	.int DOCOL
 	.int RZ, RSPSTORE       @ Set up return stack
 	.int INTERPRET          @ Interpret a word
 	.int BRANCH,-8          @ loop
 
 @ INTERPRET, reads a word from stdin and executes or compiles it 
-defcode "INTERPRET",9,,INTERPRET
+defword "interpret",9,,INTERPRET
     @ No need to backup callee save registers here, since
     @ we are the top level routine
 	mov r8, #0                      @ interpret_is_lit = 0
@@ -1028,7 +1001,7 @@ defcode "INTERPRET",9,,INTERPRET
 									@  assummes it)
 
 5:  @ Push literal on the stack
-	push r6
+	str r6, [r13, #-4]!
 	NEXT
 
 6:  @ Parse error
@@ -1054,22 +1027,22 @@ defcode "INTERPRET",9,,INTERPRET
 
 	.section .rodata
 errmsg:
-	.ascii " PARSEN'T<"
+	.ascii " Error: word '"
 errmsgend: 
 errmsg2:
-	.ascii ">\n"
+	.ascii "' not found.\n"
 errmsg2end:
 
 @ CHAR ( -- c ) put the ASCII code of the first character of the next word
 @ on the stack 
-defcode "CHAR",4,,CHAR
+defword "char",4,,CHAR
 	bl _WORD
 	ldrb r1, [r0]
-	push r1
+	str r1, [r13, #-4]!
 	NEXT
 
 @ EXECUTE ( xt -- ) jump to the address on the stack 
-defcode "EXECUTE",7,,EXECUTE
+defword "execute",7,,EXECUTE
 	pop r0
 	ldr r1, [r0]
 	bx r1
@@ -1081,7 +1054,7 @@ defcode "EXECUTE",7,,EXECUTE
 @ SYSCALL ( n i [arg1 arg2 ar3] -- r ),
 @ where n is the number of args (0-3), i is the number code for the call,
 @ and the reset are args
-defcode "SYSCALL",7,,SYSCALL
+defword "syscall",7,,SYSCALL
 	pop r3
 	pop r7
 	@ Pop the correct amount of arguments before making the call
@@ -1098,7 +1071,7 @@ defcode "SYSCALL",7,,SYSCALL
 	@ Make the system call and then push the result
 	@ that is put into R0 onto the stack
 	swi 0
-	push r0
+	str r0, [r13, #-4]!
 	NEXT 
 
 @ Reserve space for the return stack and the read buffer (for KEY)
@@ -1118,8 +1091,4 @@ buffer:
 	.space BUFFER_SIZE
 
 @ End-of-file information:
-@ This Forth is based on:
-@
-@ Jones' Forth port for ARM EABI
-@ Copyright (C) 2013 M2IHP'13 class, see AUTHORS for the full list of
-@ contributors.
+@ This Forth is based on: Jones' Forth port for ARM EABI
