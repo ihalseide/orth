@@ -2,6 +2,9 @@ exe="forth.exe"
 src="femtoforth.c"
 errorf="errors.txt"
 
+EDITOR=/usr/bin/vim
+export EDITOR
+
 # Clean
 if [ -f $exe ];
 	then rm $exe;
