@@ -1,4 +1,4 @@
-bin/
+errors.txt
 
+*.exe 
 *.swp
-std.crunch.*

@@ -129,7 +129,7 @@ immediate
 : 2drop ( x x -- ) drop drop ; 
 : 2dup ( x1 x2 -- x1 x2 x1 x2 ) over over ; 
 : nip ( x y -- y ) swap drop ; 
-: TUCK ( x y -- y x y ) swap over ; 
+: tuck ( x y -- y x y ) swap over ; 
 : pick ( x_u ... x_1 x_0 u -- x_u ... x_1 x_0 x_u )
 	1+ 4 *
 	DSP@ + @ ; 
@@ -633,10 +633,53 @@ immediate
 	drop
 	CR ;
 
-\ Begin System interaction and System calls...
+\ Begin variables and memory
 
 \ Multiply a number by 4 because that is how many bytes are in a Forth cell
-: CELLS ( n -- n ) 4 * ;
+: cells ( n -- n ) 4 * ;
+
+: allot (n -- addr )
+	Here @ swap
+	Here +! ;
+
+\ constant takes a value from the stack and makes a word that always pushes that value
+\ Usage: "<#> constant <const>"
+: constant ( n -- )
+	word create DOCOL ,
+	' lit ,
+	,
+	' EXIT , ;
+
+\ variable creates a word that pushes a value in memory
+\ Usage: "variable <var>"
+: variable 
+	1 cells allot					\ Store the value in the dictionary memory
+	word create						\ create the dictionary entry
+	DOCOL ,							\ append the DOCOL codeword
+	' lit ,							\ append the LIT codeword	
+	,								\ append address of memory
+	' exit , ;						\ append exit
+
+\ Values
+\ Usage: "20 value val  30 to val"
+: value ( n -- )
+	word create DOCOL ,
+	' LIT ,
+	,
+	' exit , ;
+: to immediate ( n -- )
+	word find
+	>DFA 4+
+	State @ if
+		' lit ,
+		,
+		' ! ,
+	else
+		!
+	then ;
+
+
+\ Begin System interaction and System calls...  
 
 \ Create standard shortcuts for System Calls with a certain number of arguments
 : syscall0 0 SYSCALL ;
@@ -668,7 +711,7 @@ immediate
 	SYS_BRK syscall1 ;
 
 : morecore ( cells -- )
-	CELLS get-brk + brk ;
+	cells get-brk + brk ;
 
 \ Redefine hide to not cause a segfault when the word cannot be found
 : hide 
