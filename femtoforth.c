@@ -4,9 +4,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <string.h>
 
 /* Characters allocated for a word buffer */
-#define WORD_BUFFER_SIZE 31
+#define WORD_BUF_SIZE 31
 
 /* Memory layout and allocation values  */
 #define DATA_STACK_SIZE 1000 
@@ -14,19 +15,12 @@
 #define ADDITIONAL_MEMORY 1972 
 
 /* Canonical values of true and false */
-typedef enum
-{
-	TRUE = -1,
-	FALSE = 0,
-} LangBool;
+long F_TRUE = -1;
+long F_FALSE = 0;
 
 /* Canonical values of interpretter state */
-typedef enum
-{
-	IMMEDIATE_MODE = 0,
-	COMPILE_MODE = 1,
-}
-InterpreterState;
+long INTERPRET_MODE_IMMEDIATE = 0;
+long INTERPRET_MODE_COMPILE = 1;
 
 /* The two stacks,
  * data stack,
@@ -51,7 +45,7 @@ WordHeader;
 WordHeader * word_dictionary;
 
 /* Global buffers for certain functions */
-char word_buffer [WORD_BUFFER_SIZE];
+char word_buffer [WORD_BUF_SIZE];
 
 /* Forth variables:
  * S0 is the minimum value for data stack ptr
@@ -64,6 +58,20 @@ long var_Base = 10;
 void word_dictionary_init ()
 { 
 	word_dictionary = malloc(sizeof(*word_dictionary) * 256);
+}
+
+bool is_space (char x)
+{
+	switch (x)
+	{
+		case ' ':
+		case '\n':
+		case '\t':
+		case '\v': 
+			return true;
+		default:
+			return false;
+	}
 }
 
 /* Convert an alphanumeric character into a number value.
@@ -191,6 +199,11 @@ long returns_pop ()
 {
 	return_stack--;
 	return *return_stack;
+} 
+
+void do_rdrop ()
+{
+	returns_pop();
 }
 
 void do_dup ()
@@ -280,41 +293,34 @@ void do_DSP_store ()
 	data_stack = (long *) data_pop();
 }
 
-/* emit */
+/* emit ( c -- ) */
 void do_emit ()
 {
 	putchar(data_pop());
 }
 
-char do_key ()
+char _key ()
 {
 	char c = getchar();
-	data_push(c);
 	return c;
 }
 
-bool is_space (char x)
+/* key ( -- c ) */
+void do_key ()
 {
-	switch (x)
-	{
-		case ' ':
-		case '\n':
-		case '\t':
-		case '\v': 
-			return true;
-		default:
-			return false;
-	}
+	data_push(_key());
 }
 
 /* Skip leading spaces and backslash characters as its own word. */
-void skip_whitespace ()
+/* Return the last char read, which is an actual word char */
+char skip_whitespace ()
 {
+	char c = _key();
 	while (is_space(c) || c == '\\')
 	{
 		if (c == '\\')
 		{
-			while (in != '\n')
+			while (c != '\n')
 			{
 				c = _key();
 			}
@@ -322,17 +328,18 @@ void skip_whitespace ()
 		}
 		c = _key();
 	}
+	return c;
 }
 
 /* Reads a word from stdin into the word buffer */
 long _word ()
 {
-	skip_whitespace();
-	char c = _key();
+	char c = skip_whitespace();
 	int index = 0;
 	while (index < WORD_BUF_SIZE && !is_space(c))
 	{
-		word_buffer[index++] = c;
+		word_buffer[index] = c;
+		index++;
 		c = _key();
 	} 
 	return index; // as length
@@ -399,13 +406,13 @@ void * do_find ()
 /* `[' (left bracket) changes the interpreter to immediate mode */
 void do_lbracket ()
 {
-	var_State = IMMEDIATE_MODE;
+	var_State = INTERPRET_MODE_IMMEDIATE;
 }
 
 /* `]' (right bracket) changes the interpreter to compile mode */
 void do_rbracket ()
 {
-	var_State = COMPILE_MODE;
+	var_State = INTERPRET_MODE_COMPILE;
 }
 
 /* tell ( addr length -- ) */
@@ -426,6 +433,15 @@ void do_char ()
 		data_push(*((char *) addr));
 }
 
+long bool_to_langbool (bool b)
+{
+	if (b)
+	{
+		return F_TRUE;
+	}
+	return F_FALSE; 
+}
+
 /* Quick! math operators */
 void do_add () { data_push(data_pop() + data_pop()); } 
 void do_sub () { data_push(-data_pop() + data_pop()); } 
@@ -436,25 +452,96 @@ void do_halve () { data_push(data_pop() / 2); }
 /* Increment and decrement */
 void do_incr () { data_push(data_pop() + 1); } 
 void do_decr () { data_push(data_pop() - 1); } 
-/* Comparison */
-void do_equ () { data_push(data_pop() == data_pop()); } 
-void do_neq () { data_push(data_pop() != data_pop()); }
-void do_lt () { data_push(data_pop() < data_pop()); }
-void do_gt () { data_push(data_pop() > data_pop()); }
-void do_le () { data_push(data_pop() <= data_pop()); }
-void do_ge () { data_push(data_pop() >= data_pop()); }
+/* Comparison values */
+void do_true () { data_push(F_TRUE); } 
+void do_false () { data_push(F_FALSE); }
+/* Comparison operators */
+void do_equ () { data_push(bool_to_langbool(data_pop() == data_pop())); } 
+void do_neq () { data_push(bool_to_langbool(data_pop() != data_pop())); }
+void do_lt  () { data_push(bool_to_langbool(data_pop() <  data_pop())); }
+void do_gt  () { data_push(bool_to_langbool(data_pop() >  data_pop())); }
+void do_le  () { data_push(bool_to_langbool(data_pop() <= data_pop())); }
+void do_ge  () { data_push(bool_to_langbool(data_pop() >= data_pop())); }
 /* Comparison with zero */
-void do_zequ () { data_push(data_pop() == 0);}
-void do_zneq () { data_push(data_pop() != 0);}
-void do_zlt () { data_push(data_pop() < 0);}
-void do_zgt () { data_push(data_pop() > 0);}
-void do_zle () { data_push(data_pop() <= 0);}
-void do_zge () { data_push(data_pop() >= 0);}
+void do_zequ () { data_push(bool_to_langbool(data_pop() == 0));}
+void do_zneq () { data_push(bool_to_langbool(data_pop() != 0));}
+void do_zlt  () { data_push(bool_to_langbool(data_pop() <  0));}
+void do_zgt  () { data_push(bool_to_langbool(data_pop() >  0));}
+void do_zle  () { data_push(bool_to_langbool(data_pop() <= 0));}
+void do_zge  () { data_push(bool_to_langbool(data_pop() >= 0));}
 /* Bitwise operators */
 void do_and () { data_push(data_pop() & data_pop());}
 void do_or () { data_push(data_pop() | data_pop());}
 void do_xor () { data_push(data_pop() ^ data_pop());}
 void do_invert () { data_push(~ data_pop()); } 
+
+/* ?DUP ( n -- n n ) | ( 0 -- 0 ) */
+void do_qdup ()
+{
+	if (data_top() != 0)
+	{
+		data_push(data_top());
+	}
+}
+
+/* ! ( value addr -- ) store */
+void do_store ()
+{
+	long * addr = (long *) data_pop();
+	*addr = data_pop();
+}
+
+/* @ ( addr -- value ) fetch */
+void do_fetch ()
+{
+	long * addr = (long *) data_pop();
+	data_push(*addr);
+}
+
+/* +! ( value addr -- ) add store */
+void do_addstore ()
+{
+	long * addr = (long *) data_pop();
+	*addr += data_pop();
+}
+
+/* -! ( value addr -- ) sub store */
+void do_substore ()
+{
+	long * addr = (long *) data_pop();
+	*addr -= data_pop();
+}
+
+/* C! ( value addr -- ) byte store */
+void do_bytestore ()
+{
+	unsigned char * addr = (unsigned char *) data_pop();
+	*addr = data_pop();
+}
+
+/* C@ ( addr -- ) byte fetch */
+void do_bytefetch ()
+{
+	unsigned char * addr = (unsigned char *) data_pop();
+	data_push(*addr);
+}
+
+/* C@C! ( src_addr dest_addr -- ) byte copy */
+void do_bytecopy ()
+{
+	unsigned char * dest_addr = (unsigned char *) data_pop();
+	unsigned char * source_addr = (unsigned char *) data_pop();
+	*dest_addr = *source_addr;
+}
+
+/* CMOVE ( src_addr dest_addr len -- ) block byte copy */
+void do_cmove ()
+{
+	long length = data_pop();
+	unsigned char * dest_addr = (unsigned char *) data_pop();
+	unsigned char * src_addr = (unsigned char *) data_pop();
+	memcpy(dest_addr, src_addr, length);
+}
 
 void create_c_code
 (const char * cname,
@@ -589,15 +676,6 @@ void test_io ()
 	var_Base = old_base;
 }
 
-void do_true ()
-{
-	data_push(LangBool.TRUE);
-}
-
-void do_false ()
-{
-	data_push(LangBool.FALSE);
-}
 
 int main (int argc, char ** argv)
 {
