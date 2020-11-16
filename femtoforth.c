@@ -307,30 +307,43 @@ bool is_space (char x)
 	}
 }
 
+/* Skip leading spaces and backslash characters as its own word. */
+void skip_whitespace ()
+{
+	while (is_space(c) || c == '\\')
+	{
+		if (c == '\\')
+		{
+			while (in != '\n')
+			{
+				c = _key();
+			}
+			continue;
+		}
+		c = _key();
+	}
+}
+
+/* Reads a word from stdin into the word buffer */
+long _word ()
+{
+	skip_whitespace();
+	char c = _key();
+	int index = 0;
+	while (index < WORD_BUF_SIZE && !is_space(c))
+	{
+		word_buffer[index++] = c;
+		c = _key();
+	} 
+	return index; // as length
+}
+
 /* word ( -- addr length ) */
 void do_word ()
 {
-	char in;
-	int index = 0;
-begin: 
-	in = do_key();
-	if (in == '\\') goto comment;
-	if (is_space(in)) goto begin;
-word:
-	if (index < WORD_BUFFER_SIZE)
-	{
-		word_buffer[index] = in;
-		index++;
-		in = do_key();
-		if (!is_space(in)) goto word;
-	}
+	long length = _word();
 	data_push((long) word_buffer);
-	data_push(index);
-	return;
-comment:
-	in = do_key();
-	if (in == '\n') goto begin;
-	goto comment;
+	data_push(length);
 }
 
 /* ( addr length -- n e ) convert a string into a number, where
