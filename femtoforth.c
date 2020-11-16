@@ -426,20 +426,35 @@ void do_char ()
 		data_push(*((char *) addr));
 }
 
-void do_add ()
-{
-	data_push(data_pop() + data_pop());
-}
-
-void do_sub ()
-{
-	data_push(-data_pop() + data_pop());
-}
-
-void do_mul ()
-{
-	data_push(data_pop() * data_pop());
-}
+/* Quick! math operators */
+void do_add () { data_push(data_pop() + data_pop()); } 
+void do_sub () { data_push(-data_pop() + data_pop()); } 
+void do_mul () { data_push(data_pop() * data_pop()); } 
+void do_negate () { data_push(-data_pop()); } 
+void do_double () { data_push(data_pop() * 2); }
+void do_halve () { data_push(data_pop() / 2); }
+/* Increment and decrement */
+void do_incr () { data_push(data_pop() + 1); } 
+void do_decr () { data_push(data_pop() - 1); } 
+/* Comparison */
+void do_equ () { data_push(data_pop() == data_pop()); } 
+void do_neq () { data_push(data_pop() != data_pop()); }
+void do_lt () { data_push(data_pop() < data_pop()); }
+void do_gt () { data_push(data_pop() > data_pop()); }
+void do_le () { data_push(data_pop() <= data_pop()); }
+void do_ge () { data_push(data_pop() >= data_pop()); }
+/* Comparison with zero */
+void do_zequ () { data_push(data_pop() == 0);}
+void do_zneq () { data_push(data_pop() != 0);}
+void do_zlt () { data_push(data_pop() < 0);}
+void do_zgt () { data_push(data_pop() > 0);}
+void do_zle () { data_push(data_pop() <= 0);}
+void do_zge () { data_push(data_pop() >= 0);}
+/* Bitwise operators */
+void do_and () { data_push(data_pop() & data_pop());}
+void do_or () { data_push(data_pop() | data_pop());}
+void do_xor () { data_push(data_pop() ^ data_pop());}
+void do_invert () { data_push(~ data_pop()); } 
 
 void create_c_code
 (const char * cname,
@@ -572,6 +587,16 @@ void test_io ()
 	printf("err(%d) #:%ld\n", (int) data_pop(), (long) data_pop());
 
 	var_Base = old_base;
+}
+
+void do_true ()
+{
+	data_push(LangBool.TRUE);
+}
+
+void do_false ()
+{
+	data_push(LangBool.FALSE);
 }
 
 int main (int argc, char ** argv)
