@@ -1,2 +1,2 @@
 build:
-	gcc main.c -o femtoforth.exe -g -std=c99 -Wall -Werror 
+	gcc main.c -o forth.exe -g -std=c99 -Wall -Werror 
