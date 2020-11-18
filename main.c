@@ -1,4 +1,7 @@
-/* FemtoForth.c */
+/* FemtoForth.c
+ * Intended compilation command (C99):
+ * `gcc -g -std=c99 -Wall -Werror'
+ */
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -14,22 +17,53 @@
 #define RETURN_STACK_SIZE 100
 #define ADDITIONAL_MEMORY 1972 
 
-/* Canonical values of true and false */
-long F_TRUE = -1;
-long F_FALSE = 0;
+typedef struct Arena {
+	char * ptr;
+	char * end;
+	char ** blocks
+} Arena; 
 
-/* Canonical values of interpretter state */
-long INTERPRET_MODE_IMMEDIATE = 0;
-long INTERPRET_MODE_COMPILE = 1;
+void * arena_alloc (Arena * arena, size_t size)
+{
+	if (size > (size_t)(arena->end - arena->ptr))
+	{
+		arena_grow(arena, size);
+		assert(size <= (size_t)(arena->end - arena->ptr));
+	}
 
-/* The two stacks,
- * data stack,
- * and return stack
- */
-long * data_stack;
-long * return_stack;
-void * var_S0; 
-void * var_R0;
+	void * ptr = arena->ptr;
+	arena->ptr = ALIGN_UP_PTR(arena->ptr + size, ARENA_ALIGNMENT);
+
+	assert(arena->ptr <= arena->end);
+	assert(ptr == ALIGN_DOWN_PTR(ptr, ARENA_ALIGNMENT)a);
+	
+	return ptr;
+}
+
+void arena_grow (Arena * arena, size_t min_size)
+{
+	size_t size = align_up(clamp_min(min_size, ARENA_BLOCK_SIZE), ARENA_ALIGNMENT);
+	arena->ptr = xmalloc(size);
+	assert(arena->ptr == ALIGN_DOWN_PTR(arena->ptr, ARENA_ALIGNMENT));
+	arena->end = arena->ptr + size;
+	buf_push(arena->blocks, arena->ptr);
+}
+
+void arena_free (Arena * arena)
+{
+	for (char **it = arena->blocks; it != buf_end(arena->blocks; it++))
+	{
+		free(*it);
+	}
+	buf_free(arena->blocks);
+}
+
+typedef struct F_String
+{
+	long length;
+	char content [0];
+}
+F_String;
 
 /* Word dictionary headers */
 typedef struct WordHeader
@@ -42,6 +76,15 @@ typedef struct WordHeader
 }
 WordHeader;
 
+/* The two stacks,
+ * data stack,
+ * and return stack
+ */
+long * data_stack;
+long * var_S0; 
+long * return_stack;
+long * var_R0; 
+long ** memory;
 WordHeader * word_dictionary;
 
 /* Global buffers for certain functions */
@@ -543,14 +586,54 @@ void do_cmove ()
 	memcpy(dest_addr, src_addr, length);
 }
 
-void create_c_code
-(const char * cname,
- void (*func)(void),
- long is_immediate, long is_hidden)
+/* Create an F_String with a the maximum length of the smallest of
+ * the strlen of the cstring
+ * or the given length.
+ */
+/* WARNING: this overwrites a temporary string buffer, which can invalidate
+ * pointers that result from calling this function.
+ */
+void fstring_from_c (F_String * out, char * cstring, int length)
 {
-/* TODO: reference my implementation idea. Remember the link field (if needed).
- * I was here last!
- */	
+	static char buffer [1024];
+	char * c = cstring;
+	int cstring_len = 0;
+	while (*(c++) && (c-cstring <= length))
+	{
+		*buffer++ = *c;
+		cstring_len++;
+	}
+	result->contents = *buffer;
+	// Minimum
+	result->length = (length > cstring_len) ? cstring_len : length;
+} 
+
+void word_create_c
+(const char * cname,
+ bool is_immediate,
+ bool is_hidden,
+ void (*func)(void))
+{
+	int length = strlen(cname);
+	char name[DICT_WORD_LENGTH] = cstring_to_fstring(cname, DICT_WORD_LENGTH);
+	WordHeader h = {length, is_immediate, is_hidden, name, func};
+	*word_dictionary = h;
+}
+
+void do_DOCOL ()
+{
+	// TODO: implement
+}
+
+/* Creates DOCOL definitions for Forth words */
+void word_create_forth
+(const char * cname,
+ bool is_immediate,
+ bool is_hidden,
+ long * code_start,
+ int code_length)
+{
+	F_String = cstring_to_fstring(cname);	
 }
 
 void test_data_stack ()
