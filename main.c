@@ -1,6 +1,5 @@
 /* FemtoForth.c
- * Intended compilation command (C99):
- * `gcc -g -std=c99 -Wall -Werror'
+ * Intended C standard: C99.
  */
 
 #include <stdbool.h>
@@ -10,10 +9,13 @@
 #include <assert.h>
 #include <string.h>
 
+#define K *1024
+
 long * dsp;
 long * rsp;
 long * var_S0; 
 long * var_R0; 
+long * memory;
 
 void *xmalloc(size_t num_bytes) {
     void *ptr = malloc(num_bytes);
@@ -132,6 +134,7 @@ long forth_bool (bool b)
 {
 	return b? -1l : 0l;
 }
+
 // Convert a Null-terminated string into a Length-encoded string
 void string_copy_null_to_length
 (const char * source, size_t length, char * dest)
@@ -153,287 +156,238 @@ void string_copy_null_to_length_test ()
 	}
 } 
 
-void data_push (long x)
+void ds_push (long x)
 {
 	*dsp = x;
 	dsp++;
 }
 
-long data_pop ()
+long ds_pop ()
 {
 	dsp--;
 	return *dsp;
 }
 
-long data_top ()
+long ds_top ()
 {
 	return *(dsp-1);
 } 
 
-void returns_push (long x)
+void rs_push (long x)
 {
 	*rsp = x;
 	rsp++;
 }
 
-long returns_pop ()
+long rs_pop ()
 {
 	rsp--;
 	return *rsp;
 } 
 
-void do_rdrop ()
+long rs_top ()
 {
-	returns_pop();
+	return *(rsp-1);
 }
 
-void do_dup ()
+
+char next_char ()
 {
-	data_push(data_top());
+	return getchar();
 }
 
-void do_swap ()
+int perform_char_code (char x)
 {
-	long a = data_pop();
-	long b = data_pop();
-	data_push(a);
-	data_push(b);
-}
-
-void do_drop ()
-{
-	data_pop();
-}
-
-/* rot ( a b c -- c a b ) */
-void do_rot ()
-{
-	long c = data_pop();
-	long b = data_pop();
-	long a = data_pop();
-	data_push(c);
-	data_push(a);
-	data_push(b);
-}
-
-/* -rot ( a b c -- b c a ) */
-void do_irot ()
-{
-	long c = data_pop();
-	long b = data_pop();
-	long a = data_pop();
-	data_push(b);
-	data_push(c);
-	data_push(a); 
-}
-
-void do_over ()
-{
-	data_push(*(dsp-2));
-}
-
-/* >R */
-void do_to_r ()
-{
-	returns_push(data_pop());
-}
-
-/* R> */
-void do_from_r ()
-{
-	data_push(returns_pop());
-}
-
-void do_S0 ()
-{
-	data_push((long) var_S0);
-}
-
-void do_R0 ()
-{
-	data_push((long) var_R0);
-}
-
-void do_RSP_fetch ()
-{
-	data_push((long) rsp);
-}
-
-void do_DSP_fetch ()
-{
-	data_push((long) dsp);
-}
-
-void do_RSP_store ()
-{
-	rsp = (long *) data_pop();
-}
-
-void do_DSP_store ()
-{
-	dsp = (long *) data_pop();
-}
-
-/* emit ( c -- ) */
-void do_emit ()
-{
-	putchar(data_pop());
-}
-
-/* key ( -- c ) */
-void do_key ()
-{
-	data_push(getchar());
-}
-
-/* Quick! math operators */
-void do_add () { data_push(data_pop() + data_pop()); } 
-void do_sub () { data_push(-data_pop() + data_pop()); } 
-void do_mul () { data_push(data_pop() * data_pop()); } 
-void do_negate () { data_push(-data_pop()); } 
-void do_double () { data_push(data_pop() * 2); }
-void do_halve () { data_push(data_pop() / 2); }
-/* Comparison operators */
-void do_equ () { data_push(forth_bool(data_pop() == data_pop())); } 
-void do_neq () { data_push(forth_bool(data_pop() != data_pop())); }
-void do_lt  () { data_push(forth_bool(data_pop() <  data_pop())); }
-void do_gt  () { data_push(forth_bool(data_pop() >  data_pop())); }
-void do_le  () { data_push(forth_bool(data_pop() <= data_pop())); }
-void do_ge  () { data_push(forth_bool(data_pop() >= data_pop())); }
-/* Comparison with zero */
-void do_zequ () { data_push(forth_bool(data_pop() == 0));}
-void do_zneq () { data_push(forth_bool(data_pop() != 0));}
-void do_zlt  () { data_push(forth_bool(data_pop() <  0));}
-void do_zgt  () { data_push(forth_bool(data_pop() >  0));}
-void do_zle  () { data_push(forth_bool(data_pop() <= 0));}
-void do_zge  () { data_push(forth_bool(data_pop() >= 0));}
-/* Bitwise operators */
-void do_and () { data_push(data_pop() & data_pop());}
-void do_or () { data_push(data_pop() | data_pop());}
-void do_xor () { data_push(data_pop() ^ data_pop());}
-void do_invert () { data_push(~ data_pop()); } 
-
-/* ?DUP ( n -- n n ) | ( 0 -- 0 ) */
-void do_qdup ()
-{
-	if (data_top() != 0)
-	{
-		data_push(data_top());
+	long * long_addr;
+	char * char_addr;
+	switch (x) {
+		case '#':
+			// Read number until a space is reached
+			{
+				long value = 0;
+				int base = 36;
+				char c = next_char();
+				while (char_to_value(c) >= 0)
+				{
+					value *= base;
+					value += char_to_value(c);
+				}
+				break;
+			}
+		case '\\':
+			// Push the value of the next char
+			ds_push(next_char());
+			break;
+		case '+':
+			ds_push(ds_pop() + ds_pop());
+			break;
+		case '-':
+			ds_push(ds_pop() - ds_pop());
+			break;
+		case '*':
+			ds_push(ds_pop() * ds_pop());
+			break;
+		case '%':
+			ds_push(ds_pop() % ds_pop());
+			break;
+		case '/':
+			ds_push(ds_pop() / ds_pop());
+			break;
+		case '0':
+			ds_push(0);
+			break;
+		case '1':
+			ds_push(1);
+			break;
+		case '~':
+			// Bitwise invert
+			ds_push(~ ds_pop());
+			break;
+		case '&':
+			// Bitwise and
+			ds_push(ds_pop() & ds_pop());
+			break;
+		case '^':
+			// Bitwise xor
+			ds_push(ds_pop() ^ ds_pop());
+			break;
+		case '|':
+			// Bitwise or
+			ds_push(ds_pop() | ds_pop());
+			break;
+		case '@': 
+			// Fetch
+			ds_push(*((long *) ds_pop()));
+			break;
+		case '!': 
+			// Store
+			long_addr = (long *) ds_pop();
+			*long_addr = ds_pop();
+			break;
+		case 'f': 
+			// Byte-fetch
+			ds_push(*((char *) ds_pop()));
+			break;
+		case '$':
+			// Byte-store
+			char_addr = (char *) ds_pop();
+			*char_addr = ds_pop(); 
+			break;
+		case '`': 
+			// Dup
+			ds_push(ds_top()); 
+			break;
+		case 'x':
+			{
+				// Swap
+				long a = ds_pop();
+				long b = ds_pop();
+				ds_push(a);
+				ds_push(b);
+				break;
+			}
+		case '_':
+			// Drop
+			ds_pop();
+			break;
+		case '=':
+			// Equal
+			ds_push(ds_pop() == ds_pop());
+			break;
+		case '>':
+			// Less-than ( a b -- a>b )
+			ds_push(ds_pop() < ds_pop());
+			break;
+		case '<':
+			// Greater-than ( a b -- a<b )
+			ds_push(ds_pop() > ds_pop());
+			break;
+		case 'o':
+			// Over ( a b -- a b a )
+			ds_push(*(dsp-2));
+			break;
+		case 'M':
+			{
+				// CMOVE
+				long length = ds_pop();
+				char * dest_addr = (char *) ds_pop();
+				char * src_addr = (char *) ds_pop();
+				memcpy(dest_addr, src_addr, length);
+				break;
+			}
+		case 'k':
+			// Key ( -- k )
+			ds_push((char) getchar());
+			break;
+		case 'e':
+			// Emit ( k -- )
+			putchar((char) ds_pop());
+			break;
+		case '?':
+			{
+				// ?DUP ( x -- x x ) | ( 0 -- 0 )
+				long t = ds_top();
+				if (t != 0) {
+					ds_push(t);
+				}
+				break;
+			}
+		case 'R':
+			// R0
+			ds_push((long) var_R0);
+			break;
+		case 'r':
+			{
+				// RSP!, RSP@, >R, and R>
+				// maps to
+				// r!,   r@,   r<, and r>
+				char modifier = next_char();
+				switch (modifier) {
+					case '!': // RSP!
+						rsp = (long *) ds_pop();
+						break;
+					case '@': // RSP@
+						ds_push((long) rsp);
+						break;
+					case '<': // >R 
+						rs_push(ds_pop());
+						break;
+					case '>': // R>
+						ds_push(rs_pop());
+						break;
+				}
+				break; 
+			}
+		case 's':
+			{
+				// DSP! and DSP@
+				char modifier = next_char();
+				switch (modifier) {
+					case '!': // DSP!
+						dsp = (long *) ds_pop();
+						break;
+					case '@': // DSP@
+						ds_push((long) dsp);
+						break;
+				}
+				break;
+			}
+		case 'S':
+			// S0 
+			ds_push((long) var_S0);
+			break;
+		case ' ':
+		case '\n':
+		case '\t':
+			// Ignore whitespace (unless a number is being read)
+			break;
+		default:
+			// Error code
+			return -1;
+			break;
 	}
-}
-
-/* ! ( value addr -- ) store */
-void do_store ()
-{
-	long * addr = (long *) data_pop();
-	*addr = data_pop();
-}
-
-/* @ ( addr -- value ) fetch */
-void do_fetch ()
-{
-	long * addr = (long *) data_pop();
-	data_push(*addr);
-}
-
-/* C! ( value addr -- ) byte store */
-void do_bytestore ()
-{
-	char * addr = (char *) data_pop();
-	*addr = data_pop();
-}
-
-/* C@ ( addr -- ) byte fetch */
-void do_bytefetch ()
-{
-	char * addr = (char *) data_pop();
-	data_push(*addr);
-}
-
-/* CMOVE ( src_addr dest_addr len -- ) block byte copy */
-void do_cmove ()
-{
-	long length = data_pop();
-	char * dest_addr = (char *) data_pop();
-	char * src_addr = (char *) data_pop();
-	memcpy(dest_addr, src_addr, length);
-}
-
-void test_data_stack ()
-{ 
-	int i;
-	int n = 100;
-	for (i = 0; i < n; i++)
-	{
-		data_push(i);
-		assert(data_top() == i);
-	}
-	for (i = 0; i < n; i++)
-	{
-		long x = data_pop();
-		assert(x == (n-1-i));
-	} 
-
-	int a = 1, b = 20, c = 300;
-
-	data_push(a);
-	data_push(b);
-	/* ( a b ) */
-
-	do_over();
-	/* ( a b a ) */
-	assert(data_pop() == a);
-	assert(data_pop() == b);
-	assert(data_pop() == a);
-
-	data_push(a);
-	data_push(b);
-	data_push(c);
-	/* ( a b c ) */
-
-	do_rot();
-	assert(data_top() == b);
-	/* ( c a b ) */
-
-	do_rot();
-	assert(data_top() == a);
-	/* ( b c a ) */
-
-	do_rot();
-	assert(data_top() == c);
-	/* ( a b c ) */
-
-	do_irot();
-	assert(data_top() == a);
-	/* ( b c a ) */
-
-	do_irot();
-	assert(data_top() == b);
-	/* ( c a b ) */
-
-	do_irot();
-	assert(data_top() == c);
-	/* ( a b c ) */
-	
-	/* Clear the stack and check */
-	assert(data_pop() == c);
-	assert(data_pop() == b);
-	assert(data_pop() == a); 
-}
-
-void test_return_stack ()
-{
-	int i;
-	int n = 100;
-	for (i = 0; i < n; i++)
-	{
-		returns_push(i);
-	}
-	for (i = 0; i < n; i++)
-	{
-		long x = returns_pop();
-		assert(x == (n-1-i));
-	}
+	// No error
+	return 0; 
 } 
 
 void memory_init ()
@@ -442,15 +396,25 @@ void memory_init ()
 	dsp = var_S0;
 	var_R0 = xmalloc(sizeof(*var_R0) * 1000);
 	rsp = var_R0;
+	memory = xmalloc(sizeof(long) * 10 K);
+}
+
+void test_echo ()
+{
+	perform_char_code('k');
+	perform_char_code('e');
 }
 
 int main (int argc, char ** argv)
 { 
 	memory_init();
 
-	//test_data_stack();
-	//test_return_stack();
-	string_copy_null_to_length_test();
+	char c = next_char();
+	while (c != 'z')
+	{
+		perform_char_code(c);
+		next_char();
+	}
 
 	return 0;
 }

@@ -4,11 +4,8 @@
 \ This would only be used by the user if they wanted to replace all further standard definitions.
 : STDLIB ;
 
-\ Redefine version based on how updated this file is
-: VERSION 2 ; 
-
 \ Comparison and Boolean values
-: TRUE 1 ;
+: TRUE -1 ;
 : FALSE 0 ;
 : 0= 0 = ;
 : not 0= ;
