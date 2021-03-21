@@ -1,9 +1,15 @@
-ff: femtoforth.s
-	gcc -nostdlib -static -Wl,--build-id=none -o femtoforth femtoforth.s
 
-test: ff
-	cat asm_test.fs | ./femtoforth
+run: all
+	./forth
 
-run: ff
-	cat femtoforth.fs - | ./femtoforth
+all: forth
+
+forth: forth.o
+	ld forth.o -o forth
+	
+forth.o: forth2.s
+	as forth1.s -mbig-endian -o forth.o
+
+forth2.s:
+	python3 escape.py forth2.fs > forth2.s
 

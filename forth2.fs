@@ -1,11 +1,4 @@
-\ This is rest of FemtoForth written in itself. No more assembly!
-
-\ Create a null definition for STDLIB so that it can all be forgotten with FORGET later.
-\ This would only be used by the user if they wanted to replace all further standard definitions.
-: STDLIB ;
-
-\ Redefine version based on how updated this file is
-: VERSION 2 ; 
+\ This is the rest of my forth written in itself
 
 \ Comparison and Boolean values
 : TRUE 1 ;
@@ -31,7 +24,7 @@
 : negate 0 swap - ;
 
 \ Use the DIVMOD operation defined in assembly
-\ in order to create DIV and MOD
+\ in order to create division and mod
 : / /mod swap drop ; 
 : mod /mod drop ;
 
