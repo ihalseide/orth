@@ -399,12 +399,6 @@ void memory_init ()
 	memory = xmalloc(sizeof(long) * 10 K);
 }
 
-void test_echo ()
-{
-	perform_char_code('k');
-	perform_char_code('e');
-}
-
 int main (int argc, char ** argv)
 { 
 	memory_init();
