@@ -1,11 +1,11 @@
 
-run: bin/forth1
-	./bin/forth1
+run: core
+	./bin/core
 
-forth1: forth1.o
-	ld -g -o bin/forth1 bin/forth1.o
+core: core.o
+	ld -g -o bin/core bin/core.o
 	
-forth1.o: forth1.s
-	as -g -o bin/forth1.o forth1.s
+core.o: core.s
+	as -g -o bin/core.o core.s
 
 
