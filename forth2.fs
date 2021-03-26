@@ -677,10 +677,12 @@ immediate
 \ Print out the ok prompt
 : ok ."  ok." ;
 
-\ Finally, print the FemtoForth startup prompt
+\ Finally, print the startup prompt
 : hello
 	." FemtoForth version " VERSION . CR
 	unused . ." memory cells remaining" CR
 	ok CR ; 
+
 hello
 hide hello
+
