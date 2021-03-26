@@ -31,11 +31,14 @@ args = p.parse_args()
 
 # Print the prologue, which is just the section/label
 print("forth_src:")
+
 # Escape each line from the file
 with open(args.file, "r") as file:
 	for line in file.readlines():
-		if line[0] == '\\': # Skip lines that begin with a backslash
+		# Skip backslash comments
+		if line[0] == '\\':
 			continue
+		# Skip empty lines
 		if not line.strip():
 			continue
 		print(asm_str(line))
