@@ -8,17 +8,38 @@
 // Is used to chain together words in the dictionary as they are defined in asm.
 	.set link, 0    
 
+//----------
+// Stack area
+//----------
+
+	.data
+
+// The data/parameter stack grows down
+	.space 256
+stack_base:
+	.space 256
+
+//-----------------------
+// Terminal Input Buffer
+//-----------------------
+
+addr_tib:
+	.space 128 
+
 //----------------
 // System Variables
 //----------------
+
+	.text
 
 // state ( -- addr )
 // Compiling or interpreting state.
 name_state:
 	.word link
 	.set link, name_state
-	.byte 4
+	.byte 5
 	.ascii "state"
+	.space 26
 	.align 2
 xt_state:
 	.word dovar
@@ -32,6 +53,7 @@ name_to_in:
 	.set link, name_to_in
 	.byte 3
 	.ascii ">in"
+	.space 28
 	.align 2
 xt_to_in:
 	.word dovar
@@ -43,8 +65,9 @@ val_to_in:
 name_num_tib:
 	.word link
 	.set link, name_num_tib
-	.byte 3
-	.ascii ">in"
+	.byte 4
+	.ascii "#tib"
+	.space 27
 	.align 2
 xt_num_tib:
 	.word dovar
@@ -58,6 +81,7 @@ name_dp:
 	.set link, name_dp
 	.byte 2
 	.ascii "dp"
+	.space 29
 	.align 2
 xt_dp:
 	.word dovar
@@ -71,6 +95,7 @@ name_base:
 	.set link, name_base
 	.byte 4
 	.ascii "base"
+	.space 27
 	.align 2
 xt_base:
 	.word dovar
@@ -84,9 +109,10 @@ name_last:
 	.set link, name_last
 	.byte 4
 	.ascii "last"
+	.space 27
 	.align 2
 xt_last:
-	.word do_var
+	.word dovar
 val_last:
 	.word final_word
 
@@ -97,19 +123,16 @@ name_tib:
 	.set link, name_tib
 	.byte 3
 	.ascii "tib"
+	.space 28
 	.align 2
 xt_tib:
 	.word dovar
 val_tib:
-	.space 128    // TODO: better layout of memory
+	.word addr_tib
 
 //----------------
 // Initialization
 //----------------
-
-// Main program starting point.
-_start:
-	b quit            // Run quit (which doesn't quit this program).
 
 // quit ( -- )
 name_quit:
@@ -117,20 +140,26 @@ name_quit:
 	.set link, name_quit
 	.byte 4
 	.ascii "quit"
+	.space 27
 	.align 2
 xt_quit:
 	.word quit
+_start:
 quit:
-	ldr r0, =val_number_tib // copy value of "#tib" to ">in"
+	adr r0, val_num_tib    // Copy value of "#tib" to ">in".
 	ldr r0, [r0]
-	ldr r1, =val_to_in
+	adr r1, val_to_in
 	str r0, [r1]
-	eor r11, r11            // Clear the return stack pointer.
+
+	ldr r11, =stack_base    // Init the return stack.
+	ldr sp, =stack_base     // Init the data stack.
+
 	ldr r1, =val_state      // Set state to 0.
-	str r11, [r1]
-	ldr r13, =stack_0       // Set the stack pointer.
+	eor r0, r0
+	str r0, [r1]
+
 	ldr r10, =interpret     // Set the virtual instruction pointer to the interpreter.
-	b next                  // Jump to the inner interpreter.
+	b next
 
 //----------------
 // Inner interpreter
@@ -154,9 +183,10 @@ name_colon:
 	.set link, name_colon
 	.byte 1 + F_IMMEDIATE
 	.ascii ":"
+	.space 30
 	.align 2
 xt_colon:
-	.word docolon
+	.word docol
 colon:
 	.word xt_lit, -1
 	.word xt_state, xt_store   // Enter compile mode.
@@ -164,7 +194,7 @@ colon:
 	.word xt_do_semi_code      // Make "docolon" be the runtime code for the new header.
 
 // Runtime code for colon-defined words.
-docolon:
+docol:
 	str r10, [r11, #-4]!
 	add r10, r0, #4
 	b next
@@ -176,9 +206,10 @@ name_semicolon:
 	.set link, name_semicolon
 	.byte 1 + F_IMMEDIATE                // Semicolon must be immediate because 
 	.ascii ";"                           // it ends compilation while still in 
+	.space 30
 	.align 2                            // compile mode.
 xt_semicolon:
-	.word docolon
+	.word docol
 semicolon:
 	.word xt_lit, xt_exit                // Compile an exit code.
 	.word xt_comma
@@ -196,6 +227,7 @@ name_create:
 	.set link, name_create
 	.byte 6
 	.ascii "create"
+	.space 25
 	.align 2
 xt_create:
 	.word docol
@@ -224,7 +256,8 @@ name_do_semi_code:
 	.word link
 	.set link, name_do_semi_code
 	.byte 7
-	.ascii "(//code)"
+	.ascii "(;code)"
+	.space 24
 	.align 2
 xt_do_semi_code:
 	.word do_semi_code
@@ -246,9 +279,10 @@ name_const:
 	.set link, name_const
 	.byte 5
 	.ascii "const"
+	.space 26
 	.align 2
 xt_const:
-	.word docolon
+	.word docol
 	.word xt_create
 	.word xt_comma
 	.word xt_do_semi_code
@@ -269,6 +303,7 @@ name_lit:
 	.set link, name_lit
 	.byte 3
 	.ascii "lit"
+	.space 28
 	.align 2
 xt_lit:
 	.word lit
@@ -284,6 +319,7 @@ name_comma:
 	.set link, name_comma
 	.byte 1
 	.ascii ","
+	.space 30
 	.align 2
 xt_comma:
 	.word comma
@@ -306,6 +342,7 @@ name_drop:
 	.set link, name_drop
 	.byte 4
 	.ascii "drop"
+	.space 27
 	.align 2
 xt_drop:
 	.word drop
@@ -320,6 +357,7 @@ name_swap:
 	.set link, name_swap
 	.byte 4
 	.ascii "swap"
+	.space 27
 	.align 2
 xt_swap:
 	.word swap
@@ -336,6 +374,7 @@ name_dup:
 	.set link, name_dup
 	.byte 3
 	.ascii "dup"
+	.space 28
 	.align 2
 xt_dup:
 	.word dup
@@ -350,6 +389,7 @@ name_over:
 	.set link, name_over
 	.byte 4
 	.ascii "over"
+	.space 27
 	.align 2
 xt_over:
 	.word over
@@ -366,6 +406,7 @@ name_rot:
 	.set link, name_rot
 	.byte 3
 	.ascii "rot"
+	.space 28
 	.align 2
 xt_rot:
 	.word rot
@@ -384,6 +425,7 @@ name_to_r:
 	.set link, name_to_r
 	.byte 2
 	.ascii ">R"
+	.space 29
 	.align 2
 xt_to_r:
 	.word to_r
@@ -399,6 +441,7 @@ name_r_from:
 	.set link, name_r_from
 	.byte 2
 	.ascii "R>"
+	.space 29
 	.align 2
 xt_r_from:
 	.word r_from
@@ -418,6 +461,7 @@ name_add:
 	.set link, name_add
 	.byte 1
 	.ascii "+"
+	.space 30
 	.align 2
 xt_add:
 	.word add
@@ -433,6 +477,7 @@ name_sub:
 	.set link, name_sub
 	.byte 1
 	.ascii "-"
+	.space 30
 	.align 2
 xt_sub:
 	.word sub
@@ -448,6 +493,7 @@ name_multiply:
 	.set link, name_multiply
 	.byte 1
 	.ascii "*"
+	.space 30
 	.align 2
 xt_multiply:
 	.word multiply
@@ -464,6 +510,7 @@ name_equal:
 	.set link, name_equal
 	.byte 1
 	.ascii "="
+	.space 30
 	.align 2
 xt_equal:
 	.word equal
@@ -481,6 +528,7 @@ name_lt:
 	.set link, name_lt
 	.byte 1
 	.ascii "<"
+	.space 30
 	.align 2
 xt_lt:
 	.word lt
@@ -498,6 +546,7 @@ name_gt:
 	.set link, name_gt
 	.byte 1
 	.ascii ">"
+	.space 30
 	.align 2
 xt_gt:
 	.word gt
@@ -515,6 +564,7 @@ name_and:
 	.set link, name_and
 	.byte 1
 	.ascii "&"
+	.space 30
 	.align 2
 xt_and:
 	.word and
@@ -530,6 +580,7 @@ name_or:
 	.set link, name_or
 	.byte 1
 	.ascii "|"
+	.space 30
 	.align 2
 xt_or:
 	.word or
@@ -545,6 +596,7 @@ name_xor:
 	.set link, name_xor
 	.byte 1
 	.ascii "^"
+	.space 30
 	.align 2
 xt_xor:
 	.word xor
@@ -560,6 +612,7 @@ name_invert:
 	.set link, name_invert
 	.byte 1
 	.ascii "~"
+	.space 30
 	.align 2
 xt_invert:
 	.word invert
@@ -578,6 +631,7 @@ name_store:
 	.set link, name_store
 	.byte 1
 	.ascii "!"
+	.space 30
 	.align 2
 xt_store:
 	.word store
@@ -594,6 +648,7 @@ name_fetch:
 	.set link, name_fetch
 	.byte 1
 	.ascii "@"
+	.space 30
 	.align 2
 xt_fetch:
 	.word fetch
@@ -608,6 +663,7 @@ name_cstore:
 	.set link, name_cstore
 	.byte 2
 	.ascii "c!"
+	.space 29
 	.align 2
 xt_cstore:
 	.word cstore
@@ -624,6 +680,7 @@ name_cfetch:
 	.set link, name_cfetch
 	.byte 2
 	.ascii "c@"
+	.space 29
 	.align 2
 xt_cfetch:
 	.word cfetch
@@ -644,6 +701,7 @@ name_exit:
 	.set link, name_exit
 	.byte 4
 	.ascii "exit"
+	.space 27
 	.align 2
 xt_exit: 
 	.word exit
@@ -658,6 +716,7 @@ name_branch:
 	.set link, name_branch
 	.byte 6
 	.ascii "branch"
+	.space 25
 	.align 2
 xt_branch:
 	.word branch
@@ -673,6 +732,7 @@ name_zero_branch:
 	.set link, name_zero_branch
 	.byte 7
 	.ascii "0branch"
+	.space 24
 	.align 2
 xt_zero_branch:
 	.word zero_branch
@@ -691,6 +751,7 @@ name_exec:
 	.set link, name_exec
 	.byte 4
 	.ascii "exec"
+	.space 27
 	.align 2
 xt_exec:
 	.word exec
@@ -711,6 +772,7 @@ name_count:
 	.set link, name_count
 	.byte 5
 	.ascii "count"
+	.space 26
 	.align 2
 xt_count:
 	.word count
@@ -729,6 +791,7 @@ name_to_number:
 	.set link, name_to_number
 	.byte 7
 	.ascii ">number"
+	.space 24
 	.align 2
 xt_to_number:
 	.word to_number
@@ -783,6 +846,7 @@ name_accept:
 	.set link, name_accept
 	.byte 6
 	.ascii "accept"
+	.space 25
 	.align 2
 xt_accept:
 	.word accept
@@ -797,6 +861,7 @@ name_word:
 	.set link, name_word
 	.byte 4
 	.ascii "word"
+	.space 27
 	.align 2
 xt_word:
 	.word word
@@ -810,7 +875,7 @@ word:
 	ldr r3, =val_to_in       // set r1 to tib + >in
 	ldr r3, [r3]
 	add r1, r3               // r1 holds the current pointer into the input buf
-	ldr r3, =val_number_tib  // set r2 to tib + #tib
+	ldr r3, =val_num_tib  // set r2 to tib + #tib
 	ldr r3, [r3]
 	add r2, r3               // r2 holds the addr of the end of the input buf
 word1:
@@ -849,6 +914,7 @@ name_emit:
 	.set link, name_emit
 	.byte 4
 	.ascii "emit"
+	.space 27
 	.align 2
 xt_emit:
 	.word word
@@ -901,6 +967,7 @@ name_find:
 	.set link, name_find
 	.byte 4
 	.ascii "find"
+	.space 27
 	.align 2
 xt_find:
 	.word find
@@ -929,20 +996,21 @@ name_interpret:
 	.set link, name_interpret
 	.byte 9
 	.ascii "interpret"
+	.space 22
 	.align 2
 xt_interpret:
-	.word docolon
+	.word docol
 interpret:
-	.word xt_number_t_i_b
+	.word xt_num_tib
 	.word xt_fetch
 	.word xt_to_in
 	.word xt_fetch
 	.word xt_equal
 	.word xt_zero_branch, intpar
-	.word xt_t_i_b
+	.word xt_tib
 	.word xt_lit, 50
 	.word xt_accept
-	.word xt_number_t_i_b
+	.word xt_num_tib
 	.word xt_store
 	.word xt_lit, 0
 	.word xt_to_in
