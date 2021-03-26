@@ -1,7 +1,9 @@
+	.global _start
 
 // Define the word flag values:
-	.set F_IMMEDIATE, 0x80   // Immediate word
-	.set F_LENMASK, 0x1f     // Length mask
+	.set F_IMMEDIATE, 0b10000000   // Immediate word
+	.set F_HIDDEN,    0b01000000   // Hidden word
+	.set F_LENMASK,   0x00111111   // Length mask
 
 // Is used to chain together words in the dictionary as they are defined in asm.
 	.set link, 0    
@@ -12,9 +14,9 @@
 
 // state ( -- addr )
 // Compiling or interpreting state.
-head_state:
+name_state:
 	.word link
-	.set link, head_state
+	.set link, name_state
 	.byte 4
 	.ascii "state"
 	.balign 4
@@ -25,9 +27,9 @@ val_state:
 
 // >in ( -- addr )
 // Next character in input buffer.
-head_to_in:
+name_to_in:
 	.word link
-	.set link, head_to_in
+	.set link, name_to_in
 	.byte 3
 	.ascii ">in"
 	.balign 4
@@ -38,9 +40,9 @@ val_to_in:
 
 // #tib ( --  addr )
 // Number of characters in the input buffer.
-head_num_tib:
+name_num_tib:
 	.word link
-	.set link, head_num_tib
+	.set link, name_num_tib
 	.byte 3
 	.ascii ">in"
 	.balign 4
@@ -51,9 +53,9 @@ val_num_tib:
 
 // dp ( -- addr )
 // First free cell in the dictionary (dictionary pointer).
-head_dp
+name_dp:
 	.word link
-	.set link, head_dp
+	.set link, name_dp
 	.byte 2
 	.ascii "dp"
 	.balign 4
@@ -64,9 +66,9 @@ val_dp:
 
 // base ( -- addr )
 // Address of the number read and write base.
-head_base:
+name_base:
 	.word link
-	.set link, head_base
+	.set link, name_base
 	.byte 4
 	.ascii "base"
 	.balign 4
@@ -77,9 +79,9 @@ val_base:
 	
 // last ( -- addr )
 // Address of the last word defined.
-head_last:
+name_last:
 	.word link
-	.set link, head_last
+	.set link, name_last
 	.byte 4
 	.ascii "last"
 	.balign 4
@@ -90,9 +92,9 @@ val_last:
 
 // tib ( -- addr )
 // Address of the input buffer.
-head_tib:
+name_tib:
 	.word link
-	.set link, head_tib
+	.set link, name_tib
 	.byte 3
 	.ascii "tib"
 	.balign 4
@@ -106,14 +108,13 @@ val_tib:
 //-------------------------------------------------------------------------------
 
 // Main program starting point.
-	.global _start
 _start:
 	b quit            // Run quit (which doesn't quit this program).
 
 // quit ( -- )
-head_quit:
+name_quit:
 	.word link
-	.set link, head_quit
+	.set link, name_quit
 	.byte 4
 	.ascii "quit"
 	.balign 4
@@ -127,8 +128,8 @@ quit:
 	eor r11, r11            // Clear the return stack pointer.
 	ldr r1, =val_state      // Set state to 0.
 	str r11, [r1]
-	mov r13, =stack_0       // Set the stack pointer.
-	mov r10, =interpret     // Set the virtual instruction pointer to the interpreter.
+	ldr r13, =stack_0       // Set the stack pointer.
+	ldr r10, =interpret     // Set the virtual instruction pointer to the interpreter.
 	b next                  // Jump to the inner interpreter.
 
 //-------------------------------------------------------------------------------
@@ -148,9 +149,9 @@ next:
 // : ( -- )
 // Colon will define a new word by adding it to the dictionary and by setting
 // the "last" word to be the new word
-head_colon:
+name_colon:
 	.word link
-	.set link, head_colon
+	.set link, name_colon
 	.byte 1 + F_IMMEDIATE
 	.ascii ":"
 	.balign 4
@@ -170,9 +171,9 @@ docolon:
 
 // ; ( -- )
 // Semicolon: complete the current forth word being compiled.
-head_semicolon:
+name_semicolon:
 	.word link
-	.set link, head_semicolon
+	.set link, name_semicolon
 	.byte 1 + F_IMMEDIATE                // Semicolon must be immediate because 
 	.ascii ";"                           // it ends compilation while still in 
 	.balign 4                            // compile mode.
@@ -190,9 +191,9 @@ semicolon:
 
 // create ( -- )
 //
-head_create:
+name_create:
 	.word link
-	.set link, head_create
+	.set link, name_create
 	.byte 6
 	.ascii "create"
 xt_create:
@@ -218,17 +219,17 @@ dovar:
 	b next
 
 // (//code) ( -- )
-head_do_semi_code:
+name_do_semi_code:
 	.word link
-	.set link, head_do_semi_code:
+	.set link, name_do_semi_code
 	.byte 7
 	.ascii "(//code)"
 	.balign 4
 xt_do_semi_code:
 	.word do_semi_code
 do_semi_code:
-	mov r8, =val_last       // Set r8 to the link field address of the last dictionary word.
-	mov r8, [r8]
+	ldr r8, =val_last       // Set r8 to the link field address of the last dictionary word.
+	ldr r8, [r8]
 	// last edit <HERE>
 
 
@@ -239,9 +240,9 @@ do_semi_code:
 // const ( x -- )
 // Create a new constant word that pushes x, where the name of the constant is
 // taken from the input buffer.
-head_const:
+name_const:
 	.word link
-	.set link, head_const
+	.set link, name_const
 	.byte 5
 	.ascii "const"
 	.balign 4
@@ -262,9 +263,9 @@ doconst:                   // Runtime code for words that push a constant.
 
 // lit ( -- )
 // Pushes the next value in the cell right after itself
-head_lit:
+name_lit:
 	.word link
-	.set link, head_lit
+	.set link, name_lit
 	.byte 3
 	.ascii "lit"
 	.balign 4
@@ -277,16 +278,16 @@ lit:
 
 // , ( x -- )
 // Comma compiles the value x to the dictionary
-head_comma:
+name_comma:
 	.word link
-	.set link, head_comma
+	.set link, name_comma
 	.byte 1
 	.ascii ","
 	.balign 4
 xt_comma:
 	.word comma
 comma:
-	mov r8, =val_dp         // Set r8 to the dictionary pointer.
+	ldr r8, =val_dp         // Set r8 to the dictionary pointer.
 	mov r7, r8              // r7 = copy of dp.
 	str r9, [r8], #4        // Store TOS to the dictionary ptr and increment ptr.
 	str r8, [r7]            // Update the val_dp with the new dictionary pointer.
@@ -299,9 +300,9 @@ comma:
 
 // drop ( a -- )
 // drops the top element of the stack 
-head_drop:
+name_drop:
 	.word link
-	.set link, head_drop
+	.set link, name_drop
 	.byte 4
 	.ascii "drop"
 	.balign 4
@@ -313,9 +314,9 @@ drop:
 
 // swap ( a b -- b a )
 // swaps the two top items on the stack
-head_swap:
+name_swap:
 	.word link
-	.set link, head_swap
+	.set link, name_swap
 	.byte 4
 	.ascii "swap"
 	.balign 4
@@ -329,9 +330,9 @@ swap:
 
 // dup ( a -- a a )
 // duplicates the top item on the stack 
-head_dup:
+name_dup:
 	.word link
-	.set link, head_dup
+	.set link, name_dup
 	.byte 3
 	.ascii "dup"
 	.balign 4
@@ -343,9 +344,9 @@ dup:
 
 // over ( a b -- a b a )
 // duplicates the second item on the stack
-head_over:
+name_over:
 	.word link
-	.set link, head_over
+	.set link, name_over
 	.byte 4
 	.ascii "over"
 	.balign 4
@@ -359,9 +360,9 @@ over:
 
 // rot ( x y z -- y z x)
 // rotate the third item on the stack to the top
-head_rot:
+name_rot:
 	.word link
-	.set link, head_rot
+	.set link, name_rot
 	.byte 3
 	.ascii "rot"
 	.balign 4
@@ -377,9 +378,9 @@ rot:
 
 // >R ( a -- )
 // move the top element from the data stack to the return stack 
-head_to_r
+name_to_r:
 	.word link
-	.set link, head_to_r
+	.set link, name_to_r
 	.byte 2
 	.ascii ">R"
 	.balign 4
@@ -392,9 +393,9 @@ to_r:
 
 // R> ( -- a )
 // move the top element from the return stack to the data stack 
-head_r_from:
+name_r_from:
 	.word link
-	.set link, head_r_from
+	.set link, name_r_from
 	.byte 2
 	.ascii "R>"
 	.balign 4
@@ -411,9 +412,9 @@ r_from:
 
 // + ( a b -- a+b) 
 // addition
-head_add:
+name_add:
 	.word link
-	.set link, head_add
+	.set link, name_add
 	.byte 1
 	.ascii "+"
 	.balign 4
@@ -426,9 +427,9 @@ add:
 
 // - ( a b -- a-b) 
 // subtraction
-head_sub:
+name_sub:
 	.word link
-	.set link, head_sub
+	.set link, name_sub
 	.byte 1
 	.ascii "-"
 	.balign 4
@@ -441,9 +442,9 @@ sub:
 
 // * ( x y -- x*y) 
 // multiplication
-head_multiply:
+name_multiply:
 	.word link
-	.set link, head_multiply
+	.set link, name_multiply
 	.byte 1
 	.ascii "*"
 	.balign 4
@@ -457,9 +458,9 @@ multiply:
 
 // = ( a b -- p ) 
 // test for equality, -1=True, 0=False
-head_equal:
+name_equal:
 	.word link
-	.set link, head_equal
+	.set link, name_equal
 	.byte 1
 	.ascii "="
 	.balign 4
@@ -474,9 +475,9 @@ equal:
 
 // < ( x y -- y<x )
 // less-than, see "=" for truth values
-head_lt:
+name_lt:
 	.word link
-	.set link, head_lt
+	.set link, name_lt
 	.byte 1
 	.ascii "<"
 	.balign 4
@@ -491,9 +492,9 @@ lt:
 
 // > ( x y -- y>x )
 // greater-than, see "=" for truth values
-head_gt:
+name_gt:
 	.word link
-	.set link, head_gt
+	.set link, name_gt
 	.byte 1
 	.ascii ">"
 	.balign 4
@@ -508,9 +509,9 @@ gt:
 
 // & AND ( a b -- a&b)
 // bitwise and 
-head_and:
+name_and:
 	.word link
-	.set link, head_and
+	.set link, name_and
 	.byte 1
 	.ascii "&"
 	.balign 4
@@ -523,9 +524,9 @@ and:
 
 // | ( a b -- a|b )
 // bitwise or 
-head_or:
+name_or:
 	.word link
-	.set link, head_or
+	.set link, name_or
 	.byte 1
 	.ascii "|"
 	.balign 4
@@ -538,9 +539,9 @@ or:
 
 // ^ ( a b -- a^b )
 // bitwise xor 
-head_xor:
+name_xor:
 	.word link
-	.set link, head_xor
+	.set link, name_xor
 	.byte 1
 	.ascii "^"
 	.balign 4
@@ -553,9 +554,9 @@ xor:
 
 // ~ ( a -- ~a )
 // bitwise not/invert
-head_invert:
+name_invert:
 	.word link
-	.set link, head_invert
+	.set link, name_invert
 	.byte 1
 	.ascii "~"
 	.balign 4
@@ -571,9 +572,9 @@ invert:
 
 // ! ( val addr -- )
 // store value to address 
-head_store:
+name_store:
 	.word link
-	.set link, head_store
+	.set link, name_store
 	.byte 1
 	.ascii "!"
 	.balign 4
@@ -587,9 +588,9 @@ store:
 
 // @ ( addr -- val )
 // fetch value from address 
-head_fetch:
+name_fetch:
 	.word link
-	.set link, head_fetch
+	.set link, name_fetch
 	.byte 1
 	.ascii "@"
 	.balign 4
@@ -601,9 +602,9 @@ fetch:
 
 // c! ( val addr -- )
 // store byte, does what "!" does, but for a single byte
-head_cstore:
+name_cstore:
 	.word link
-	.set link, head_cstore
+	.set link, name_cstore
 	.byte 2
 	.ascii "c!"
 	.balign 4
@@ -617,9 +618,9 @@ cstore:
 
 // c@ ( addr -- val )
 // fetch byte, does what "@" does for a single byte
-head_cfetch:
+name_cfetch:
 	.word link
-	.set link, head_cfetch
+	.set link, name_cfetch
 	.byte 2
 	.ascii "c@"
 	.balign 4
@@ -637,9 +638,9 @@ cfetch:
 
 // exit ( -- )
 // exit/return from current word
-head_exit:
+name_exit:
 	.word link
-	.set link, head_exit
+	.set link, name_exit
 	.byte 4
 	.ascii "exit"
 	.balign 4
@@ -651,9 +652,9 @@ exit:
 
 // branch ( -- )
 // changes the forth IP to the next codeword
-head_branch:
+name_branch:
 	.word link
-	.set link, head_branch
+	.set link, name_branch
 	.byte 6
 	.ascii "branch"
 	.balign 4
@@ -666,9 +667,9 @@ branch:
 
 // 0branch ( p -- )
 // branch if the top of the stack is zero 
-head_zero_branch:
+name_zero_branch:
 	.word link
-	.set link, head_zero_branch
+	.set link, name_zero_branch
 	.byte 7
 	.ascii "0branch"
 	.balign 4
@@ -679,14 +680,14 @@ zero_branch:
 	cmp r0, #0          // if the top of the stack is zero:
 	ldreq r1, [r10]     // branch
 	moveq r10, r1       // ...
-	addneq r10, r10, #4 // else: do not branch
+	addne r10, r10, #4 // else: do not branch
 	b next
 
 // exec ( xt -- )
 // execute the XT on the stack
-head_exec:
+name_exec:
 	.word link
-	.set link, head_exec
+	.set link, name_exec
 	.byte 4
 	.ascii "exec"
 	.balign 4
@@ -704,9 +705,9 @@ exec:
 
 // count ( addr1 -- addr2 len )
 // Convert a counted string address to the first char address and the length
-head_count:
+name_count:
 	.word link
-	.set link, head_count
+	.set link, name_count
 	.byte 5
 	.ascii "count"
 	.balign 4
@@ -716,14 +717,14 @@ count:
 	add r9, #1
 	str r9, [r13, #-4]!      // push the address of the first char
 	ldrb r9, [r9]            // load unsigned byte
-	mov r0, F_LENMASK        // remove the immediate flag from the length value
+	mov r0, #F_LENMASK       // remove the immediate flag from the length value
 	and r9, r9, r0          
 
 // string= ( addr1 addr2 -- flag )
 // Test if two counted strings are equal
-head_string_eq:
+name_string_eq:
 	.word link
-	.set link, head_string_eq
+	.set link, name_string_eq
 	.byte 7
 	.ascii "string="
 	.balign 4
@@ -731,9 +732,9 @@ xt_string_eq:
 	.word string_eq
 string_eq:
 	// TODO: FIXME: r0 and r9 are incorrectly used both as addresses and as values
-	and r9, F_LENMASK   // Remove any flags from addr2.
+	and r9, #F_LENMASK   // Remove any flags from addr2.
 	ldr r0, [r13], #4   // Pop addr1.
-	and r0, F_LENMASK   // Remove any flags from addr1.
+	and r0, #F_LENMASK   // Remove any flags from addr1.
 	cmp r9, r0
 	bne string_eq2      // If the lengths aren't equal, return false.
 	mov r1, r0          // Save the length of the strings.
@@ -753,9 +754,9 @@ string_eq2:             // Strings are not equal, so return false.
 
 // >number ( d addr len -- d2  addr2 zero     ) if successful
 //         ( d addr len -- int addr2 non-zero ) if error
-head_to_number:
+name_to_number:
 	.word link
-	.set link, head_to_number
+	.set link, name_to_number
 	.byte 7
 	.ascii ">number"
 	.balign 4
@@ -766,26 +767,25 @@ to_number:
 	ldr r0, [r13], #4    // r0 = addr
 	ldr r1, [r13], #4    // r1 = d.hi
 	ldr r2, [r13], #4    // r2 = d.lo
-	mov r4, =val_base    // get the current number base
+	ldr r4, =val_base    // get the current number base
 	ldr r4, [r4]
 to_num1:
 	cmp r9, #0           // if length=0 then done converting
 	beq to_num4
 	ldrb r3, [r0], #1    // get next char in the string
-	movh r3, #0          // (clear top of r3)
-	cmp r3, 'a'          // if it's less than 'a', it's not lower case
+	cmp r3, #'a'          // if it's less than 'a', it's not lower case
 	blt to_num2        
 	sub r3, #32          // convert the 'a'-'z' from lower case to upper case
 to_num2:
-	cmp r3, '9'+1        // if char is less than '9' its probably a decimal digit
+	cmp r3, #'9'+1        // if char is less than '9' its probably a decimal digit
 	blt to_num3
-	cmp r3, 'A'          // its a character between '9' and 'A', which is an error
+	cmp r3, #'A'          // its a character between '9' and 'A', which is an error
 	blt to_num5
 	sub r3, #7           // a valid char for a base>10, so convert it so that 'A' signifies 10
 to_num3:
 	sub r3, #48          // convert char digit to value
 	cmp r3, r4           // if digit >= base then it's an error
-	bgte to_num5
+	bge to_num5
 	mul r5, r1, r4       // multiply the high-word by the base
 	mov r1, r5
 	mul r5, r2, r4       // multiply the low-word by the base
@@ -808,9 +808,9 @@ to_num5:
 // accept ( addr len1 -- len2 )
 // read a string from input up to len1 chars long, len2 = actual number of chars
 // read.
-head_accept:
+name_accept:
 	.word link
-	.set link, head_accept
+	.set link, name_accept
 	.byte 6
 	.ascii "accept"
 	.balign 4
@@ -822,9 +822,9 @@ accept:
 
 // word ( char -- addr )
 // scan the input buffer for a character
-head_word:
+name_word:
 	.word link
-	.set link, head_word
+	.set link, name_word
 	.byte 4
 	.ascii "word"
 	.balign 4
@@ -846,7 +846,7 @@ word:
 word1:
 	cmp r2, r1               // branch if we reached the end of the buffer
 	beq word3
-	movb r3, [r1]            // get the next char from the buffer
+	ldrb r3, [r1]            // get the next char from the buffer
 	add r1, #1
 	cmp r3, r9               // get more chars if the char is the separator
 	beq word1
@@ -855,15 +855,15 @@ word2:
 	strb r3, [r0]            // write the char to the pad
 	cmp r2, r1               // branch if we reached the end of the buffer
 	beq word3
-	movb r3, [r1]            // get next char from the buffer
+	ldrb r3, [r1]            // get next char from the buffer
 	add r1, #1
 	cmp r3, r9               // get more characters if it's not the separator
 	bne word2
 word3:
-	mov r3, ' '              // terminate the word in pad with a space
-	strb r3, [r1 + 1]        
+	mov r3, #' '              // terminate the word in pad with a space
+	strb r3, [r1, #1]        
 	sub r0, r1               // r0 = pad_ptr - dp
-	strb r0, [?]             // save the length byte into the first byte of pad
+	strb r0, [r4]             // save the length byte into the first byte of pad
 	ldr r0, =val_tib         // ">in" = "tib" - pad_ptr
 	ldr r0, [r0]
 	sub r1, r0              
@@ -874,9 +874,9 @@ word3:
 
 // emit ( char -- )
 // display a character
-head_emit:
+name_emit:
 	.word link
-	.set link, head_emit
+	.set link, name_emit
 	.byte 4
 	.ascii "emit"
 	.balign 4
@@ -903,9 +903,9 @@ outchar:
 	and r0, #255    // Make sure the char passed is in range.
 	ldr r1, =char   // Store the char into the char buffer.
 	str r0, [r1]    
-	mov r7 #4       // Linux system call for write.
+	mov r7, #4      // Linux system call for write.
 	mov r0, #1      // fd = stdout
-	mov r1, =char   // buf = &char
+	ldr r1, =char   // buf = &char
 	mov r2, #1      // count = 1
 	swi #0          // return write(...)
 	bx lr
@@ -926,9 +926,9 @@ char:
 // * flag =  0, and addr2 = addr1, which means the word was not found
 // * flag =  1, and addr2 =    xt, which means the word is immediate
 // * flag = -1, and addr2 =    xt, which means the word is not immediate
-head_find:
+name_find:
 	.word link
-	.set link, head_find
+	.set link, name_find
 	.byte 4
 	.ascii "find"
 	.balign 4
@@ -954,9 +954,9 @@ final_word:
 // The outer interpreter (loop):
 // get a word from input and interpret it as either a number
 // or as a word
-head_interpret:
+name_interpret:
 	.word link
-	.set link, head_interpret
+	.set link, name_interpret
 	.byte 9
 	.ascii "interpret"
 	.balign 4
