@@ -3,7 +3,7 @@
 // Define the word flag values:
 	.set F_IMMEDIATE, 0b10000000   // Immediate word
 	.set F_HIDDEN,    0b01000000   // Hidden word
-	.set F_LENMASK,   0x00111111   // Length mask
+	.set F_LENMASK,   0b00111111   // Length mask
 
 // Is used to chain together words in the dictionary as they are defined in asm.
 	.set link, 0    
@@ -19,7 +19,7 @@ name_state:
 	.set link, name_state
 	.byte 4
 	.ascii "state"
-	.balign 4
+	.align 2
 xt_state:
 	.word dovar
 val_state:
@@ -32,7 +32,7 @@ name_to_in:
 	.set link, name_to_in
 	.byte 3
 	.ascii ">in"
-	.balign 4
+	.align 2
 xt_to_in:
 	.word dovar
 val_to_in:
@@ -45,7 +45,7 @@ name_num_tib:
 	.set link, name_num_tib
 	.byte 3
 	.ascii ">in"
-	.balign 4
+	.align 2
 xt_num_tib:
 	.word dovar
 val_num_tib:
@@ -58,7 +58,7 @@ name_dp:
 	.set link, name_dp
 	.byte 2
 	.ascii "dp"
-	.balign 4
+	.align 2
 xt_dp:
 	.word dovar
 val_dp:
@@ -71,7 +71,7 @@ name_base:
 	.set link, name_base
 	.byte 4
 	.ascii "base"
-	.balign 4
+	.align 2
 xt_base:
 	.word dovar
 val_base:
@@ -84,7 +84,7 @@ name_last:
 	.set link, name_last
 	.byte 4
 	.ascii "last"
-	.balign 4
+	.align 2
 xt_last:
 	.word do_var
 val_last:
@@ -97,7 +97,7 @@ name_tib:
 	.set link, name_tib
 	.byte 3
 	.ascii "tib"
-	.balign 4
+	.align 2
 xt_tib:
 	.word dovar
 val_tib:
@@ -117,7 +117,7 @@ name_quit:
 	.set link, name_quit
 	.byte 4
 	.ascii "quit"
-	.balign 4
+	.align 2
 xt_quit:
 	.word quit
 quit:
@@ -154,7 +154,7 @@ name_colon:
 	.set link, name_colon
 	.byte 1 + F_IMMEDIATE
 	.ascii ":"
-	.balign 4
+	.align 2
 xt_colon:
 	.word docolon
 colon:
@@ -176,7 +176,7 @@ name_semicolon:
 	.set link, name_semicolon
 	.byte 1 + F_IMMEDIATE                // Semicolon must be immediate because 
 	.ascii ";"                           // it ends compilation while still in 
-	.balign 4                            // compile mode.
+	.align 2                            // compile mode.
 xt_semicolon:
 	.word docolon
 semicolon:
@@ -196,6 +196,7 @@ name_create:
 	.set link, name_create
 	.byte 6
 	.ascii "create"
+	.align 2
 xt_create:
 	.word docol
 create:
@@ -224,7 +225,7 @@ name_do_semi_code:
 	.set link, name_do_semi_code
 	.byte 7
 	.ascii "(//code)"
-	.balign 4
+	.align 2
 xt_do_semi_code:
 	.word do_semi_code
 do_semi_code:
@@ -245,7 +246,7 @@ name_const:
 	.set link, name_const
 	.byte 5
 	.ascii "const"
-	.balign 4
+	.align 2
 xt_const:
 	.word docolon
 	.word xt_create
@@ -268,7 +269,7 @@ name_lit:
 	.set link, name_lit
 	.byte 3
 	.ascii "lit"
-	.balign 4
+	.align 2
 xt_lit:
 	.word lit
 lit:
@@ -283,7 +284,7 @@ name_comma:
 	.set link, name_comma
 	.byte 1
 	.ascii ","
-	.balign 4
+	.align 2
 xt_comma:
 	.word comma
 comma:
@@ -305,7 +306,7 @@ name_drop:
 	.set link, name_drop
 	.byte 4
 	.ascii "drop"
-	.balign 4
+	.align 2
 xt_drop:
 	.word drop
 drop:
@@ -319,7 +320,7 @@ name_swap:
 	.set link, name_swap
 	.byte 4
 	.ascii "swap"
-	.balign 4
+	.align 2
 xt_swap:
 	.word swap
 swap:
@@ -335,7 +336,7 @@ name_dup:
 	.set link, name_dup
 	.byte 3
 	.ascii "dup"
-	.balign 4
+	.align 2
 xt_dup:
 	.word dup
 dup:
@@ -349,7 +350,7 @@ name_over:
 	.set link, name_over
 	.byte 4
 	.ascii "over"
-	.balign 4
+	.align 2
 xt_over:
 	.word over
 over:
@@ -365,7 +366,7 @@ name_rot:
 	.set link, name_rot
 	.byte 3
 	.ascii "rot"
-	.balign 4
+	.align 2
 xt_rot:
 	.word rot
 rot:
@@ -383,7 +384,7 @@ name_to_r:
 	.set link, name_to_r
 	.byte 2
 	.ascii ">R"
-	.balign 4
+	.align 2
 xt_to_r:
 	.word to_r
 to_r:
@@ -398,7 +399,7 @@ name_r_from:
 	.set link, name_r_from
 	.byte 2
 	.ascii "R>"
-	.balign 4
+	.align 2
 xt_r_from:
 	.word r_from
 r_from:
@@ -417,7 +418,7 @@ name_add:
 	.set link, name_add
 	.byte 1
 	.ascii "+"
-	.balign 4
+	.align 2
 xt_add:
 	.word add
 add:
@@ -432,7 +433,7 @@ name_sub:
 	.set link, name_sub
 	.byte 1
 	.ascii "-"
-	.balign 4
+	.align 2
 xt_sub:
 	.word sub
 sub:
@@ -447,7 +448,7 @@ name_multiply:
 	.set link, name_multiply
 	.byte 1
 	.ascii "*"
-	.balign 4
+	.align 2
 xt_multiply:
 	.word multiply
 multiply:
@@ -463,7 +464,7 @@ name_equal:
 	.set link, name_equal
 	.byte 1
 	.ascii "="
-	.balign 4
+	.align 2
 xt_equal:
 	.word equal
 equal:
@@ -480,7 +481,7 @@ name_lt:
 	.set link, name_lt
 	.byte 1
 	.ascii "<"
-	.balign 4
+	.align 2
 xt_lt:
 	.word lt
 lt:
@@ -497,7 +498,7 @@ name_gt:
 	.set link, name_gt
 	.byte 1
 	.ascii ">"
-	.balign 4
+	.align 2
 xt_gt:
 	.word gt
 gt:
@@ -514,7 +515,7 @@ name_and:
 	.set link, name_and
 	.byte 1
 	.ascii "&"
-	.balign 4
+	.align 2
 xt_and:
 	.word and
 and:
@@ -529,7 +530,7 @@ name_or:
 	.set link, name_or
 	.byte 1
 	.ascii "|"
-	.balign 4
+	.align 2
 xt_or:
 	.word or
 or:
@@ -544,7 +545,7 @@ name_xor:
 	.set link, name_xor
 	.byte 1
 	.ascii "^"
-	.balign 4
+	.align 2
 xt_xor:
 	.word xor
 xor:
@@ -559,7 +560,7 @@ name_invert:
 	.set link, name_invert
 	.byte 1
 	.ascii "~"
-	.balign 4
+	.align 2
 xt_invert:
 	.word invert
 invert:
@@ -577,7 +578,7 @@ name_store:
 	.set link, name_store
 	.byte 1
 	.ascii "!"
-	.balign 4
+	.align 2
 xt_store:
 	.word store
 store:
@@ -593,7 +594,7 @@ name_fetch:
 	.set link, name_fetch
 	.byte 1
 	.ascii "@"
-	.balign 4
+	.align 2
 xt_fetch:
 	.word fetch
 fetch:
@@ -607,7 +608,7 @@ name_cstore:
 	.set link, name_cstore
 	.byte 2
 	.ascii "c!"
-	.balign 4
+	.align 2
 xt_cstore:
 	.word cstore
 cstore:
@@ -623,7 +624,7 @@ name_cfetch:
 	.set link, name_cfetch
 	.byte 2
 	.ascii "c@"
-	.balign 4
+	.align 2
 xt_cfetch:
 	.word cfetch
 cfetch:
@@ -643,7 +644,7 @@ name_exit:
 	.set link, name_exit
 	.byte 4
 	.ascii "exit"
-	.balign 4
+	.align 2
 xt_exit: 
 	.word exit
 exit:
@@ -657,7 +658,7 @@ name_branch:
 	.set link, name_branch
 	.byte 6
 	.ascii "branch"
-	.balign 4
+	.align 2
 xt_branch:
 	.word branch
 branch:
@@ -672,7 +673,7 @@ name_zero_branch:
 	.set link, name_zero_branch
 	.byte 7
 	.ascii "0branch"
-	.balign 4
+	.align 2
 xt_zero_branch:
 	.word zero_branch
 zero_branch:
@@ -690,7 +691,7 @@ name_exec:
 	.set link, name_exec
 	.byte 4
 	.ascii "exec"
-	.balign 4
+	.align 2
 xt_exec:
 	.word exec
 exec:
@@ -710,46 +711,15 @@ name_count:
 	.set link, name_count
 	.byte 5
 	.ascii "count"
-	.balign 4
+	.align 2
 xt_count:
 	.word count
 count:
-	add r9, #1
-	str r9, [r13, #-4]!      // push the address of the first char
-	ldrb r9, [r9]            // load unsigned byte
-	mov r0, #F_LENMASK       // remove the immediate flag from the length value
-	and r9, r9, r0          
-
-// string= ( addr1 addr2 -- flag )
-// Test if two counted strings are equal
-name_string_eq:
-	.word link
-	.set link, name_string_eq
-	.byte 7
-	.ascii "string="
-	.balign 4
-xt_string_eq:
-	.word string_eq
-string_eq:
-	// TODO: FIXME: r0 and r9 are incorrectly used both as addresses and as values
-	and r9, #F_LENMASK   // Remove any flags from addr2.
-	ldr r0, [r13], #4   // Pop addr1.
-	and r0, #F_LENMASK   // Remove any flags from addr1.
-	cmp r9, r0
-	bne string_eq2      // If the lengths aren't equal, return false.
-	mov r1, r0          // Save the length of the strings.
-string_eq1:
-	add r9, #1          // Increment both char indices.
+	mov r0, r9
 	add r0, #1
-	cmp r9, r0          // Continue only if they are equal.
-	bne string_eq2
-	sub r1, #1
-	cmp r1, #0
-	bne string_eq1      // Loop if there are more characters to compare.
-	mov r9, #-1         // Otherwise, return true.
-	b next
-string_eq2:             // Strings are not equal, so return false.
-	mov r9, #0
+	push {r0}
+	ldr r9, [r9]
+	and r9, #F_LENMASK
 	b next
 
 // >number ( d addr len -- d2  addr2 zero     ) if successful
@@ -759,7 +729,7 @@ name_to_number:
 	.set link, name_to_number
 	.byte 7
 	.ascii ">number"
-	.balign 4
+	.align 2
 xt_to_number:
 	.word to_number
 to_number:
@@ -813,7 +783,7 @@ name_accept:
 	.set link, name_accept
 	.byte 6
 	.ascii "accept"
-	.balign 4
+	.align 2
 xt_accept:
 	.word accept
 accept:
@@ -827,7 +797,7 @@ name_word:
 	.set link, name_word
 	.byte 4
 	.ascii "word"
-	.balign 4
+	.align 2
 xt_word:
 	.word word
 word:
@@ -879,7 +849,7 @@ name_emit:
 	.set link, name_emit
 	.byte 4
 	.ascii "emit"
-	.balign 4
+	.align 2
 xt_emit:
 	.word word
 emit:
@@ -931,7 +901,7 @@ name_find:
 	.set link, name_find
 	.byte 4
 	.ascii "find"
-	.balign 4
+	.align 2
 xt_find:
 	.word find
 find:
@@ -959,7 +929,7 @@ name_interpret:
 	.set link, name_interpret
 	.byte 9
 	.ascii "interpret"
-	.balign 4
+	.align 2
 xt_interpret:
 	.word docolon
 interpret:
