@@ -1,17 +1,11 @@
 
-run: clean all
-	./forth
+run: bin/forth1
+	./bin/forth1
 
-forth: forth.o
-	ld forth.o -o forth
+forth1: forth1.o
+	ld -g -o bin/forth1 bin/forth1.o
 	
-forth.o: forth2.s
-	as forth1.s -o forth.o
+forth1.o: forth1.s
+	as -g -o bin/forth1.o forth1.s
 
-forth2.s:
-	python3 escape.py forth2.fs > forth2.s
 
-clean:
-	rm forth2.s
-	rm forth.o
-	rm forth
