@@ -1,4 +1,3 @@
-
 build: core
 
 run: build
@@ -11,5 +10,8 @@ core: core.o
 	ld -g -o bin/core bin/core.o
 	
 core.o: core.s
-	as -g -o bin/core.o core.s
+	as -am -g -o bin/core.o core.s
+
+clean:
+	~/del.sh bin/core.o bin/core
 
