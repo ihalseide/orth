@@ -1,17 +1,17 @@
-build: core
+build: program
 
 run: build
-	./bin/core
+	./program
 
 debug: build
-	gdb bin/core
+	gdb program
 
-core: core.o
-	ld -g -o bin/core bin/core.o
+program: core.o
+	ld -g -o program core.o
 	
 core.o: core.s
-	as -am -g -o bin/core.o core.s
+	as -adhlns="$@.lst" -g -o core.o core.s
 
 clean:
-	~/del.sh bin/core.o bin/core
+	~/del.sh core.o core.o.lst program 
 
