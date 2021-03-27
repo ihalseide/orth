@@ -83,6 +83,11 @@ var_to_in:
 var_num_tib:
 	.int 0
 
+	define "tib", 3, , tib
+	.int dovar
+var_tib:
+	.int addr_tib
+
 	define "dp", 2, , dp
 	.int dovar
 var_dp:
@@ -97,10 +102,6 @@ var_base:
 	.int dovar
 var_last:
 	.int the_final_word
-
-	define "tib", 3, , tib
-	.int doconst
-	.int addr_tib
 
 	define ";", 1, F_IMMEDIATE, semicolon
 	.int docol
@@ -301,9 +302,6 @@ the_final_word:
 	/* Main starting point. */
 	.global _start
 _start:
-
-    // fall-through to quit
-
 quit:
 	ldr r11, =rstack_base    // Init the return stack.
 
@@ -321,7 +319,8 @@ quit:
 
 docol:
 	str r10, [r11, #-4]!    // Save the return address to the return stack
-	add r10, r8, #4        // Get the next instruction
+	add r10, r8, #4         // Get the next instruction
+	ldr r10, [r10]
 
 	// fall-into next
 
@@ -492,23 +491,22 @@ cfetch:
 	b next 
 
 branch:
-	ldr r1, [r10]
-	mov r10, r1    // absolute jump
+	ldr r0, [r10], #4
+	mov r10, r0
 	b next
 
 zero_branch:
-	ldr r0, [r13], #4
-	cmp r0, #0          // if the top of the stack is zero:
-	ldreq r1, [r10]     // branch
-	moveq r10, r1       // ...
-	addne r10, r10, #4 // else: do not branch
+	ldr r0, [r10], #4
+	cmp r9, #0
+	moveq r10, r0
+	pop {r9}
 	b next
 
 exec:
-	mov r8, r9        // save TOS to r0
-	ldr r9, [r13], #4 // pop the stack
-	ldr r1, [r8]      // dereference r0
-	bx r1             // goto r0
+	mov r8, r9        // r8 = the xt
+	pop {r9}          // pop the stack
+	ldr r1, [r8]      // r1 = code address
+	bx r1
 
 count:
 	mov r0, r9          // push addr + 1
@@ -599,21 +597,22 @@ accept:                   // accept - ( addr len -- len2 )
 word:                     // word - ( char -- addr )
 	mov r0, r9            // r0 = char
 	ldr r9, =var_dp       // push the dictionary pointer, which is used as a buffer area, "pad"
-	ldr r9, [r9]
+	ldr r9, [r9]          // r4 = r9 = dp
 	mov r4, r9
 
-	ldr r1, =var_tib      // r1 = tib
+	ldr r1, =var_tib      // r1 = r2 = tib
 	ldr r1, [r1]
-	mov r2, r1            // r2 = tib
+	ldr r1, [r1]
+	mov r2, r1
 
-	ldr r3, =var_to_in    // r1 += >in, r1 = pointer into the buffer
+	ldr r3, =var_to_in    // r1 += >in, so r1 = pointer into the buffer
 	ldr r3, [r3]
 	add r1, r3
 
-	ldr r3, =var_num_tib  // r2 += #tib, r2 = last char address in buffer
+	ldr r3, =var_num_tib  // r2 += #tib, so r2 = last char address in buffer
 	ldr r3, [r3]
 	add r2, r3            
-word_skip_skip:
+word_skip:
 	cmp r1, r2
 	beq word_done
 
@@ -637,10 +636,9 @@ word_done:
 	strb r4, [r9]         // store the length byte into the first char of the pad
 
 	ldr r3, =var_tib      // Get new value of >in and save it to its variable
-	ldr r3, r3
+	ldr r3, [r3]
 	sub r2, r3
 	ldr r3, =var_to_in    
-	ldr r3, r3
 	str r2, [r3]
 
 	b next                // TOS (r9) has been pointing to the pad addr the whole time
