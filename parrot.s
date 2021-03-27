@@ -7,6 +7,9 @@
 	.set stdout, 1
 	.set stderr, 2
 
+	.set IO_BUF_SIZE, 1024
+	.set STACK_SIZE, 256
+
 	.text
 
 	.global _start
@@ -33,6 +36,7 @@ print:
 	push {lr}
 
 	ldr r0, =io_buf_len
+	ldr r0, [r0]
 	bl print_n
 
 	pop {lr}
@@ -61,7 +65,6 @@ print_n:
 
 	mov r0, #stdout
 	ldr r1, =io_buf
-	ldr r2, [r2]
 	mov r7, #os_write
 	swi #0
 
@@ -70,12 +73,12 @@ print_n:
 
 	.data
 
-	.space 256
+	.space STACK_SIZE
 stack:
 
 io_buf_len:
 	.word 0
 
 io_buf:
-	.space 1024
+	.space IO_BUF_SIZE
 
