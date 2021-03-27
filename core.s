@@ -10,8 +10,9 @@
 	.set os_write, 4
 
 	/* Word bitmask flags */
-	.set F_LENMASK, 0b00111111    
 	.set F_IMMEDIATE, 0b10000000
+	.set F_HIDDEN,    0b01000000
+	.set F_LENMASK,   0b00111111    
 
 /* Begin normal program data, which needs to be before the dictionary
  * because the dictionary will grow upwards in memory.
@@ -226,8 +227,13 @@ var_last:
 	define "exec", 4, , exec
 	.word exec
 
+	// count ( addr -- addr2 len )
 	define "count", 5, , count
 	.word count
+
+	// tell ( addr -- )
+	define "tell", 4, , tell
+	.word tell
 
 	define ">number", 7, , to_number
 	.word to_number
@@ -240,6 +246,7 @@ var_last:
 
 	define "interpret", 9, , interpret
 	.word docol
+	.word xt_intro
 	.word xt_num_tib
 	.word xt_fetch
 	.word xt_to_in
@@ -290,6 +297,9 @@ intskip:
 	.word xt_lit, xt_lit, xt_comma, xt_comma
 intdone:
 	.word xt_branch, xt_interpret            // Infinite loop.
+
+	define "intro", 3, F_HIDDEN, intro
+	.word _intro
 
 the_final_word:
 	define "bye", 3, , bye
@@ -506,11 +516,36 @@ exec:
 	bx r0             // goto r0
 
 count:
-	mov r0, r9
+	mov r0, r9          // push addr + 1
 	add r0, #1
 	push {r0}
-	ldr r9, [r9]
+	ldrb r9, [r9]        // push length, which is addr[0]
 	and r9, #F_LENMASK
+	b next
+
+tell:
+	mov r5, r9          // push addr + 1
+	add r5, #1
+	ldrb r9, [r9]        // push length, which is addr[0]
+	and r9, #F_LENMASK
+tell_char:
+	cmp r9, #0
+	beq tell_done
+
+	mov r0, #stdout
+	mov r1, r5
+	mov r2, #1
+	mov r7, #os_write
+	swi #0
+
+	cmp r0, #-1
+	beq exit_program
+
+	add r5, #1
+	sub r9, #1
+	b tell_char
+tell_done:
+	pop {r9}
 	b next
 
 to_number:
@@ -581,3 +616,16 @@ enter_immediate:             // Exit compile mode and enter immediate mode.
 	eor r1, r1               // false = 0 = not compiling
 	str r1, [r0]
 	b next
+
+_intro:
+	push {r9}
+	ldr r9, =_intro_str
+	b tell
+
+	.section .rodata
+_intro_str:
+	.byte _intro_msg_end-_intro_msg
+_intro_msg:
+	.ascii "Intro\n"
+_intro_msg_end:
+
