@@ -1,4 +1,8 @@
 
+	.set os_exit, 1
+	.set os_read, 3
+	.set os_write, 4
+
 	.set stdin, 0
 	.set stdout, 1
 	.set stderr, 2
@@ -7,50 +11,71 @@
 
 	.global _start
 _start:
+	ldr sp, =stack
+
 	bl accept
 	bl print
+
 	mov r0, #0
-	mov r7, #1
+	mov r7, #os_exit
 	swi #0
 
 accept:
-	ldr r4, =lr_backup
-	str lr, [r4]
+	push {lr}
 
-	mov r0, #stdin
-	ldr r1, =buffer
-	mov r2, #256
-	mov r7, #3
-	swi #0
+	mov r0, #5
+	bl accept_n
 
-	ldr r5, =buffer_len
-	str r0, [r5]
-
-	ldr lr, [r4]
+	pop {lr}
 	bx lr
 
 print:
-	ldr r4, =lr_backup
-	str lr, [r4]
+	push {lr}
 
-	mov r0, #stdout
-	ldr r1, =buffer
-	ldr r2, =buffer_len
-	ldr r2, [r2]
-	mov r7, #4
+	ldr r0, =io_buf_len
+	bl print_n
+
+	pop {lr}
+	bx lr
+
+accept_n:
+	push {lr}
+
+	mov r2, r0
+
+	mov r0, #stdin
+	ldr r1, =io_buf
+	mov r7, #os_read
 	swi #0
 
-	ldr lr, [r4]
+	ldr r5, =io_buf_len
+	str r0, [r5]
+
+	pop {lr}
+	bx lr
+
+print_n:
+	push {lr}
+
+	mov r2, r0
+
+	mov r0, #stdout
+	ldr r1, =io_buf
+	ldr r2, [r2]
+	mov r7, #os_write
+	swi #0
+
+	pop {lr}
 	bx lr
 
 	.data
 
-buffer_len:
-	.word 0
-
-buffer:
 	.space 256
+stack:
 
-lr_backup:
+io_buf_len:
 	.word 0
+
+io_buf:
+	.space 1024
 
