@@ -1,29 +1,45 @@
-
-	.include "macros.s"
-
-	.set F_IMMEDIATE, 0b10000000   // Immediate word constant
-	.set F_HIDDEN,    0b01000000   // Hidden word constant
-	.set F_LENMASK,   0b00111111   // Length mask constant
-
 	.set link, 0
-
+	.macro define name, len, flags=0, label
 	.text
 	.align 2
-
-	.global next
-next:                   // Inner interpreter, next.
-	ldr r8, [r10], #4   // r0 = ip, and ip = ip + 4. (SEGFAULT here)
-	//ldr r8, [r8]        // Dereference, since this forth is indirect threaded code.
-	bx r8
+_def_\label:
+	.word link
+	.set link, name_\label
+	.byte \len+\flags
+	.ascii \name
+	.fill 31-\len, 0
+	.align 2
+xt_\label:
+	.endm
 
 	.global _start
 _start:                 // Main starting point.
 	b quit
 
+next:                   // Inner interpreter, next.
+	ldr r8, [r10], #4   // r0 = ip, and ip = ip + 4. (SEGFAULT here)
+	//ldr r8, [r8]        // Dereference, since this forth is indirect threaded code.
+	bx r8
+
+/* : ( -- )
+ * Colon will define a new word by adding it to the dictionary and by setting
+ * the "last" word to be the new word
+ */
+	define ":", 1, F_IMMEDIATE, colon
+	.word docol
+	.word xt_lit, -1
+	.word xt_state, xt_store       // Enter compile mode.
+	.word xt_create                // Create a new header for the next word.
+	.word xt_do_semi_code, docol   // Make "docolon" be the runtime code for the new header.
+docol:
+	str r10, [r11, #-4]!
+	add r10, r0, #4
+	b next
+
 /* quit ( -- )
  */
 	define "quit", 4, , quit
-	code quit
+quit:
 	ldr r11, =stack_base    // Init the return stack.
 	ldr sp, =stack_base     // Init the data stack.
 
@@ -77,21 +93,6 @@ _start:                 // Main starting point.
 	define "tib", 3, , tib
 	constant tib, addr_tib
 
-/* : ( -- )
- * Colon will define a new word by adding it to the dictionary and by setting
- * the "last" word to be the new word
- */
-	define ":", 1, F_IMMEDIATE, colon
-	.word docol
-	.word xt_lit, -1
-	.word xt_state, xt_store       // Enter compile mode.
-	.word xt_create                // Create a new header for the next word.
-	.word xt_do_semi_code, docol   // Make "docolon" be the runtime code for the new header.
-code docol
-	str r10, [r11, #-4]!
-	add r10, r0, #4
-	b next
-
 /* ; ( -- )
  * Semicolon: complete the current forth word being compiled.
  */
@@ -119,7 +120,7 @@ code docol
 	.word xt_lit, 0
 	.word xt_comma
 	.word xt_do_semi_code, dovar
-	code dovar
+dovar:
 	str r9, [r13, #-4]!    // Prepare a push for r9.
 	mov r9, r8             // r9 = [XT + 4].
 	add r9, #4             // (r9 should be an address).
@@ -128,11 +129,10 @@ code docol
 // (;code) ( -- )
 	define "(;code)", 7, , do_semi_code
 	.word do_semi_code
-	code do_semi_code
+do_semi_code:
 	ldr r8, =var_last
 	add r8, #36           // Offset to Code Field Address.
 	str r10, [r8]         // Store Instruction Pointer into the Code Field.
-
 	// TODO: note that the next forth word will be the code address
 
 /* const ( x -- )
@@ -144,7 +144,7 @@ code docol
 	.word xt_create
 	.word xt_comma
 	.word xt_do_semi_code, doconst
-	code doconst           // Runtime code for words that push a constant.
+doconst:                   // Runtime code for words that push a constant.
 	str r9, [r13, #-4]!    // Push the stack.
 	ldr r9, [r8, #4]       // Fetch the data, which is bytes 4 after the CFA.
 	b next                 
@@ -153,7 +153,7 @@ code docol
 // Pushes the next value in the cell right after itself
 	define "lit", 3, F_IMMEDIATE, lit
 	.word lit
-	code lit
+lit:
 	str r9, [r13, #-4]!     // Push to the stack.
 	ldr r9, [r10], #4       // Get the next cell value and put it in r9 while
 	b next                  // also incrementing r10 by 4 bytes.
@@ -162,7 +162,7 @@ code docol
 // Comma compiles the value x to the dictionary
 	define ",", 1, , comma
 	.word comma
-	code comma
+comma:
 	ldr r8, =var_dp         // Set r8 to the dictionary pointer.
 	mov r7, r8              // r7 = copy of dp.
 	str r9, [r8], #4        // Store TOS to the dictionary ptr and increment ptr.
@@ -175,7 +175,7 @@ code docol
  */
 	define "drop", 4, , drop
 	.word drop
-	code drop
+drop:
 	ldr r9, [r13], #4
 	b next
 
@@ -184,7 +184,7 @@ code docol
  */
 	define "swap", 4, , swap
 	.word swap
-	code swap
+swap:
 	ldr r0, [r13], #4
 	str r9, [r13, #-4]!
 	mov r9, r0
@@ -195,7 +195,7 @@ code docol
  */
 	define "dup", 3, , dup
 	.word dup
-	code dup
+dup:
 	str r9, [r13, #-4]!
 	b next
 
@@ -204,7 +204,7 @@ code docol
  */
 	define "over", 4, , over
 	.word over
-	code over
+over:
 	ldr r0, [r13]       // r0 = get the second item on stack
 	str r9, [r13, #-4]! // push TOS to the rest of the stack
 	mov r9, r0          // TOS = r0
@@ -215,7 +215,7 @@ code docol
  */
 	define "rot", 3, , rot
 	.word rot
-	code rot
+rot:
 	ldr r0, [r13], #4   // pop y
 	ldr r1, [r13], #4   // pop x
 	str r0, [r13, #-4]! // push y
@@ -228,7 +228,7 @@ code docol
  */
 	define ">R", 2, , to_r
 	.word to_r
-	code to_r
+to_r:
 	str r9, [r11, #-4]!
 	ldr r9, [r13], #4
 	b next
@@ -238,7 +238,7 @@ code docol
  */
 	define "R>", 2, , r_from
 	.word r_from
-	code r_from
+r_from:
 	str r9, [r13, #-4]!
 	ldr r9, [r11], #4
 	b next
@@ -248,7 +248,7 @@ code docol
  */
 	define "+", 1, , add
 	.word add
-	code add
+add:
 	ldr r0, [r13], #4
 	add r9, r0, r9
 	b next
@@ -257,7 +257,7 @@ code docol
 // subtraction
 	define "-", 1, , sub
 	.word sub
-	code sub
+sub:
 	ldr r0, [r13], #4
 	sub r9, r9, r1
 	b next
@@ -266,7 +266,7 @@ code docol
 // multiplication
 	define "*", 1, , multiply
 	.word multiply
-	code multiply
+multiply:
 	ldr r0, [r13], #4
 	mov r1, r9        // use r1 because multiply can't be a src and a dest on ARM
 	mul r9, r0, r1
@@ -276,7 +276,7 @@ code docol
 // test for equality, -1=True, 0=False
 	define "=", 1, , equal
 	.word equal
-	code equal
+equal:
 	ldr r0, [r13], #4
 	cmp r9, r0
 	moveq r9, #-1
@@ -287,7 +287,7 @@ code docol
 // less-than, see "=" for truth values
 	define "<", 1, , lt
 	.word lt
-	code lt
+lt:
 	ldr r0, [r13], #4
 	cmp r9, r0
 	movlt r9, #-1
@@ -298,7 +298,7 @@ code docol
 // greater-than, see "=" for truth values
 	define ">", 1, , gt
 	.word gt
-	code gt
+gt:
 	ldr r0, [r13], #4
 	cmp r9, r0
 	movge r9, #-1
@@ -309,7 +309,7 @@ code docol
 // bitwise and 
 	define "&", 1, , and
 	.word do_and
-	code do_and
+do_and:
 	ldr r0, [r13], #4
 	and r9, r9, r0
 	b next
@@ -318,7 +318,7 @@ code docol
 // bitwise or 
 	define "|", 1, , or
 	.word do_or
-	code do_or
+do_or:
 	ldr r0, [r13], #4
 	orr r9, r9, r0
 	b next
@@ -327,7 +327,7 @@ code docol
 // bitwise xor 
 	define "^", 1, , xor
 	.word xor
-	code xor
+xor:
 	ldr r0, [r13], #4
 	eor r9, r9, r0
 	b next
@@ -336,7 +336,7 @@ code docol
 // bitwise not/invert
 	define "invert", 6, , invert
 	.word invert
-	code invert
+invert:
 	mvn r9, r9
 	b next
 
@@ -345,7 +345,7 @@ code docol
  */
 	define "!", 1, , store
 	.word store
-	code store
+store:
 	ldr r0, [r13], #4
 	str r0, [r9]
 	ldr r9, [r13], #4
@@ -356,7 +356,7 @@ code docol
  */
 	define "@", 1, , fetch
 	.word fetch
-	code fetch
+fetch:
 	ldr r9, [r9]
 	b next
 
@@ -364,7 +364,7 @@ code docol
 // store byte, does what "!" does, but for a single byte
 	define "c!", 2, , cstore
 	.word cstore
-	code cstore
+cstore:
 	ldr r0, [r13], #4
 	strb r0, [r9]
 	ldr r9, [r13], #4
@@ -374,7 +374,7 @@ code docol
 // fetch byte, does what "@" does for a single byte
 	define "c@", 2, , cfetch
 	.word cfetch
-	code cfetch
+cfetch:
 	mov r0, #0
 	ldrb r0, [r9]
 	ldr r9, [r13], #4
@@ -384,7 +384,7 @@ code docol
 // exit/return from current word
 	define "exit", 4, , exit
 	.word exit
-	code exit
+exit:
 	ldr r10, [r11], #4   // ip = pop return stack
 	b next
 
@@ -392,7 +392,7 @@ code docol
 // changes the forth IP to the next codeword
 	define "branch", 6, , branch
 	.word branch
-	code branch
+branch:
 	ldr r1, [r10]
 	mov r10, r1    // absolute jump
 	b next
@@ -401,7 +401,7 @@ code docol
 // branch if the top of the stack is zero 
 	define "0branch", 7, , zero_branch
 	.word zero_branch
-	code zero_branch
+zero_branch:
 	ldr r0, [r13], #4
 	cmp r0, #0          // if the top of the stack is zero:
 	ldreq r1, [r10]     // branch
@@ -413,7 +413,7 @@ code docol
 // execute the XT on the stack
 	define "exec", 4, , exec
 	.word exec
-	code exec
+exec:
 	mov r0, r9        // save TOS to r0
 	ldr r9, [r13], #4 // pop the stack
 	ldr r0, [r0]      // dereference r0
@@ -427,7 +427,7 @@ code docol
 // Convert a counted string address to the first char address and the length
 	define "count", 5, , count
 	.word count
-	code count
+count:
 	mov r0, r9
 	add r0, #1
 	push {r0}
@@ -439,7 +439,7 @@ code docol
 //         ( d addr len -- int addr2 non-zero ) if error
 	define ">number", 7, , to_number
 	.word to_number
-	code to_number
+to_number:
     //                    // r9 = length (already set)
 	ldr r0, [r13], #4    // r0 = addr
 	ldr r1, [r13], #4    // r1 = d.hi
@@ -483,7 +483,7 @@ to_num5:
 // read.
 	define "accept", 6, , accept
 	.word accept
-	code accept
+accept:
 	// TODO
 	b next
 
@@ -491,7 +491,7 @@ to_num5:
 // scan the input buffer for a character
 	define "word", 4, , word
 	.word word
-	code word
+word:
 	ldr r0, =var_dp          // load dp to use it as a scratchpad
 	ldr r0, [r0]
 	mov r4, r0               // save the dp to r4 for end of routine
@@ -537,7 +537,7 @@ word3:
 // display a character
 	define "emit", 4, , emit
 	.word word
-	code emit
+emit:
 	mov r0, r9
 	bl outchar
 	ldr r9, [r13], #4   // Pop the stack.
@@ -582,7 +582,7 @@ char:
 // * flag = -1, and addr2 =    xt, which means the word is not immediate
 	define "find", 4, , find
 	.word find
-	code find
+find:
 	// TODO: see paper
 	// USE THE STRING= WORD CODE
 	// r9 --> r0
