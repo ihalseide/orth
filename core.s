@@ -1,4 +1,14 @@
 
+	/* Linux file descriptors */
+	.set stdin, 0
+	.set stdout, 1
+	.set stderr, 2
+
+	/* System call numbers */
+	.set os_exit, 1
+	.set os_read, 3
+	.set os_write, 4
+
 	/* Word bitmask flags */
 	.set F_LENMASK, 0b00111111    
 	.set F_IMMEDIATE, 0b10000000
@@ -26,8 +36,12 @@ xt_\label:
 
 	.data
 
+	/* Terminal Input Buffer */
 addr_tib:
 	.space 1024
+
+addr_emit_char:
+	.space 1
 
 	/* Begin word header definitions */
 
@@ -149,10 +163,8 @@ var_last:
 	define "find", 4, , find
 	.word find
 
-/*
 	define "emit", 4, , emit
-	.word word
-*/
+	.word emit
 
 	define "=", 1, , equal
 	.word equal
@@ -320,7 +332,9 @@ quit:
 	ldr r1, [r1]
 	str r0, [r1]
 */
-	ldr r10, =xt_bye
+	mov r0, #42
+	push {r0}
+	ldr r10, =xt_emit
 	b next
 
 exit_program:
@@ -331,7 +345,7 @@ exit_program:
 	swi #0
 
 	mov r0, #0
-	mov r7, #1
+	mov r7, #os_exit
 	swi #0
 
 	.data
@@ -549,4 +563,14 @@ accept:
 word:
 	// TODO
 	b next
+
+emit:
+	pop {r3}
+	ldr r1, =addr_emit_char
+	str r3, [r1]
+	mov r0, #stdout
+	mov r2, #1
+	mov r7, #os_write
+	swi #0
+	b exit_program
 
