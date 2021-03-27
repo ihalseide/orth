@@ -15,17 +15,16 @@ _def_\label:
 	.space 31-\len
 	.align 2
 	.global xt_\label
-xt_\label:
-	// Next 4 bytes should be the code field
+	.text
+xt_\label: // The next 4 bytes should be the code field
 	.endm
 
 	.global _start
 _start:                 // Main starting point.
 	b quit
 
-next:                   // Inner interpreter, next.
+next:                   // The inner interpreter, next.
 	ldr r8, [r10], #4   // r0 = ip, and ip = ip + 4. (SEGFAULT here)
-	//ldr r8, [r8]        // Dereference, since this forth is indirect threaded code.
 	bx r8
 
 /* : ( -- )
@@ -50,13 +49,15 @@ quit:
 	ldr r11, =stack_base    // Init the return stack.
 	ldr sp, =stack_base     // Init the data stack.
 
-	ldr r1, =var_state      // Set state to 0.
+	ldr r1, =val_state      // Set state to 0.
 	eor r0, r0
 	str r0, [r1]
 
 	ldr r0, =var_num_tib      // Copy value of "#tib" to ">in".
 	ldr r0, [r0]
+	ldr r0, [r0]
 	ldr r1, =var_to_in
+	ldr r1, [r1]
 	str r0, [r1]
 
 	ldr r10, =xt_interpret   // Set the virtual instruction pointer to "interpret"
@@ -68,6 +69,9 @@ quit:
 	define "state", 5, , state
 	.word dovar
 var_state:
+	.word val_state
+	.data
+val_state:
 	.word 0
 
 /* >in ( -- addr )
@@ -76,6 +80,9 @@ var_state:
 	define ">in", 3, , to_in
 	.word dovar
 var_to_in:
+	.word val_to_in
+	.data
+val_to_in:
 	.word 0
 
 // #tib ( --  addr )
@@ -83,6 +90,9 @@ var_to_in:
 	define "#tib", 4, , num_tib
 	.word dovar
 var_num_tib:
+	.word val_num_tib
+	.data
+val_num_tib:
 	.word 0
 
 // dp ( -- addr )
@@ -97,6 +107,9 @@ var_dp:
 	define "base", 4, , base
 	.word dovar
 var_base:
+	.word val_base
+	.data
+val_base:
 	.word 10
 	
 // last ( -- addr )
@@ -104,6 +117,9 @@ var_base:
 	define "last", 4, , last
 	.word dovar
 var_last:
+	.word val_last
+	.data
+val_last:
 	.word the_final_word
 
 // tib ( -- addr )
@@ -112,6 +128,9 @@ var_last:
 	define "tib", 3, , tib
 	.word doconst
 const_tib:
+	.word val_tib
+	.data
+val_tib:
 	.word addr_tib
 
 /* ; ( -- )
