@@ -13,6 +13,30 @@
 	.set F_LENMASK, 0b00111111    
 	.set F_IMMEDIATE, 0b10000000
 
+/* Begin normal program data, which needs to be before the dictionary
+ * because the dictionary will grow upwards in memory.
+ */
+
+	.data
+
+data_base:
+
+	/* The stacks */
+	.space 4*64     /* 64 cells for parameter stack, which grows down */
+stack_base:
+	.space 4*256    /* 256 cells for the return stack, which grows up */
+
+	/* Terminal Input Buffer */
+addr_tib:
+	.space 1024
+
+addr_emit_char:
+	.space 1
+
+/* Begin word header definitions */
+
+	.data
+
 	/* Previous word link pointer for while it's assembling word defs */
 	.set link, 0
 
@@ -32,32 +56,20 @@ xt_\label:
 	// The next 4 byte word/cell is the code field
 	.endm
 
-	/* Begin normal program data */
-
-	.data
-
-	/* Terminal Input Buffer */
-addr_tib:
-	.space 1024
-
-addr_emit_char:
-	.space 1
-
-	/* Begin word header definitions */
-
-	.data
+dictionary_base:
 
 	/* : ( -- ) */
 	define ":", 1, F_IMMEDIATE, colon
 	.word docol
-	.word xt_lit, -1               // Enter compile mode.
-	.word xt_state, xt_store
 	.word xt_create                // Create a new header for the next word.
+	.word xt_enter_compile         // Enter into compile mode
 	.word xt_do_semi_code, docol   // Make "docolon" be the runtime code for the new header.
 
-	define "]", 1, F_IMMEDIATE, compile
-	.word docol
-	// TODO 
+	define "]", 1, , enter_compile
+	.word enter_compile
+
+	define "[", 1, F_IMMEDIATE, enter_immediate
+	.word enter_immediate
 
 	define "quit", 4, , quit
 	.word quit
@@ -283,20 +295,21 @@ the_final_word:
 	define "bye", 3, , bye
 	.word exit_program
 
-	/* Main starting point. */
+/* Begin the main assembly code. */
+
 	.text
+
+	/* Main starting point. */
 	.global _start
 _start:                 
 	b quit
-
-	/* The inner interpreter, next. */
-next:                   
-	ldr r8, [r10], #4   // r0 = ip, and ip = ip + 4. (SEGFAULT here)
+	
+next:                    // The inner interpreter
+	ldr r8, [r10], #4    // Get the next virtual instruction
 	bx r8
 
 docol:
-	str r10, [r11, #-4]!
-	add r10, r0, #4
+	str r10, [r11, #4]!    // Push the (next) IP to the stack
 	b next
 
 dovar:
@@ -317,47 +330,30 @@ do_semi_code:
 	// TODO
 
 quit:
-/*
 	ldr r11, =stack_base    // Init the return stack.
 	ldr sp, =stack_base     // Init the data stack.
 
-	ldr r1, =val_state      // Set state to 0.
+	ldr r1, =var_state      // Set state to 0.
 	eor r0, r0
 	str r0, [r1]
 
 	ldr r0, =var_num_tib      // Copy value of "#tib" to ">in".
 	ldr r0, [r0]
-	ldr r0, [r0]
 	ldr r1, =var_to_in
-	ldr r1, [r1]
 	str r0, [r1]
-*/
-	mov r0, #42
-	push {r0}
-	ldr r10, =xt_emit
+
+	ldr r10, =xt_interpret
 	b next
 
 exit_program:
-	mov r0, #1
-	ldr r1, =exit_debug_msg
-	mov r2, #exit_debug_msg_end-exit_debug_msg
-	mov r7, #4
-	swi #0
-
 	mov r0, #0
 	mov r7, #os_exit
 	swi #0
 
-	.data
-exit_debug_msg:
-	.ascii "goodbye!\n"
-exit_debug_msg_end:
-
-	.text
 lit:
-	str r9, [r13, #-4]!     // Push to the stack.
-	ldr r9, [r10], #4       // Get the next cell value and put it in r9 while
-	b next                  // also incrementing r10 by 4 bytes.
+	str r9, [r13, #-4]!  // Push to the stack.
+	ldr r9, [r10], #4    // Push the next cell value and skip the IP over it.
+	b next               
 
 comma:
 	ldr r8, =var_dp         // Set r8 to the dictionary pointer.
@@ -572,5 +568,16 @@ emit:
 	mov r2, #1
 	mov r7, #os_write
 	swi #0
-	b exit_program
+	b next
 
+enter_compile:               // Exit immediate mode and enter compile mode.
+	ldr r0, =var_state
+	mov r1, #-1              // true = -1 = compiling
+	str r1, [r0]
+	b next
+
+enter_immediate:             // Exit compile mode and enter immediate mode.
+	ldr r0, =var_state
+	eor r1, r1               // false = 0 = not compiling
+	str r1, [r0]
+	b next
