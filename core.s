@@ -1,15 +1,22 @@
+/* Word bitmask flags */
+	.set F_LENMASK, 0b00111111
+	.set F_IMMEDIATE, 0b10000000
+
+/* Macro for defining a word header */
 	.set link, 0
 	.macro define name, len, flags=0, label
 	.text
 	.align 2
 _def_\label:
 	.word link
-	.set link, name_\label
+	.set link, _def_\label
 	.byte \len+\flags
-	.ascii \name
-	.fill 31-\len, 0
+	.ascii "\name"
+	.space 31-\len
 	.align 2
+	.global xt_\label
 xt_\label:
+	// Next 4 bytes should be the code field
 	.endm
 
 	.global _start
@@ -36,9 +43,9 @@ docol:
 	add r10, r0, #4
 	b next
 
-/* quit ( -- )
- */
+/* quit ( -- ) */
 	define "quit", 4, , quit
+	.word quit
 quit:
 	ldr r11, =stack_base    // Init the return stack.
 	ldr sp, =stack_base     // Init the data stack.
@@ -59,39 +66,53 @@ quit:
  * Compiling or interpreting state.
  */
 	define "state", 5, , state
-	var state, 0
+	.word dovar
+var_state:
+	.word 0
 
 /* >in ( -- addr )
  * Next character in input buffer.
  */
 	define ">in", 3, , to_in
-	var to_in, 0
+	.word dovar
+var_to_in:
+	.word 0
 
 // #tib ( --  addr )
 // Number of characters in the input buffer.
 	define "#tib", 4, , num_tib
-	var num_tib, 0
+	.word dovar
+var_num_tib:
+	.word 0
 
 // dp ( -- addr )
 // First free cell in the dictionary (dictionary pointer).
 	define "dp", 2, , dp
-	var dp, dictionary
+	.word dovar
+var_dp:
+	.word dictionary
 
 // base ( -- addr )
 // Address of the number read and write base.
 	define "base", 4, , base
-	var base, 10
+	.word dovar
+var_base:
+	.word 10
 	
 // last ( -- addr )
 // Address of the last word defined.
 	define "last", 4, , last
-	var last, name_interpret
+	.word dovar
+var_last:
+	.word the_final_word
 
 // tib ( -- addr )
 // Address of the input buffer.
 // no "code" because its a constant and can be stored in section rodata
 	define "tib", 3, , tib
-	constant tib, addr_tib
+	.word doconst
+const_tib:
+	.word addr_tib
 
 /* ; ( -- )
  * Semicolon: complete the current forth word being compiled.
@@ -119,7 +140,7 @@ quit:
 	.word xt_dp, xt_store
 	.word xt_lit, 0
 	.word xt_comma
-	.word xt_do_semi_code, dovar
+	.word xt_do_semi_code
 dovar:
 	str r9, [r13, #-4]!    // Prepare a push for r9.
 	mov r9, r8             // r9 = [XT + 4].
@@ -133,7 +154,7 @@ do_semi_code:
 	ldr r8, =var_last
 	add r8, #36           // Offset to Code Field Address.
 	str r10, [r8]         // Store Instruction Pointer into the Code Field.
-	// TODO: note that the next forth word will be the code address
+	// TODO
 
 /* const ( x -- )
  * Create a new constant word that pushes x, where the name of the constant is
@@ -143,7 +164,7 @@ do_semi_code:
 	.word docol
 	.word xt_create
 	.word xt_comma
-	.word xt_do_semi_code, doconst
+	.word xt_do_semi_code
 doconst:                   // Runtime code for words that push a constant.
 	str r9, [r13, #-4]!    // Push the stack.
 	ldr r9, [r8, #4]       // Fetch the data, which is bytes 4 after the CFA.
@@ -495,7 +516,7 @@ word:
 	ldr r0, =var_dp          // load dp to use it as a scratchpad
 	ldr r0, [r0]
 	mov r4, r0               // save the dp to r4 for end of routine
-	ldr r1, =const_tib         // load address of the input buffer
+	ldr r1, =const_tib       // load address of the input buffer
 	ldr r1, [r1]
 	mov r2, r1               // copy address to r2
 	ldr r3, =var_to_in       // set r1 to tib + >in
@@ -593,6 +614,8 @@ find:
 //----------------
 // The outer interpreter
 //----------------
+
+the_final_word:
 
 // interpret ( -- )
 // The outer interpreter (loop):
