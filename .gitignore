@@ -1,4 +1,7 @@
 *.swp
+*.o
+*.o.lst
+*.exe
 
 bin/
 
