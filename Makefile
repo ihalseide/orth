@@ -1,18 +1,15 @@
-BINS=program
 
 run: build
-	./program
+	./core
 
 debug: build
-	gdb program
+	gdb core
 
-build: $(BINS)
+build: core
 
-%: %.o
-	ld -g -o $@ $^
+core: core.o
+	ld -g -o $@ $<
 	
-%.o: %.s
-	as -adhlns="$@.lst" -g -o $@.o $^
+core.o: core.s
+	as -adhlns="$@.lst" -g -o $@ $<
 
-clean:
-	rm -f *.o
