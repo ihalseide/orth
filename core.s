@@ -459,10 +459,6 @@ exec:
 	ldr r0, [r0]      // dereference r0
 	bx r0             // goto r0
 
-//----------------
-// Strings
-//----------------
-
 // count ( addr1 -- addr2 len )
 // Convert a counted string address to the first char address and the length
 	define "count", 5, , count
@@ -611,10 +607,6 @@ outchar:
 char:
 	.ascii " "
 
-//----------------
-// Dictionary search
-//----------------
-
 // find ( addr1 -- addr2 flag )
 // Look for a word in the dictionary. There are 3 possibilities:
 // * flag =  0, and addr2 = addr1, which means the word was not found
@@ -629,10 +621,6 @@ find:
 	// pop(r13) --> r1
 	// call string= runtime code
 	// result --> r9
-
-//----------------
-// The outer interpreter
-//----------------
 
 the_final_word:
 
