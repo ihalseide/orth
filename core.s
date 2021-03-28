@@ -13,13 +13,17 @@
 	.set F_HIDDEN,    0b01000000
 	.set F_LENMASK,   0b00111111    
 
+/* Previous word link pointer for while it's assembling word defs */
+	.set link, 0   
+
 /* Macro for defining a word header in the data section */
 	.macro define name, len, flags=0, label   
 	.data
 	.align 2
-_def_\label:
+	.global def_\label
+def_\label:
 	.word link               // link to previous word in the dictionary data
-	.set link, _def_\label
+	.set link, def_\label
 	.byte \len+\flags        // The name field, including the length byte 
 	.ascii "\name"           // is 32 bytes long
 	.space 31-\len
@@ -48,7 +52,6 @@ addr_emit_char:
 
 /* Begin word header definitions */
 
-	.set link, 0   // Previous word link pointer for while it's assembling word defs
 	.data
 	.align 2
 _dict_start:
@@ -303,6 +306,9 @@ dictionary_space:
 	.global _start
 _start:
 quit:
+	mov r0, #42
+	push {r0}
+
 	ldr r11, =rstack_base    // Init the return stack.
 
 	ldr r1, =var_state      // Set state to 0 (interpreting)
@@ -314,8 +320,11 @@ quit:
 	ldr r1, =var_to_in
 	str r0, [r1]
 
-	ldr r10, =xt_interpret   // Set instruction pointer to interpret
+	ldr r10, =dummy_xt   // Set instruction pointer to interpret
 	b next  
+
+dummy_xt:
+	.word xt_interpret
 
 	.global docol
 docol:
@@ -327,7 +336,8 @@ docol:
 	.global next
 next:                       // The inner interpreter
 	ldr r8, [r10], #4       // Get the next virtual instruction
-	bx r8
+	ldr r0, [r8]
+	bx r0
 
 	.global exit
 exit:                       // End a forth word.
