@@ -18,12 +18,12 @@
 	.data
 	.align 2
 _def_\label:
-	.int link               // link to previous word in the dictionary data
+	.word link               // link to previous word in the dictionary data
 	.set link, _def_\label
-	.byte \len+\flags        // The name field, including the length byte
-	.ascii "\name"           // is 32 bytes long
+	.byte \len+\flags        // The name field, including the length byte .ascii "\name"           // is 32 bytes long
 	.space 31-\len
 	.global xt_\label
+	.align 2
 xt_\label:                   // The next 4 byte word/cell will be the code field
 	.endm
 
@@ -33,10 +33,8 @@ xt_\label:                   // The next 4 byte word/cell will be the code field
 
 	.data
 
-data_base:
-
-	.space 4*256    /* 256 cells for the return stack, which grows down */
-rstack_base:
+rstack_base:          // 256 cells for the return stack, which grows up
+	.space 4*256    
 
 	/* Terminal Input Buffer */
 addr_tib:
@@ -54,246 +52,251 @@ dictionary_base:
 
 	/* : ( -- ) */
 	define ":", 1, F_IMMEDIATE, colon
-	.int docol
-	.int xt_create                        // Create a new header for the next word.
-	.int xt_enter_compile                 // Enter into compile mode
-	.int xt_lit, docol, xt_do_semi_code   // Make "docolon" be the runtime code for the new header.
+	.word docol
+	.word xt_create                        // Create a new header for the next word.
+	.word xt_enter_compile                 // Enter into compile mode
+	.word xt_lit, docol, xt_do_semi_code   // Make "docolon" be the runtime code for the new header.
 
 	define "]", 1, , enter_compile
-	.int enter_compile
+	.word enter_compile
 
 	define "[", 1, F_IMMEDIATE, enter_immediate
-	.int enter_immediate
+	.word enter_immediate
 
 	define "quit", 4, , quit
-	.int quit
+	.word quit
 
 	define "state", 5, , state
-	.int dovar
+	.word dovar
 var_state:
-	.int 0
+	.word 0
 
 	define ">in", 3, , to_in
-	.int dovar
+	.word dovar
 var_to_in:
-	.int 0
+	.word 0
 
 	define "#tib", 4, , num_tib
-	.int dovar
+	.word dovar
 var_num_tib:
-	.int 0
+	.word 0
 
 	define "tib", 3, , tib
-	.int dovar
+	.word dovar
 var_tib:
-	.int addr_tib
+	.word addr_tib
 
 	define "dp", 2, , dp
-	.int dovar
+	.word dovar
 var_dp:
-	.int 0
+	.word 0
 
 	define "base", 4, , base
-	.int dovar
+	.word dovar
 var_base:
-	.int 10
+	.word 10
 	
 	define "last", 4, , last
-	.int dovar
+	.word dovar
 var_last:
-	.int the_final_word
+	.word the_final_word
 
 	define ";", 1, F_IMMEDIATE, semicolon
-	.int docol
-	.int xt_lit, xt_exit                // Compile an exit code.
-	.int xt_comma
-	.int xt_lit, 0, xt_state, xt_store  // Change back to immediate mode.
-	.int xt_exit                        // Actually exit this word.
+	.word docol
+	.word xt_lit, xt_exit                // Compile an exit code.
+	.word xt_comma
+	.word xt_lit, 0, xt_state, xt_store  // Change back to immediate mode.
+	.word xt_exit                        // Actually exit this word.
 
 	define "create", 6, , create
-	.int docol
-	.int xt_dp, xt_fetch
-	.int xt_last, xt_fetch
-	.int xt_comma
-	.int xt_last, xt_store
-	.int xt_lit, 32
-	.int xt_word
-	.int xt_count
-	.int xt_add
-	.int xt_dp, xt_store
-	.int xt_lit, 0
-	.int xt_comma
-	.int xt_lit, dovar, xt_do_semi_code
+	.word docol
+	.word xt_dp, xt_fetch
+	.word xt_last, xt_fetch
+	.word xt_comma
+	.word xt_last, xt_store
+	.word xt_lit, 32
+	.word xt_word
+	.word xt_count
+	.word xt_add
+	.word xt_dp, xt_store
+	.word xt_lit, 0
+	.word xt_comma
+	.word xt_lit, dovar, xt_do_semi_code
 
 	define "(;code)", 7, , do_semi_code
-	.int do_semi_code
+	.word do_semi_code
 
 	define "const", 5, , const
-	.int docol
-	.int xt_create
-	.int xt_comma
-	.int xt_lit, doconst, xt_do_semi_code
+	.word docol
+	.word xt_create
+	.word xt_comma
+	.word xt_lit, doconst, xt_do_semi_code
 
 	define "lit", 3, F_IMMEDIATE, lit
-	.int lit
+	.word lit
 
 	define ",", 1, , comma
-	.int comma
+	.word comma
 
 	define "drop", 4, , drop
-	.int drop
+	.word drop
 
 	define "swap", 4, , swap
-	.int swap
+	.word swap
 
 	define "over", 4, , over
-	.int over
+	.word over
 
 	define "rot", 3, , rot
-	.int rot
+	.word rot
 
 	define ">R", 2, , to_r
-	.int to_r
+	.word to_r
 
 	define "R>", 2, , r_from
-	.int r_from
+	.word r_from
 
 	define "-", 1, , sub
-	.int sub
+	.word sub
 
 	define "+", 1, , add
-	.int add
+	.word add
 
 	define "dup", 3, , dup
-	.int dup
+	.word dup
 
 	define "find", 4, , find
-	.int find
+	.word find
 
 	define "emit", 4, , emit
-	.int emit
+	.word emit
 
 	define "=", 1, , equal
-	.int equal
+	.word equal
 
 	define "*", 1, , multiply
-	.int multiply
+	.word multiply
 
 	define "<", 1, , lt
-	.int lt
+	.word lt
 
 	define ">", 1, , gt
-	.int gt
+	.word gt
 
 	define "&", 1, , and
-	.int do_and
+	.word do_and
 
 	define "|", 1, , or
-	.int do_or
+	.word do_or
 
 	define "^", 1, , xor
-	.int xor
+	.word xor
 
 	define "invert", 6, , invert
-	.int invert
+	.word invert
 
 	define "!", 1, , store
-	.int store
+	.word store
 
 	define "@", 1, , fetch
-	.int fetch
+	.word fetch
 
 	define "c!", 2, , cstore
-	.int cstore
+	.word cstore
 
 	define "c@", 2, , cfetch
-	.int cfetch
+	.word cfetch
 
 	define "exit", 4, , exit
-	.int exit
+	.word exit
 
 	define "branch", 6, , branch
-	.int branch
+	.word branch
 
 	define "0branch", 7, , zero_branch
-	.int zero_branch
+	.word zero_branch
 
 	define "exec", 4, , exec
-	.int exec
+	.word exec
 
 	// count ( addr -- addr2 len )
 	define "count", 5, , count
-	.int count
+	.word count
 
 	// tell ( addr -- )
 	define "tell", 4, , tell
-	.int tell
+	.word tell
 
 	define ">number", 7, , to_number
-	.int to_number
+	.word to_number
 
 	define "accept", 6, , accept
-	.int accept
+	.word accept
 
 	define "word", 4, , word
-	.int word
+	.word word
 
 	define "interpret", 9, , interpret
-	.int docol
-	.int xt_num_tib
-	.int xt_fetch
-	.int xt_to_in
-	.int xt_fetch
-	.int xt_equal
-	.int xt_zero_branch, intpar
-	.int xt_tib
-	.int xt_lit, 50
-	.int xt_accept
-	.int xt_num_tib
-	.int xt_store
-	.int xt_lit, 0
-	.int xt_to_in
-	.int xt_store
+	.word docol
+	.word xt_num_tib
+	.word xt_fetch
+	.word xt_to_in
+	.word xt_fetch
+	.word xt_equal
+	.word xt_zero_branch, intpar
+	.word xt_tib
+	.word xt_lit, 50
+	.word xt_accept
+	.word xt_num_tib
+	.word xt_store
+	.word xt_lit, 0
+	.word xt_to_in
+	.word xt_store
 intpar:
-	.int xt_lit, 32
-	.int xt_word
-	.int xt_find
-	.int xt_dup
-	.int xt_zero_branch, intnf
-	.int xt_state
-	.int xt_fetch
-	.int xt_equal
-	.int xt_zero_branch, intexc
-	.int xt_comma
-	.int xt_branch, intdone
+	.word xt_lit, 32
+	.word xt_word
+	.word xt_find
+	.word xt_dup
+	.word xt_zero_branch, intnf
+	.word xt_state
+	.word xt_fetch
+	.word xt_equal
+	.word xt_zero_branch, intexc
+	.word xt_comma
+	.word xt_branch, intdone
 intexc:
-	.int xt_exec
-	.int xt_branch, intdone
+	.word xt_exec
+	.word xt_branch, intdone
 intnf:
-	.int xt_dup
-	.int xt_rot
-	.int xt_count
-	.int xt_to_number
-	.int xt_zero_branch, intskip
-	.int xt_state, xt_fetch
-	.int xt_zero_branch, intnc
-	.int xt_last, xt_fetch
-	.int xt_dup, xt_fetch
-	.int xt_last, xt_store
-	.int xt_dp, xt_store
+	.word xt_dup
+	.word xt_rot
+	.word xt_count
+	.word xt_to_number
+	.word xt_zero_branch, intskip
+	.word xt_state, xt_fetch
+	.word xt_zero_branch, intnc
+	.word xt_last, xt_fetch
+	.word xt_dup, xt_fetch
+	.word xt_last, xt_store
+	.word xt_dp, xt_store
 intnc:                                       // Exit infinite loop and reset
-	.int xt_quit                            // because of error.
+	.word xt_quit                            // because of error.
 intskip:
-	.int xt_drop, xt_drop
-	.int xt_state, xt_fetch
-	.int xt_zero_branch, intdone
-	.int xt_lit, xt_lit, xt_comma, xt_comma
+	.word xt_drop, xt_drop
+	.word xt_state, xt_fetch
+	.word xt_zero_branch, intdone
+	.word xt_lit, xt_lit, xt_comma, xt_comma
 intdone:
-	.int xt_branch, xt_interpret            // Infinite loop.
+	.word xt_branch, xt_interpret            // Infinite loop.
 
 the_final_word:
 	define "bye", 3, , bye
-	.int exit_program
+	.word exit_program
+
+/*
+dictionary_space:
+	.space 2048 
+*/
 
 /* Begin the main assembly code. */
 
@@ -314,23 +317,23 @@ quit:
 	ldr r1, =var_to_in
 	str r0, [r1]
 
-	ldr r10, =xt_interpret    // Set instruction pointer to interpret
+	ldr r10, =xt_bye         // Set instruction pointer to interpret
 	b next  
 
 docol:
-	str r10, [r11, #-4]!    // Save the return address to the return stack
+	str r10, [r11], #4      // Save the return address to the return stack
 	add r10, r8, #4         // Get the next instruction
 	ldr r10, [r10]
 
-	// fall-into next
+	/* fall-into next */
 
-next:                    // The inner interpreter
-	ldr r8, [r10], #4    // Get the next virtual instruction
-	ldr r1, [r8]
-	bx r1
+next:                       // The inner interpreter
+	ldr r8, [r10], #4       // Get the next virtual instruction
+	ldr r0, [r8]
+	bx r0
 
-exit:                     // End a forth word.
-	ldr r10, [r11], #4    // ip = pop return stack
+exit:                       // End a forth word.
+	ldr r10, [r11, #-4]!    // ip = pop return stack
 	b next
 
 dovar:
