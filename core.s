@@ -20,7 +20,8 @@
 _def_\label:
 	.word link               // link to previous word in the dictionary data
 	.set link, _def_\label
-	.byte \len+\flags        // The name field, including the length byte .ascii "\name"           // is 32 bytes long
+	.byte \len+\flags        // The name field, including the length byte 
+	.ascii "\name"           // is 32 bytes long
 	.space 31-\len
 	.global xt_\label
 	.align 2
@@ -32,23 +33,25 @@ xt_\label:                   // The next 4 byte word/cell will be the code field
  */
 
 	.data
-
+	.align 2
 rstack_base:          // 256 cells for the return stack, which grows up
 	.space 4*256    
 
 	/* Terminal Input Buffer */
+	.align 2
 addr_tib:
 	.space 1024
 
+	.align 2
 addr_emit_char:
 	.space 1
 
 /* Begin word header definitions */
 
 	.set link, 0   // Previous word link pointer for while it's assembling word defs
-
 	.data
-dictionary_base:
+	.align 2
+_dict_start:
 
 	/* : ( -- ) */
 	define ":", 1, F_IMMEDIATE, colon
@@ -238,28 +241,22 @@ var_last:
 
 	define "interpret", 9, , interpret
 	.word docol
-	.word xt_num_tib
-	.word xt_fetch
-	.word xt_to_in
-	.word xt_fetch
-	.word xt_equal
-	.word xt_zero_branch, intpar
+	.word xt_num_tib, xt_fetch
+	.word xt_to_in, xt_fetch
+	.word xt_equal, xt_zero_branch, intpar
 	.word xt_tib
 	.word xt_lit, 50
 	.word xt_accept
-	.word xt_num_tib
-	.word xt_store
+	.word xt_num_tib, xt_store
 	.word xt_lit, 0
-	.word xt_to_in
-	.word xt_store
+	.word xt_to_in, xt_store
 intpar:
 	.word xt_lit, 32
 	.word xt_word
 	.word xt_find
 	.word xt_dup
 	.word xt_zero_branch, intnf
-	.word xt_state
-	.word xt_fetch
+	.word xt_state, xt_fetch
 	.word xt_equal
 	.word xt_zero_branch, intexc
 	.word xt_comma
@@ -317,36 +314,40 @@ quit:
 	ldr r1, =var_to_in
 	str r0, [r1]
 
-	ldr r10, =xt_bye         // Set instruction pointer to interpret
+	ldr r10, =xt_interpret   // Set instruction pointer to interpret
 	b next  
 
+	.global docol
 docol:
 	str r10, [r11], #4      // Save the return address to the return stack
 	add r10, r8, #4         // Get the next instruction
-	ldr r10, [r10]
 
 	/* fall-into next */
 
+	.global next
 next:                       // The inner interpreter
 	ldr r8, [r10], #4       // Get the next virtual instruction
-	ldr r0, [r8]
-	bx r0
+	bx r8
 
+	.global exit
 exit:                       // End a forth word.
 	ldr r10, [r11, #-4]!    // ip = pop return stack
 	b next
 
+	.global dovar
 dovar:
 	str r9, [r13, #-4]!    // Prepare a push for r9.
 	mov r9, r8             // r9 = [XT + 4].
 	add r9, #4             // (r9 should be an address).
 	b next
 
+	.global doconst
 doconst:                   // Runtime code for words that push a constant.
 	str r9, [r13, #-4]!    // Push the stack.
 	ldr r9, [r8, #4]       // Fetch the data, which is bytes 4 after the CFA.
 	b next                 
 
+	.global do_semi_code
 do_semi_code:             // (;code) - ( addr -- ) replace the xt of the word being defined with addr
 	ldr r0, =var_last     // Get the latest word.
 	ldr r0, [r0]
@@ -667,4 +668,8 @@ enter_immediate:             // Exit compile mode and enter immediate mode.
 	eor r1, r1               // false = 0 = not compiling
 	str r1, [r0]
 	b next
+
+	.text
+_the_end:
+	.word 0xFFFFFFFF	
 
