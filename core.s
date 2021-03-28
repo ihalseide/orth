@@ -201,6 +201,9 @@ var_last:
 	define "invert", 6, , invert
 	.word invert
 
+	define "negate", 6, , negate
+	.word negate
+
 	define "!", 1, , store
 	.word store
 
@@ -385,7 +388,7 @@ comma:
 	b next
 
 find:                       // find - ( addr -- addr2 flag )
-	ldr r0, =val_last       // r0 = current word link field
+	ldr r0, =var_last       // r0 = current word link field
 	ldrb r1, [r9]           // r1 = input str len
 	eor r3, r3              // r3 = 1
 find_len:
@@ -409,7 +412,7 @@ find_chars:
 	ldr r4, [r9, r3]        // compare input string char to word char
 	ldr r5, [r2, r3]
 	cmp r4, r5
-	bneq find_len           // if they are ever not equal, the strings aren't equal
+	bne find_len           // if they are ever not equal, the strings aren't equal
 
 	cmp r3, r1              // keep looping until the whole strings have been compared
 	bne find_chars
@@ -417,7 +420,7 @@ find_chars:
 	mov r9, #1              // return 1 if it's immediate
 	ldr r1, [r0, #4]        // get the word's length byte again
 	tst r1, #F_IMMEDIATE    // return -1 if it's not immediate
-	negne r9
+	negne r9, r9
 
 	add r0, #36             // push the word's CFA to the stack
 	push {r0}
@@ -516,6 +519,10 @@ xor:
 
 invert:
 	mvn r9, r9
+	b next
+
+negate:
+	neg r9, r9
 	b next
 
 store:
@@ -652,7 +659,6 @@ word:                     // word - ( char -- addr )
 
 	ldr r1, =var_tib      // r1 = r2 = tib
 	ldr r1, [r1]
-	ldr r1, [r1]
 	mov r2, r1
 
 	ldr r3, =var_to_in    // r1 += >in, so r1 = pointer into the buffer
@@ -714,8 +720,4 @@ enter_immediate:             // Exit compile mode and enter immediate mode.
 	eor r1, r1               // false = 0 = not compiling
 	str r1, [r0]
 	b next
-
-	.text
-_the_end:
-	.word 0xFFFFFFFF	
 
