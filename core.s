@@ -384,8 +384,44 @@ comma:
 	ldr r9, [r13], #4       // Pop the stack.
 	b next
 
-find:
-	// TODO
+find:                       // find - ( addr -- addr2 flag )
+	ldr r0, =val_last       // r0 = current word link field
+	ldrb r1, [r9]           // r1 = input str len
+	eor r3, r3              // r3 = 1
+find_len:
+	ldrb r2, [r0, #4]       // get word length
+	and r2, #F_LENMASK
+
+	cmp r2, r1              // compare the lengths
+	addeq r2, r0, #4        // r2 = start of word name string buffer
+	beq find_chars
+
+	ldr r0, [r0]            // r0 = r0->link
+
+	cmp r0, #0              // test for end of dictionary
+	bne find_len
+find_no_find:
+	push {r9}               // push string address
+	eor r9, r9              // return 0 for no find
+	b next
+find_chars:
+	add r3, #1              // start at index 1
+	ldr r4, [r9, r3]        // compare input string char to word char
+	ldr r5, [r2, r3]
+	cmp r4, r5
+	bneq find_len           // if they are ever not equal, the strings aren't equal
+
+	cmp r3, r1              // keep looping until the whole strings have been compared
+	bne find_chars
+
+	mov r9, #1              // return 1 if it's immediate
+	ldr r1, [r0, #4]        // get the word's length byte again
+	tst r1, #F_IMMEDIATE    // return -1 if it's not immediate
+	negne r9
+
+	add r0, #36             // push the word's CFA to the stack
+	push {r0}
+
 	b next
 
 drop:
