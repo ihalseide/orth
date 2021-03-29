@@ -1,11 +1,11 @@
 
-run: build
+build: core
+
+run: core
 	./core
 
-debug: build
+debug: core
 	gdb core
-
-build: core
 
 core: core.o
 	ld -g -o $@ $<
