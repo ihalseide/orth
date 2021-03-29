@@ -761,30 +761,26 @@ enter_immediate:             // Exit compile mode and enter immediate mode.
 	str r1, [r0]
 	b next
 
-digits: .ascii "0123456789abcdefghijklmnopqrstuvwxzy"
+	// copy from: https://github.com/organix/pijFORTHos, jonesforth.s
+	// args: r0=numerator, r1=denominator
+	// returns: r0=remainder, r1 = denominator, r2=quotient
+divmod:
+	mov r3, r1
+	cmp r3, r0, LSR #1
+1:
+	movls r3, r3, LSL #1
+	cmp r3, r0, LSR #1
+	bls 1b
+	mov r2, #0
+2:
+	cmp r0, r3
+	subcs r0, r0, r3
+	adc r2, r2, r2
+	mov r3, r3, LSR #1
+	cmp r3, r1
+	bhs 2b
 
-print_digit:
-	push {lr}
-	push {r0, r4-r11}
+	bx lr
 
-	cmp r0, #35
-	bgt range_err
-	cmp r0, #0
-	blt range_err
-
-	ldr r1, =digits
-	add r1, r0
-
-	mov r0, #stdout
-	mov r2, #1
-	mov r7, #os_write
-	swi #0
-
-	pop {r0, r4-r11}
-	pop {pc}
-range_err:
-	mov r0, #-1
-	pop {r0, r4-r11}
-	pop {pc}
-	
+digits: .ascii "0123456789abcdefghijklmnopqrstuvwxyz?"
 
