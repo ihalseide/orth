@@ -4,9 +4,9 @@
 	.set stderr, 2
 
 /* System call numbers */
-	.set os_exit, 1
-	.set os_read, 3
-	.set os_write, 4
+	.set sys_exit, 1
+	.set sys_read, 3
+	.set sys_write, 4
 
 /* Word bitmask flags */
 	.set F_IMMEDIATE, 0b10000000
@@ -408,7 +408,7 @@ do_semi_code:             // (;code) - ( addr -- ) replace the xt of the word be
 bye:
 exit_program:
 	mov r0, #0
-	mov r7, #os_exit
+	mov r7, #sys_exit
 	swi #0
 
 lit:
@@ -632,7 +632,7 @@ tell_char:
 	mov r0, #stdout
 	mov r1, r5
 	mov r2, #1
-	mov r7, #os_write
+	mov r7, #sys_write
 	swi #0
 
 	cmp r0, #-1
@@ -689,7 +689,7 @@ accept:                   // accept - ( addr len -- len2 )
 
 	mov r0, #stdin
 	mov r2, r9            // r2 = count
-	mov r7, #os_read
+	mov r7, #sys_read
 	swi #0
 
 	cmp r0, #-1           // read(...) returns -1 upon an error.
@@ -759,7 +759,7 @@ emit:
 	str r3, [r1]
 	mov r0, #stdout
 	mov r2, #1
-	mov r7, #os_write
+	mov r7, #sys_write
 	swi #0
 	b next
 
