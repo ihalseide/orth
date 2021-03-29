@@ -4,13 +4,8 @@
 
 	.global _start
 _start:
-	mov r4, #0
-loop:
-	mov r0, r4
-	bl print_digit
-	cmp r4, #16
-	add r4, #1
-	bne loop
+	mov r0, #12
+	bl print_unum
 
 	mov r7, #1
 	swi #0
@@ -20,6 +15,7 @@ print_unum:
 	push {r4-r11, lr}
 
 	mvn r1, #1              // init r2 all ones exept first bit
+	mov r5, #0
 
 divide:
 	eor r4, r4              // init remainder to zero
@@ -29,9 +25,10 @@ div_loop:
 	mov r3, r4
 	ror r0, #31
 	ror r3, #31
+	and r5, r3, #1
 	tst r0, #1
-	and r3, r1
 	and r0, r1
+	and r3, r1
 	orrpl r3, #1
 
 	sbc r3, #10
@@ -51,7 +48,12 @@ div_loop:
 
 
 print_digit:
-	push {r4-r11, lr}
+	push {r0, r4-r11, lr}
+
+	cmp r0, #35
+	bgt range_err
+	cmp r0, #0
+	blt range_err
 
 	ldr r1, =digits
 	add r1, r0
@@ -61,9 +63,15 @@ print_digit:
 	mov r7, #os_write
 	swi #0
 
-	pop {r4-r11, lr}
+	pop {r0, r4-r11, lr}
 	bx lr
 
+range_err:
+	mov r0, #-1
+
+	pop {r0, r4-r11, lr}
+	bx lr
+	
 digits:
 	.ascii "0123456789abcdefghijklmnopqrstuvwxzy"
 

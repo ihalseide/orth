@@ -14,21 +14,22 @@
 	.set F_LENMASK,   0b00111111    
 
 /* Previous word link pointer for while it's assembling word defs */
-	.set link, 0   
+	.set link,0
 
 /* Macro for defining a word header in the data section */
-	.macro define name, len, flags=0, label   
+	.macro define name, namelen, flags=0, label   
 	.data
 	.align 2
 	.global def_\label
 def_\label:
 	.word link               // link to previous word in the dictionary data
-	.set link, def_\label
-	.byte \len+\flags        // The name field, including the length byte 
+	.set link,def_\label
+	.byte \namelen+\flags    // The name field, including the length byte 
 	.ascii "\name"           // is 32 bytes long
-	.space 31-\len
-	.global xt_\label
+	.space 31-\namelen
+	.data
 	.align 2
+	.global xt_\label
 xt_\label:                   // The next 4 byte word/cell will be the code field
 	.endm
 
@@ -38,23 +39,24 @@ xt_\label:                   // The next 4 byte word/cell will be the code field
 
 	.data
 	.align 2
+addr_emit_char:
+	.space 1
+
+	.data
+	.align 2
 rstack_base:          // 256 cells for the return stack, which grows up
-	.space 4*256    
+	.space 1024    
 
 	/* Terminal Input Buffer */
+	.data
 	.align 2
 addr_tib:
 	.space 1024
-
-	.align 2
-addr_emit_char:
-	.space 1
 
 /* Begin word header definitions */
 
 	.data
 	.align 2
-_dict_start:
 
 	/* : ( -- ) */
 	define ":", 1, F_IMMEDIATE, colon
@@ -74,37 +76,37 @@ _dict_start:
 
 	define "state", 5, , state
 	.word dovar
-var_state:
+val_state:
 	.word 0
 
 	define ">in", 3, , to_in
 	.word dovar
-var_to_in:
+val_to_in:
 	.word 0
 
 	define "#tib", 4, , num_tib
 	.word dovar
-var_num_tib:
+val_num_tib:
 	.word 0
 
 	define "tib", 3, , tib
 	.word dovar
-var_tib:
+val_tib:
 	.word addr_tib
 
 	define "dp", 2, , dp
 	.word dovar
-var_dp:
-	.word 0
+val_dp:
+	.word dictionary_space
 
 	define "base", 4, , base
 	.word dovar
-var_base:
+val_base:
 	.word 10
 	
 	define "last", 4, , last
 	.word dovar
-var_last:
+val_last:
 	.word the_final_word
 
 	define ";", 1, F_IMMEDIATE, semicolon
@@ -296,14 +298,39 @@ the_final_word:
 	define "bye", 3, , bye
 	.word exit_program
 
-/*
 dictionary_space:
 	.space 2048 
-*/
+
+/* Addresses of variables in the data section */
+	
+	.text
+	.align 2
+
+var_state:
+	.word val_state
+
+var_to_in:
+	.word val_to_in
+
+const_num_tib:
+	.word val_num_tib
+
+var_tib:
+	.word val_tib
+
+var_dp:
+	.word val_dp
+
+var_base:
+	.word val_base
+	
+var_last:
+	.word val_last
 
 /* Begin the main assembly code. */
 
 	.text
+	.align 2
 
 	/* Main starting point. */
 	.global _start
@@ -315,12 +342,15 @@ quit:
 	ldr r11, =rstack_base    // Init the return stack.
 
 	ldr r1, =var_state      // Set state to 0 (interpreting)
+	ldr r1, [r1]
 	eor r0, r0
 	str r0, [r1]
 
-	ldr r0, =var_num_tib      // Copy value of "#tib" to ">in".
+	ldr r0, =const_num_tib      // Copy value of "#tib" to ">in".
+	ldr r0, [r0]
 	ldr r0, [r0]
 	ldr r1, =var_to_in
+	ldr r1, [r1]
 	str r0, [r1]
 
 	ldr r10, =dummy_xt   // Set instruction pointer to interpret
@@ -329,38 +359,32 @@ quit:
 dummy_xt:
 	.word xt_interpret
 
-	.global docol
 docol:
 	str r10, [r11], #4      // Save the return address to the return stack
 	add r10, r8, #4         // Get the next instruction
 
 	/* fall-into next */
 
-	.global next
 next:                       // The inner interpreter
 	ldr r8, [r10], #4       // Get the next virtual instruction
 	ldr r0, [r8]
 	bx r0
 
-	.global exit
 exit:                       // End a forth word.
 	ldr r10, [r11, #-4]!    // ip = pop return stack
 	b next
 
-	.global dovar
 dovar:
 	str r9, [r13, #-4]!    // Prepare a push for r9.
 	mov r9, r8             // r9 = [XT + 4].
 	add r9, #4             // (r9 should be an address).
 	b next
 
-	.global doconst
 doconst:                   // Runtime code for words that push a constant.
 	str r9, [r13, #-4]!    // Push the stack.
 	ldr r9, [r8, #4]       // Fetch the data, which is bytes 4 after the CFA.
 	b next                 
 
-	.global do_semi_code
 do_semi_code:             // (;code) - ( addr -- ) replace the xt of the word being defined with addr
 	ldr r0, =var_last     // Get the latest word.
 	ldr r0, [r0]
@@ -379,6 +403,7 @@ lit:
 	ldr r9, [r10], #4    // Push the next cell value and skip the IP over it.
 	b next               
 
+
 comma:
 	ldr r8, =var_dp         // Set r8 to the dictionary pointer.
 	mov r7, r8              // r7 = copy of dp.
@@ -387,36 +412,37 @@ comma:
 	ldr r9, [r13], #4       // Pop the stack.
 	b next
 
+
 find:                       // find - ( addr -- addr2 flag )
-	ldr r0, =var_last       // r0 = current word link field
+	ldr r0, =var_last       // r0 = current word link field address
+	ldr r0, [r0]
+
 	ldrb r1, [r9]           // r1 = input str len
-	eor r3, r3              // r3 = 1
+
 find_len:
+	ldr r0, [r0]            // r0 = r0->link
+	cmp r0, #0              // test for end of dictionary
+	beq find_no
+
 	ldrb r2, [r0, #4]       // get word length
 	and r2, #F_LENMASK
 
 	cmp r2, r1              // compare the lengths
-	addeq r2, r0, #4        // r2 = start of word name string buffer
-	beq find_chars
-
-	ldr r0, [r0]            // r0 = r0->link
-
-	cmp r0, #0              // test for end of dictionary
 	bne find_len
-find_no_find:
-	push {r9}               // push string address
-	eor r9, r9              // return 0 for no find
-	b next
+
+	add r2, r0, #4          // r2 = start address of word name string buffer
+	eor r3, r3              // r3 = 0 index
 find_chars:
-	add r3, #1              // start at index 1
-	ldr r4, [r9, r3]        // compare input string char to word char
-	ldr r5, [r2, r3]
+	add r3, #1              // increment index (starts at index 1)
+	ldrb r4, [r9, r3]       // compare input string char to word char
+	ldrb r5, [r2, r3]
 	cmp r4, r5
-	bne find_len           // if they are ever not equal, the strings aren't equal
+	bne find_len            // if they are ever not equal, the strings aren't equal
 
 	cmp r3, r1              // keep looping until the whole strings have been compared
 	bne find_chars
 
+find_yes:
 	mov r9, #1              // return 1 if it's immediate
 	ldr r1, [r0, #4]        // get the word's length byte again
 	tst r1, #F_IMMEDIATE    // return -1 if it's not immediate
@@ -427,15 +453,23 @@ find_chars:
 
 	b next
 
+find_no:
+	push {r9}               // push string address
+	eor r9, r9              // return 0 for no find
+	b next
+
+
 drop:
 	ldr r9, [r13], #4
 	b next
+
 
 swap:
 	ldr r0, [r13], #4
 	str r9, [r13, #-4]!
 	mov r9, r0
 	b next
+
 
 dup:
 	str r9, [r13, #-4]!
@@ -652,32 +686,35 @@ accept:                   // accept - ( addr len -- len2 )
 	b next
 
 word:                     // word - ( char -- addr )
-	mov r0, r9            // r0 = char
-	ldr r9, =var_dp       // push the dictionary pointer, which is used as a buffer area, "pad"
-	ldr r9, [r9]          // r4 = r9 = dp
-	mov r4, r9
-
 	ldr r1, =var_tib      // r1 = r2 = tib
 	ldr r1, [r1]
 	mov r2, r1
 
 	ldr r3, =var_to_in    // r1 += >in, so r1 = pointer into the buffer
 	ldr r3, [r3]
+	ldr r3, [r3]
 	add r1, r3
 
-	ldr r3, =var_num_tib  // r2 += #tib, so r2 = last char address in buffer
+	ldr r3, =const_num_tib  // r2 += #tib, so r2 = last char address in buffer
+	ldr r3, [r3]
 	ldr r3, [r3]
 	add r2, r3            
-word_skip:
-	cmp r1, r2
+
+	mov r0, r9            // r0 = char
+
+	ldr r9, =var_dp       // push the dictionary pointer, which is used as a buffer area, "pad"
+	ldr r9, [r9]          // r4 = r9 = dp
+	ldr r9, [r9]
+	mov r4, r9
+word_skip:                // skip leading whitespace
+	cmp r1, r2            // check for if it reached the end of the buffer
 	beq word_done
 
 	ldrb r3, [r1], #1     // get next char
 	cmp r0, r3
 	beq word_skip
 word_copy:
-	add r4, #1
-	strb r3, [r4]
+	strb r3, [r4, #1]!
 
 	cmp r1, r2
 	beq word_done
@@ -687,15 +724,18 @@ word_copy:
 	bne word_copy
 word_done:
 	mov r3, #' '          // write a space to the end of the pad
-	str r3, [r4, #1]
-	sub r4, r9            // get the length
+	str r3, [r4], #1
+
+	sub r4, r9            // get the length of the word written to the pad
 	strb r4, [r9]         // store the length byte into the first char of the pad
 
-	ldr r3, =var_tib      // Get new value of >in and save it to its variable
-	ldr r3, [r3]
-	sub r2, r3
-	ldr r3, =var_to_in    
-	str r2, [r3]
+	ldr r0, =var_tib      // get length inside the input buffer (includes the skipped whitespace)
+	ldr r0, [r0]
+	sub r1, r0
+
+	ldr r0, =var_to_in    // store back to the variable ">in"
+	ldr r0, [r0]
+	str r1, [r0]
 
 	b next                // TOS (r9) has been pointing to the pad addr the whole time
 
@@ -720,4 +760,31 @@ enter_immediate:             // Exit compile mode and enter immediate mode.
 	eor r1, r1               // false = 0 = not compiling
 	str r1, [r0]
 	b next
+
+digits: .ascii "0123456789abcdefghijklmnopqrstuvwxzy"
+
+print_digit:
+	push {lr}
+	push {r0, r4-r11}
+
+	cmp r0, #35
+	bgt range_err
+	cmp r0, #0
+	blt range_err
+
+	ldr r1, =digits
+	add r1, r0
+
+	mov r0, #stdout
+	mov r2, #1
+	mov r7, #os_write
+	swi #0
+
+	pop {r0, r4-r11}
+	pop {pc}
+range_err:
+	mov r0, #-1
+	pop {r0, r4-r11}
+	pop {pc}
+	
 
