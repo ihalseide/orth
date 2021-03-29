@@ -387,13 +387,13 @@ exit:                       // End a forth word.
 	b next
 
 dovar:
-	str r9, [r13, #-4]!    // Prepare a push for r9.
+	push {r9}              // Prepare a push for r9.
 	mov r9, r8             // r9 = [XT + 4].
 	add r9, #4             // (r9 should be an address).
 	b next
 
 doconst:                   // Runtime code for words that push a constant.
-	str r9, [r13, #-4]!    // Push the stack.
+	push {r9}              // Push the stack.
 	ldr r9, [r8, #4]       // Fetch the data, which is bytes 4 after the CFA.
 	b next                 
 
@@ -412,7 +412,7 @@ exit_program:
 	swi #0
 
 lit:
-	str r9, [r13, #-4]!  // Push to the stack.
+	push {r9}            // Push to the stack.
 	ldr r9, [r10], #4    // Push the next cell value and skip the IP over it.
 	b next               
 
@@ -422,7 +422,7 @@ comma:
 	mov r7, r8              // r7 = copy of dp.
 	str r9, [r8], #4        // Store TOS to the dictionary ptr and increment ptr.
 	str r8, [r7]            // Update the val_dp with the new dictionary pointer.
-	ldr r9, [r13], #4       // Pop the stack.
+	pop {r9}
 	b next
 
 
@@ -431,136 +431,135 @@ find:                       // find - ( addr -- addr2 flag )
 	ldr r0, [r0]
 
 	ldrb r1, [r9]           // r1 = input str len
-
-find_len:
+1:                          // Loops through the dictionary linked list.
 	ldr r0, [r0]            // r0 = r0->link
 	cmp r0, #0              // test for end of dictionary
-	beq find_no
+	beq 3f
 
-	ldrb r2, [r0, #4]       // get word length
+	ldrb r2, [r0, #4]       // get word length+flags byte
+
+	tst r2, #F_HIDDEN       // skip hidden words
+	beq 1b
+
 	and r2, #F_LENMASK
-
 	cmp r2, r1              // compare the lengths
-	bne find_len
+	bne 1b
 
 	add r2, r0, #4          // r2 = start address of word name string buffer
 	eor r3, r3              // r3 = 0 index
-find_chars:
+2:                 // Loops through both strings to test for equality.
 	add r3, #1              // increment index (starts at index 1)
 	ldrb r4, [r9, r3]       // compare input string char to word char
 	ldrb r5, [r2, r3]
 	cmp r4, r5
-	bne find_len            // if they are ever not equal, the strings aren't equal
+	bne 1b                  // if they are ever not equal, the strings aren't equal
 
 	cmp r3, r1              // keep looping until the whole strings have been compared
-	bne find_chars
+	bne 2b        
 
-find_yes:
-	mov r9, #1              // return 1 if it's immediate
+	mov r9, #1              // At this point, the word's name matches the input string
 	ldr r1, [r0, #4]        // get the word's length byte again
 	tst r1, #F_IMMEDIATE    // return -1 if it's not immediate
 	negne r9, r9
 
 	add r0, #36             // push the word's CFA to the stack
 	push {r0}
-
 	b next
-
-find_no:
+3:                          // A word with a matching name was not found.
 	push {r9}               // push string address
 	eor r9, r9              // return 0 for no find
 	b next
 
 
 drop:
-	ldr r9, [r13], #4
+	pop {r9}
 	b next
 
 
 swap:
-	ldr r0, [r13], #4
-	str r9, [r13, #-4]!
+	pop {r0}
+	push {r9}
 	mov r9, r0
 	b next
 
 
 dup:
-	str r9, [r13, #-4]!
+	push {r9}
 	b next
 
 over:
 	ldr r0, [r13]       // r0 = get the second item on stack
-	str r9, [r13, #-4]! // push TOS to the rest of the stack
+	push {r9}           // push TOS to the rest of the stack
 	mov r9, r0          // TOS = r0
 	b next
 
 rot:
-	ldr r0, [r13], #4   // pop y
-	ldr r1, [r13], #4   // pop x
-	str r0, [r13, #-4]! // push y
-	str r9, [r13, #-4]! // push z
+	pop {r0}            // pop y
+	pop {r1}            // pop x
+	push {r0}           // push y
+	push {r9}           // push z
 	mov r9, r1          // push x
 	b next
 
 to_r:
 	str r9, [r11, #-4]!
-	ldr r9, [r13], #4
+	pop {r9}
 	b next
 
 r_from:
-	str r9, [r13, #-4]!
+	push {r9}
 	ldr r9, [r11], #4
 	b next
 
 add:
-	ldr r0, [r13], #4
-	add r9, r0, r9
+	pop {r0}
+	add r9, r0
 	b next
 
 sub:
-	ldr r0, [r13], #4
+	pop {r0}
 	sub r9, r9, r1
 	b next
 
 multiply:
-	ldr r0, [r13], #4
+	pop {r0}
 	mov r1, r9        // use r1 because multiply can't be a src and a dest on ARM
 	mul r9, r0, r1
 	b next
 
 equal:
-	ldr r0, [r13], #4
+	pop {r0}
 	cmp r9, r0
-	moveq r9, #-1
-	movne r9, #0
+	moveq r9, #-1      // -1 = true
+	movne r9, #0       //  0 = false
 	b next
 
 lt:
-	ldr r0, [r13], #4
+	pop {r0}
 	cmp r9, r0
 	movlt r9, #-1
 	movge r9, #0
 	b next
 
 gt:
-	ldr r0, [r13], #4
+	pop {r0}
 	cmp r9, r0
 	movge r9, #-1
 	movlt r9, #0
 	b next
 
 do_and:
-	ldr r0, [r13], #4
+	pop {r0}
 	and r9, r9, r0
 	b next
 
 do_or:
-	ldr r0, [r13], #4
+	pop {r0}
 	orr r9, r9, r0
 	b next
 
 xor:
-	ldr r0, [r13], #4
+	pop {r0}
 	eor r9, r9, r0
 	b next
 
@@ -573,44 +572,47 @@ negate:
 	b next
 
 store:
-	ldr r0, [r13], #4
+	pop {r0}
 	str r0, [r9]
-	ldr r9, [r13], #4
+	pop {r9}
 	b next
 
 fetch:
 	ldr r9, [r9]
 	b next
 
+
 cstore:
-	ldr r0, [r13], #4
+	pop {r0}
 	strb r0, [r9]
-	ldr r9, [r13], #4
+	pop {r9}
 	b next 
+
 
 cfetch:
-	mov r0, #0
-	ldrb r0, [r9]
-	ldr r9, [r13], #4
+	ldrb r9, [r9]
 	b next 
 
+
 branch:
-	ldr r0, [r10], #4
-	mov r10, r0
+	ldr r10, [r10]        // add 4 first or after or at all??
 	b next
 
+
 zero_branch:
-	ldr r0, [r10], #4
 	cmp r9, #0
-	moveq r10, r0
+	ldreq r10, [r10]
+	addne r10, #4
 	pop {r9}
 	b next
+
 
 exec:
 	mov r8, r9        // r8 = the xt
 	pop {r9}          // pop the stack
 	ldr r1, [r8]      // r1 = code address
 	bx r1
+
 
 count:
 	mov r0, r9          // push addr + 1
@@ -619,6 +621,7 @@ count:
 	ldrb r9, [r9]        // push length, which is addr[0]
 	and r9, #F_LENMASK
 	b next
+
 
 tell:
 	mov r5, r9          // push addr + 1
@@ -645,11 +648,12 @@ tell_done:
 	pop {r9}
 	b next
 
+
 to_number:
     //                    // r9 = length (already set)
-	ldr r0, [r13], #4    // r0 = addr
-	ldr r1, [r13], #4    // r1 = d.hi
-	ldr r2, [r13], #4    // r2 = d.lo
+	pop {r0}             // r0 = addr
+	pop {r1}             // r1 = d.hi
+	pop {r2}             // r2 = d.lo
 	ldr r4, =var_base    // get the current number base
 	ldr r4, [r4]
 to_num1:
@@ -678,10 +682,10 @@ to_num3:
 	sub r0, #1           // addr++
 	b to_num1
 to_num4:
-	str r2, [r13, #-4]!  // push the low word
+	push {r2}            // push the low word
 to_num5:               
-	str r1, [r13, #-4]!  // push the high word
-	str r0, [r13, #-4]!  // push the string address
+	push {r1}            // push the high word
+	push {r0}            // push the string address
 	b next
 
 accept:                   // accept - ( addr len -- len2 )
@@ -754,7 +758,7 @@ word_done:
 
 	// emit ( char -- )
 emit:
-	pop {r3}
+	pop {r3}         
 	ldr r1, =addr_emit_char
 	str r3, [r1]
 	mov r0, #stdout
