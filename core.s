@@ -294,9 +294,21 @@ intskip:
 intdone:
 	.word xt_branch, xt_interpret            // Infinite loop.
 
+	/* / ( n m -- q ) division quotient */
+	define "/", 1, , divide
+	.word divide
+
+	/* /mod ( n m -- r q ) division remainder and quotient */
+	define "/mod", 4, , word_divmod
+	.word divmod
+
+	/* mod ( n m -- r ) division remainder */
+	define "mod", 3, , mod
+	.word mod
+
 the_final_word:
 	define "bye", 3, , bye
-	.word exit_program
+	.word bye
 
 dictionary_space:
 	.space 2048 
@@ -393,6 +405,7 @@ do_semi_code:             // (;code) - ( addr -- ) replace the xt of the word be
 	pop {r9}
 	b next
 
+bye:
 exit_program:
 	mov r0, #0
 	mov r7, #os_exit
@@ -739,6 +752,7 @@ word_done:
 
 	b next                // TOS (r9) has been pointing to the pad addr the whole time
 
+	// emit ( char -- )
 emit:
 	pop {r3}
 	ldr r1, =addr_emit_char
@@ -749,22 +763,24 @@ emit:
 	swi #0
 	b next
 
+	// ] ( -- )
 enter_compile:               // Exit immediate mode and enter compile mode.
 	ldr r0, =var_state
 	mov r1, #-1              // true = -1 = compiling
 	str r1, [r0]
 	b next
 
+	// [ ( -- )
 enter_immediate:             // Exit compile mode and enter immediate mode.
 	ldr r0, =var_state
 	eor r1, r1               // false = 0 = not compiling
 	str r1, [r0]
 	b next
 
-	// copy from: https://github.com/organix/pijFORTHos, jonesforth.s
-	// args: r0=numerator, r1=denominator
-	// returns: r0=remainder, r1 = denominator, r2=quotient
-divmod:
+	/* copy from: https://github.com/organix/pijFORTHos, jonesforth.s
+	 * args: r0=numerator, r1=denominator
+	 */ returns: r0=remainder, r1 = denominator, r2=quotient
+fn_divmod:
 	mov r3, r1
 	cmp r3, r0, LSR #1
 1:
@@ -781,6 +797,31 @@ divmod:
 	bhs 2b
 
 	bx lr
+
+	// / ( n m -- q ) division quotient
+divide:
+	mov r1, r9
+	pop {r0}
+	bl fn_divmod
+	mov r9, r2
+	b next
+
+	// /mod ( n m -- r q ) division remainder and quotient
+divmod:
+	mov r1, r9
+	pop {r0}
+	bl fn_divmod
+	push {r0}
+	mov r9, r2
+	b next
+
+	// mod ( n m -- r ) division remainder
+mod:
+	mov r1, r9
+	pop {r0}
+	bl fn_divmod
+	mov r9, r0
+	b next
 
 digits: .ascii "0123456789abcdefghijklmnopqrstuvwxyz?"
 
