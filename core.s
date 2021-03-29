@@ -78,6 +78,51 @@ tib_end:
 	.data
 	.align 2
 
+	define "!", 1, , store, store
+	define "&", 1, , and, do_and
+	define "(;code)", 7, , do_semi_code, do_semi_code
+	define "*", 1, , multiply, multiply
+	define "+", 1, , add, add
+	define ",", 1, , comma, comma
+	define "-", 1, , sub, sub
+	define "/", 1, , divide, divide
+	define "/mod", 4, , divmod, divmod
+	define "0branch", 7, , zero_branch, zero_branch
+	define "<", 1, , lt, lt
+	define "=", 1, , equal, equal
+	define ">", 1, , gt, gt
+	define ">CFA", 4, , to_cfa, to_cfa
+	define ">R", 2, , to_r, to_r
+	define ">number", 7, , to_number, to_number
+	define "@", 1, , fetch, fetch
+	define "R>", 2, , r_from, r_from
+	define "[", 1, F_IMMEDIATE, enter_immediate, enter_immediate
+	define "^", 1, , xor, xor
+	define "accept", 6, , accept, accept
+	define "branch", 6, , branch, branch
+	define "bye", 3, , bye, bye
+	define "c!", 2, , cstore, cstore
+	define "c@", 2, , cfetch, cfetch
+	define "count", 5, , count, count
+	define "drop", 4, , drop, drop
+	define "dup", 3, , dup, dup
+	define "emit", 4, , emit, emit
+	define "execute", 4, , exec, exec
+	define "exit", 4, , exit, exit
+	define "find", 4, , find, find
+	define "invert", 6, , invert, invert
+	define "lit", 3, , lit, lit
+	define "mod", 3, , mod, mod
+	define "negate", 6, , negate, negate
+	define "nip", 3, nip, nip
+	define "no_rstack", 9, , no_rstack, no_rstack
+	define "over", 4, , over, over
+	define "rot", 3, , rot, rot
+	define "swap", 4, , swap, swap
+	define "tell", 4, , tell, tell
+	define "word", 4, , word, word
+	define "|", 1, , or, do_or
+
 	define "state", 5, , state, dovar      // 0 variable state
 val_state:
 	.word 0
@@ -106,17 +151,33 @@ val_base:
 val_last:
 	.word the_final_word
 
-	define ":", 1, F_IMMEDIATE, colon      // : ( -- )
-	.word docol
-	.word xt_create                        // Create a new header for the next word.
-	.word xt_enter_compile                 // Enter into compile mode
-	.word xt_lit, docol, xt_do_semi_code   // Make "docolon" be the runtime code for the new header.
+	// ( addr -- addr2 ) word address to length field address
+	define ">LFA", 4, , to_lfa, docol
+	.word xt_lit, 4, xt_add
+	.word xt_exit
+
+	// ( -- )
+	define "immediate", 9, F_IMMEDIATE, immediate, docol
+	.word xt_latest, xt_fetch, xt_to_lfa
+	.word xt_dup, xt_cfetch
+	.word xt_lit, F_IMMEDIATE, xt_and
+	.word xt_swap, xt_cstore
+	.word xt_exit
+
+	define ":", 1, F_IMMEDIATE, colon, docol      // : ( -- )
+	.word xt_create                               // Create a new header for the next word.
+	.word xt_enter_compile                        // Enter into compile mode
+	.word xt_lit, docol, xt_do_semi_code          // Make "docolon" be the runtime code for the new header.
+
+	define "::", 1, , colon_colon, docol
+	.word xt_colon, xt_immediate
+	.word xt_exit
 
 	define ";", 1, F_IMMEDIATE, semicolon, docol
-	.word xt_lit, xt_exit                // Compile an exit code.
+	.word xt_lit, xt_exit
 	.word xt_comma
 	.word xt_enter_immediate
-	.word xt_exit                        // Actually exit this word.
+	.word xt_exit
 
 	define "create", 6, , create, docol
 	.word xt_h, xt_fetch
@@ -128,122 +189,56 @@ val_last:
 	.word xt_count
 	.word xt_add
 	.word xt_h, xt_store
-	.word xt_lit, 0
-	.word xt_comma
+	.word xt_lit, 0, xt_comma
 	.word xt_lit, dovar, xt_do_semi_code
 
-	define "const", 5, , const, docol
+	// ( x -- )
+	define "constant", 5, , const, docol
 	.word xt_create
 	.word xt_comma
 	.word xt_lit, doconst, xt_do_semi_code
 
-	define "]", 1, , enter_compile, docol
-1:
-	// was HERE
-	.word xt_lit, ' ', xt_find
-	.word 0branch, 3f
-	.word xt_lit, -1, xt_eq
-	.word 0branch 2f
-	.word xt_execute
-	//.word xt_q_stack, xt_abort_s
-	//.byte 11
-	//.ascii "stack empty"
-2:
+	define "(compile)", , do_compile, docol // ( addr -- )
+	.word xt_to_cfa
 	.word xt_comma
-3:
-	.word branch, 1b
+	.word xt_exit
 
-	define "interpret", 9, , interpret, docol
+	define "]", 1, , enter_compile, docol
+1:	.word xt_find
+	
+3:	.word branch, 1b
+
+	define "cr", 2, , docol
+	.word xt_lit, '\n', xt_emit
+	.word xt_exit
+
+	define "refill", 3, , refill, docol
 	.word xt_num_tib, xt_fetch
 	.word xt_to_in, xt_fetch
-	.word xt_equal, xt_zero_branch, intpar
+	.word xt_equal, xt_zero_branch, 1f
 	.word xt_tib
 	.word xt_lit, 50
 	.word xt_accept
 	.word xt_num_tib, xt_store
 	.word xt_lit, 0
 	.word xt_to_in, xt_store
-intpar:
-	.word xt_lit, 32
-	.word xt_word
-	.word xt_find
-	.word xt_dup
-	.word xt_zero_branch, intnf
-	.word xt_state, xt_fetch
-	.word xt_equal
-	.word xt_zero_branch, intexc
-	.word xt_comma
-	.word xt_branch, intdone
-intexc:
-	.word xt_exec
-	.word xt_branch, intdone
-intnf:
-	.word xt_dup
-	.word xt_rot
-	.word xt_count
-	.word xt_to_number
-	.word xt_zero_branch, intskip
-	.word xt_state, xt_fetch
-	.word xt_zero_branch, intnc
-	.word xt_last, xt_fetch
-	.word xt_dup, xt_fetch
-	.word xt_last, xt_store
-	.word xt_h, xt_store
-intnc:                                       // Exit infinite loop and reset
-	.word xt_quit                            // because of error.
-intskip:
-	.word xt_drop, xt_drop
-	.word xt_state, xt_fetch
-	.word xt_zero_branch, intdone
-	.word xt_lit, xt_lit, xt_comma, xt_comma
-intdone:
-	.word xt_branch, xt_interpret            // Infinite loop.
+1:	.word xt_exit
 
-	define "quit", 4, , quit, quit
-	define "[", 1, F_IMMEDIATE, enter_immediate, enter_immediate
-	define "`", 1, , tick, tick
-	define "(;code)", 7, , do_semi_code, do_semi_code
-	define "lit", 3, F_IMMEDIATE, lit, lit
-	define ",", 1, , comma, comma
-	define "dup", 3, , dup, dup
-	define "drop", 4, , drop, drop
-	define "swap", 4, , swap, swap
-	define "nip", 3, nip, nip
-	define "over", 4, , over, over
-	define "rot", 3, , rot, rot
-	define ">R", 2, , to_r, to_r
-	define "R>", 2, , r_from, r_from
-	define "-", 1, , sub, sub
-	define "+", 1, , add, add
-	define "find", 4, , find, find
-	define "emit", 4, , emit, emit
-	define "=", 1, , equal, equal
-	define "*", 1, , multiply, multiply
-	define "<", 1, , lt, lt
-	define ">", 1, , gt, gt
-	define "&", 1, , and, do_and
-	define "|", 1, , or, do_or
-	define "^", 1, , xor, xor
-	define "invert", 6, , invert, invert
-	define "negate", 6, , negate, negate
-	define "!", 1, , store, store
-	define "@", 1, , fetch, fetch
-	define "c!", 2, , cstore, cstore
-	define "c@", 2, , cfetch, cfetch
-	define "exit", 4, , exit, exit
-	define "branch", 6, , branch, branch
-	define "0branch", 7, , zero_branch, zero_branch
-	define "execute", 4, , exec, exec
-	define "count", 5, , count, count
-	define "tell", 4, , tell, tell
-	define ">number", 7, , to_number, to_number
-	define "accept", 6, , accept, accept
-	define "word", 4, , word, word
-	define "bye", 3, , bye, bye
-	define "/", 1, , divide, divide
-	define "/mod", 4, , divmod, divmod
-	define "mod", 3, , mod, mod
+	define "interpret", 9, , interpret, docol
+1:	
+	.word xt_exit
+
 the_final_word:
+
+	define "quit", 4, , quit, docol
+1:	.word xt_no_rstack
+	.word xt_refill
+	.word xt_interpret
+	.word xt_dot_quote
+	.byte 4
+	.ascii "ok "
+	.word xt_cr
+	.word branch, 1b
 
 dictionary_space:
 	.space 2048
@@ -280,7 +275,6 @@ var_last:
 	/* Main starting point. */
 	.global _start
 _start:
-quit:
 	mov r0, #42
 	push {r0}
 
@@ -822,3 +816,12 @@ mod:
 nip:
 	pop {r0}
 	b next
+
+no_rstack:
+	ldr r11, =rstack_start      // Init or reset the return stack.
+	b next
+	
+to_cfa:
+	add r9, #36
+	b next
+	

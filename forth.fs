@@ -1,45 +1,7 @@
 \ This is the rest of my forth written in itself
 
-\ Comparison and Boolean values
-: TRUE 1 ;
-: FALSE 0 ;
-: 0= 0 = ;
-: not 0= ;
-: <> = not ;
-: <= > not ;
-: >= < not ; 
-: 0> 0 > ;
-: 0< 0 < ;
-: 0<= 0 <= ;
-: 0>= 0 >= ;
-: 0<> 0= not ;
-
-\ Incrementation shortcuts
-: 1+ 1 + ;
-: 1- 1 - ;
-: 4+ 4 + ;
-: 4- 4 - ; 
-
-\ Negate a number
-: negate 0 swap - ;
-
-\ Use the DIVMOD operation defined in assembly
-\ in order to create division and mod
-: / /mod swap drop ; 
-: mod /mod drop ;
-
-\ Whitespace character constants
-: BL 32 ;
-: '\n' 10 ; 
-: '\t' 9 ;
-
-\ Character emitters
-: space BL emit ;
-: CR '\n' emit ;
-: tab '\t' emit ;
-
-\ literal takes whatever is on the stack and compiles it to <lit _x_>
-: literal immediate ' lit , , ; 
+\ Literal takes whatever is on the stack and compiles it to <lit _x_>
+: literal ' lit , , ; immediate 
 
 \ Use literal to define character constants devised at compile-time
 : '(' [ char ( ] literal ;
@@ -47,34 +9,34 @@
 : ':' [ char : ] literal ;
 : ';' [ char ; ] literal ;
 : '.' [ char . ] literal ;
-: '"' [ char " ] literal ;
+: '"' [ char " ] literal ;     \ "
 : '-' [ char - ] literal ;
 : '0' [ char 0 ] literal ;
 : 'A' [ char A ] literal ;
 
 \ When in compile mode, [compile] is used to compile the next word even if it is
 \ an immediate word.
-: [compile] word find >CFA , ;
-immediate
+: [compile] word find >CFA , ; immediate
 
-: recurse Latest @ >CFA , ;
-immediate
+: recurse Latest @ >CFA , ; immediate
 
 \ Define the if/then/else construct
 \ unless functions as the inverse of if
-: if immediate
-	' 0branch , Here @ 0 , ; 
-: unless immediate
-	' not , [compile] if ;
+: if ' 0branch , Here @ 0 , ; immediate
+
+: unless 
+	' not , [compile] if ; immediate
+
 : then immediate
 	dup Here @ swap - swap ! ;  
-: else immediate
+
+: else 
 	' branch ,
 	Here @
 	0 ,
 	swap dup
 	Here @ swap -
-	swap ! ;
+	swap ! ; immediate
 
 \ Define the begin <code> <condition> UNTIL construct
 : begin immediate
