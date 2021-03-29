@@ -11,114 +11,115 @@
 /* Word bitmask flags */
 	.set F_IMMEDIATE, 0b10000000
 	.set F_HIDDEN,    0b01000000
-	.set F_LENMASK,   0b00111111    
+	.set F_LENMASK,   0b00111111
 
 /* Previous word link pointer for while it's assembling word defs */
 	.set link,0
 
 /* Macro for defining a word header in the data section */
-	.macro define name, namelen, flags=0, label   
+	.macro define name, namelen, flags=0, label, codelabel
 	.data
 	.align 2
 	.global def_\label
 def_\label:
 	.word link               // link to previous word in the dictionary data
 	.set link,def_\label
-	.byte \namelen+\flags    // The name field, including the length byte 
+	.byte \namelen+\flags    // The name field, including the length byte
 	.ascii "\name"           // is 32 bytes long
 	.space 31-\namelen
 	.data
 	.align 2
 	.global xt_\label
 xt_\label:                   // The next 4 byte word/cell will be the code field
+	.word \codelabel
 	.endm
 
 /* Begin normal program data, which needs to be before the dictionary
  * because the dictionary will grow upwards in memory.
  */
 
+	// DEBUG
 	.data
 	.align 2
-addr_emit_char:
-	.space 1
+docol_word_data:
+	.word 0
+	.align 2
+docol_return_data:
+	.word 0
 
 	.data
 	.align 2
-rstack_base:          // 256 cells for the return stack, which grows up
-	.space 1024    
+emit_char_buf:
+	.space 1
+
+	// 256 cells for the return stack, which grows up
+	.data
+	.align 2
+rstack_end:
+	.space 1024
+rstack_start:
+
+	// 64 cells for the parameter stack, which grows up
+	.data
+	.align 2
+pstack_end:
+	.space 256
+pstack_start:
 
 	/* Terminal Input Buffer */
 	.data
 	.align 2
-addr_tib:
-	.space 1024
+tib_start:
+	.space 128
+tib_end:
 
 /* Begin word header definitions */
 
 	.data
 	.align 2
 
-	/* : ( -- ) */
-	define ":", 1, F_IMMEDIATE, colon
+	define "state", 5, , state, dovar      // 0 variable state
+val_state:
+	.word 0
+
+	define ">in", 3, , to_in, dovar        // 0 variable >in
+val_to_in:
+	.word 0
+
+	define "#tib", 4, , num_tib, dovar     // 0 variable #tib
+val_num_tib:
+	.word 0
+
+	define "tib", 3, , tib, doconst        // <tib address> const tib
+val_tib:
+	.word tib_start
+
+	define "h", 2, , h, dovar              // <dictionary end> variable h
+val_h:
+	.word dictionary_space
+
+	define "base", 4, , base, dovar        // 10 variable base
+val_base:
+	.word 10
+
+	define "last", 4, , last, dovar        // <the final word> variable last
+val_last:
+	.word the_final_word
+
+	define ":", 1, F_IMMEDIATE, colon      // : ( -- )
 	.word docol
 	.word xt_create                        // Create a new header for the next word.
 	.word xt_enter_compile                 // Enter into compile mode
 	.word xt_lit, docol, xt_do_semi_code   // Make "docolon" be the runtime code for the new header.
 
-	define "]", 1, , enter_compile
-	.word enter_compile
-
-	define "[", 1, F_IMMEDIATE, enter_immediate
-	.word enter_immediate
-
-	define "quit", 4, , quit
-	.word quit
-
-	define "state", 5, , state
-	.word dovar
-val_state:
-	.word 0
-
-	define ">in", 3, , to_in
-	.word dovar
-val_to_in:
-	.word 0
-
-	define "#tib", 4, , num_tib
-	.word dovar
-val_num_tib:
-	.word 0
-
-	define "tib", 3, , tib
-	.word dovar
-val_tib:
-	.word addr_tib
-
-	define "dp", 2, , dp
-	.word dovar
-val_dp:
-	.word dictionary_space
-
-	define "base", 4, , base
-	.word dovar
-val_base:
-	.word 10
-	
-	define "last", 4, , last
-	.word dovar
-val_last:
-	.word the_final_word
-
-	define ";", 1, F_IMMEDIATE, semicolon
-	.word docol
+	define ";", 1, F_IMMEDIATE, semicolon, docol
 	.word xt_lit, xt_exit                // Compile an exit code.
 	.word xt_comma
-	.word xt_lit, 0, xt_state, xt_store  // Change back to immediate mode.
+	.word xt_enter_immediate
 	.word xt_exit                        // Actually exit this word.
 
-	define "create", 6, , create
-	.word docol
-	.word xt_dp, xt_fetch
+	define "create", 6, , create, docol
+	.word xt_h, xt_fetch
 	.word xt_last, xt_fetch
 	.word xt_comma
 	.word xt_last, xt_store
@@ -126,129 +127,33 @@ val_last:
 	.word xt_word
 	.word xt_count
 	.word xt_add
-	.word xt_dp, xt_store
+	.word xt_h, xt_store
 	.word xt_lit, 0
 	.word xt_comma
 	.word xt_lit, dovar, xt_do_semi_code
 
-	define "(;code)", 7, , do_semi_code
-	.word do_semi_code
-
-	define "const", 5, , const
-	.word docol
+	define "const", 5, , const, docol
 	.word xt_create
 	.word xt_comma
 	.word xt_lit, doconst, xt_do_semi_code
 
-	define "lit", 3, F_IMMEDIATE, lit
-	.word lit
+	define "]", 1, , enter_compile, docol
+1:
+	// was HERE
+	.word xt_lit, ' ', xt_find
+	.word 0branch, 3f
+	.word xt_lit, -1, xt_eq
+	.word 0branch 2f
+	.word xt_execute
+	//.word xt_q_stack, xt_abort_s
+	//.byte 11
+	//.ascii "stack empty"
+2:
+	.word xt_comma
+3:
+	.word branch, 1b
 
-	define ",", 1, , comma
-	.word comma
-
-	define "drop", 4, , drop
-	.word drop
-
-	define "swap", 4, , swap
-	.word swap
-
-	define "over", 4, , over
-	.word over
-
-	define "rot", 3, , rot
-	.word rot
-
-	define ">R", 2, , to_r
-	.word to_r
-
-	define "R>", 2, , r_from
-	.word r_from
-
-	define "-", 1, , sub
-	.word sub
-
-	define "+", 1, , add
-	.word add
-
-	define "dup", 3, , dup
-	.word dup
-
-	define "find", 4, , find
-	.word find
-
-	define "emit", 4, , emit
-	.word emit
-
-	define "=", 1, , equal
-	.word equal
-
-	define "*", 1, , multiply
-	.word multiply
-
-	define "<", 1, , lt
-	.word lt
-
-	define ">", 1, , gt
-	.word gt
-
-	define "&", 1, , and
-	.word do_and
-
-	define "|", 1, , or
-	.word do_or
-
-	define "^", 1, , xor
-	.word xor
-
-	define "invert", 6, , invert
-	.word invert
-
-	define "negate", 6, , negate
-	.word negate
-
-	define "!", 1, , store
-	.word store
-
-	define "@", 1, , fetch
-	.word fetch
-
-	define "c!", 2, , cstore
-	.word cstore
-
-	define "c@", 2, , cfetch
-	.word cfetch
-
-	define "exit", 4, , exit
-	.word exit
-
-	define "branch", 6, , branch
-	.word branch
-
-	define "0branch", 7, , zero_branch
-	.word zero_branch
-
-	define "exec", 4, , exec
-	.word exec
-
-	// count ( addr -- addr2 len )
-	define "count", 5, , count
-	.word count
-
-	// tell ( addr -- )
-	define "tell", 4, , tell
-	.word tell
-
-	define ">number", 7, , to_number
-	.word to_number
-
-	define "accept", 6, , accept
-	.word accept
-
-	define "word", 4, , word
-	.word word
-
-	define "interpret", 9, , interpret
-	.word docol
+	define "interpret", 9, , interpret, docol
 	.word xt_num_tib, xt_fetch
 	.word xt_to_in, xt_fetch
 	.word xt_equal, xt_zero_branch, intpar
@@ -283,7 +188,7 @@ intnf:
 	.word xt_last, xt_fetch
 	.word xt_dup, xt_fetch
 	.word xt_last, xt_store
-	.word xt_dp, xt_store
+	.word xt_h, xt_store
 intnc:                                       // Exit infinite loop and reset
 	.word xt_quit                            // because of error.
 intskip:
@@ -294,27 +199,57 @@ intskip:
 intdone:
 	.word xt_branch, xt_interpret            // Infinite loop.
 
-	/* / ( n m -- q ) division quotient */
-	define "/", 1, , divide
-	.word divide
-
-	/* /mod ( n m -- r q ) division remainder and quotient */
-	define "/mod", 4, , word_divmod
-	.word divmod
-
-	/* mod ( n m -- r ) division remainder */
-	define "mod", 3, , mod
-	.word mod
-
+	define "quit", 4, , quit, quit
+	define "[", 1, F_IMMEDIATE, enter_immediate, enter_immediate
+	define "`", 1, , tick, tick
+	define "(;code)", 7, , do_semi_code, do_semi_code
+	define "lit", 3, F_IMMEDIATE, lit, lit
+	define ",", 1, , comma, comma
+	define "dup", 3, , dup, dup
+	define "drop", 4, , drop, drop
+	define "swap", 4, , swap, swap
+	define "nip", 3, nip, nip
+	define "over", 4, , over, over
+	define "rot", 3, , rot, rot
+	define ">R", 2, , to_r, to_r
+	define "R>", 2, , r_from, r_from
+	define "-", 1, , sub, sub
+	define "+", 1, , add, add
+	define "find", 4, , find, find
+	define "emit", 4, , emit, emit
+	define "=", 1, , equal, equal
+	define "*", 1, , multiply, multiply
+	define "<", 1, , lt, lt
+	define ">", 1, , gt, gt
+	define "&", 1, , and, do_and
+	define "|", 1, , or, do_or
+	define "^", 1, , xor, xor
+	define "invert", 6, , invert, invert
+	define "negate", 6, , negate, negate
+	define "!", 1, , store, store
+	define "@", 1, , fetch, fetch
+	define "c!", 2, , cstore, cstore
+	define "c@", 2, , cfetch, cfetch
+	define "exit", 4, , exit, exit
+	define "branch", 6, , branch, branch
+	define "0branch", 7, , zero_branch, zero_branch
+	define "execute", 4, , exec, exec
+	define "count", 5, , count, count
+	define "tell", 4, , tell, tell
+	define ">number", 7, , to_number, to_number
+	define "accept", 6, , accept, accept
+	define "word", 4, , word, word
+	define "bye", 3, , bye, bye
+	define "/", 1, , divide, divide
+	define "/mod", 4, , divmod, divmod
+	define "mod", 3, , mod, mod
 the_final_word:
-	define "bye", 3, , bye
-	.word bye
 
 dictionary_space:
-	.space 2048 
+	.space 2048
 
 /* Addresses of variables in the data section */
-	
+
 	.text
 	.align 2
 
@@ -330,19 +265,17 @@ const_num_tib:
 var_tib:
 	.word val_tib
 
-var_dp:
-	.word val_dp
+var_h:
+	.word val_h
 
 var_base:
 	.word val_base
-	
+
 var_last:
 	.word val_last
 
 /* Begin the main assembly code. */
 
-	.text
-	.align 2
 
 	/* Main starting point. */
 	.global _start
@@ -351,9 +284,10 @@ quit:
 	mov r0, #42
 	push {r0}
 
-	ldr r11, =rstack_base    // Init the return stack.
+	ldr r11, =rstack_start      // Init the return stack.
+	ldr sp, =pstack_start       // Init the parameter stack.
 
-	ldr r1, =var_state      // Set state to 0 (interpreting)
+	ldr r1, =var_state          // Set state to 0 (interpreting)
 	ldr r1, [r1]
 	eor r0, r0
 	str r0, [r1]
@@ -365,37 +299,51 @@ quit:
 	ldr r1, [r1]
 	str r0, [r1]
 
-	ldr r10, =dummy_xt   // Set instruction pointer to interpret
-	b next  
-
-dummy_xt:
+	ldr r10, =init_xt
+	b next
+init_xt:
 	.word xt_interpret
 
+docol_word:
+	.word docol_word_data
+
+docol_return:
+	.word docol_return_data
+
 docol:
-	str r10, [r11], #4      // Save the return address to the return stack
+	// DEBUG purposes
+	ldr r0, =docol_word
+	ldr r0, [r0]
+	str r8, [r0]
+	ldr r0, =docol_return
+	ldr r0, [r0]
+	str r10, [r0]
+docol2:
+	str r10, [r11, #-4]!    // Save the return address to the return stack
 	add r10, r8, #4         // Get the next instruction
 
-	/* fall-into next */
-
 next:                       // The inner interpreter
-	ldr r8, [r10], #4       // Get the next virtual instruction
-	ldr r0, [r8]
+	ldr r8, [r10], #4       // r10 = the virtual instruction pointer
+	ldr r0, [r8]            // r8 = xt of current word
 	bx r0
 
+
 exit:                       // End a forth word.
-	ldr r10, [r11, #-4]!    // ip = pop return stack
+	ldr r10, [r11], #4      // ip = pop return stack
 	b next
 
-dovar:
+
+dovar:                     // A word whose parameter list is a 1-cell value
 	push {r9}              // Prepare a push for r9.
-	mov r9, r8             // r9 = [XT + 4].
-	add r9, #4             // (r9 should be an address).
+	add r9, r8, #4         // Push the address of the value
 	b next
 
-doconst:                   // Runtime code for words that push a constant.
-	push {r9}              // Push the stack.
-	ldr r9, [r8, #4]       // Fetch the data, which is bytes 4 after the CFA.
-	b next                 
+
+doconst:                   // A word whose parameter list is a 1-cell value
+	push {r9}              // Prepare a push for r9.
+	ldr r9, [r8, #4]       // Push the value
+	b next
+
 
 do_semi_code:             // (;code) - ( addr -- ) replace the xt of the word being defined with addr
 	ldr r0, =var_last     // Get the latest word.
@@ -405,30 +353,36 @@ do_semi_code:             // (;code) - ( addr -- ) replace the xt of the word be
 	pop {r9}
 	b next
 
+
 bye:
 exit_program:
 	mov r0, #0
 	mov r7, #sys_exit
 	swi #0
 
+
 lit:
 	push {r9}            // Push to the stack.
-	ldr r9, [r10], #4    // Push the next cell value and skip the IP over it.
-	b next               
+	ldr r9, [r10], #4    // Get the next cell value and skip the IP over it.
+	b next
 
 
 comma:
-	ldr r8, =var_dp         // Set r8 to the dictionary pointer.
-	mov r7, r8              // r7 = copy of dp.
-	str r9, [r8], #4        // Store TOS to the dictionary ptr and increment ptr.
-	str r8, [r7]            // Update the val_dp with the new dictionary pointer.
+	ldr r0, =var_h
+	ldr r0, [r0]
+	cpy r1, r0         // r1 = *h
+	ldr r0, [r0]       // r0 = h
+
+	str r9, [r0, #4]!  // *h = TOS
+	str r0, [r1]       // h += 4b
+
 	pop {r9}
 	b next
 
 
 find:                       // find - ( addr -- addr2 flag )
 	ldr r0, =var_last       // r0 = current word link field address
-	ldr r0, [r0]
+	ldr r0, [r0]            // (r0 will be correctly dereferenced again in the 1st iteration of loop #1)
 
 	ldrb r1, [r9]           // r1 = input str len
 1:                          // Loops through the dictionary linked list.
@@ -439,9 +393,16 @@ find:                       // find - ( addr -- addr2 flag )
 	ldrb r2, [r0, #4]       // get word length+flags byte
 
 	tst r2, #F_HIDDEN       // skip hidden words
-	beq 1b
+	bne 1b
 
 	and r2, #F_LENMASK
+	// DEBUG
+//	push {r0-r9}            // print out dictionary word temporarily
+//	add r1, r0, #5
+//	mov r0, #stdout
+//	mov r7, #sys_write
+//	swi #0
+//	pop {r0-r9}
 	cmp r2, r1              // compare the lengths
 	bne 1b
 
@@ -455,7 +416,16 @@ find:                       // find - ( addr -- addr2 flag )
 	bne 1b                  // if they are ever not equal, the strings aren't equal
 
 	cmp r3, r1              // keep looping until the whole strings have been compared
-	bne 2b        
+	bne 2b
+
+	// DEBUG
+	push {r0-r11}
+	mov r7, #sys_write
+	mov r0, #stdout
+	ldr r1, =yes_found_msg
+	mov r2, #yes_found_msg_end-yes_found_msg
+	swi #0
+	pop {r0-r11}
 
 	mov r9, #1              // At this point, the word's name matches the input string
 	ldr r1, [r0, #4]        // get the word's length byte again
@@ -466,11 +436,27 @@ find:                       // find - ( addr -- addr2 flag )
 	push {r0}
 	b next
 3:                          // A word with a matching name was not found.
+	// DEBUG
+	push {r0-r11}
+	mov r7, #sys_write
+	mov r0, #stdout
+	ldr r1, =not_found_msg
+	mov r2, #not_found_msg_end-not_found_msg
+	swi #0
+	pop {r0-r11}
+	
 	push {r9}               // push string address
 	eor r9, r9              // return 0 for no find
 	b next
+	.align 2
+not_found_msg: .ascii " word not found\n"
+not_found_msg_end:
+	.align 2
+yes_found_msg: .ascii " found the word\n"
+yes_found_msg_end:
 
 
+	.align 2
 drop:
 	pop {r9}
 	b next
@@ -586,12 +572,12 @@ cstore:
 	pop {r0}
 	strb r0, [r9]
 	pop {r9}
-	b next 
+	b next
 
 
 cfetch:
 	ldrb r9, [r9]
-	b next 
+	b next
 
 
 branch:
@@ -610,8 +596,8 @@ zero_branch:
 exec:
 	mov r8, r9        // r8 = the xt
 	pop {r9}          // pop the stack
-	ldr r1, [r8]      // r1 = code address
-	bx r1
+	ldr r0, [r8]      // r1 = code address
+	bx r0
 
 
 count:
@@ -650,18 +636,18 @@ tell_done:
 
 
 to_number:
-    //                    // r9 = length (already set)
 	pop {r0}             // r0 = addr
 	pop {r1}             // r1 = d.hi
 	pop {r2}             // r2 = d.lo
 	ldr r4, =var_base    // get the current number base
+	ldr r4, [r4]
 	ldr r4, [r4]
 to_num1:
 	cmp r9, #0           // if length=0 then done converting
 	beq to_num4
 	ldrb r3, [r0], #1    // get next char in the string
 	cmp r3, #'a'          // if it's less than 'a', it's not lower case
-	blt to_num2        
+	blt to_num2
 	sub r3, #32          // convert the 'a'-'z' from lower case to upper case
 to_num2:
 	cmp r3, #'9'+1        // if char is less than '9' its probably a decimal digit
@@ -678,12 +664,12 @@ to_num3:
 	mul r5, r2, r4       // multiply the low-word by the base
 	mov r2, r5
 	add r2, r2, r3       // add the digit value to the low word (no need to carry)
-	add r9, #1           // length--
-	sub r0, #1           // addr++
+	sub r9, #1           // length--
+	add r0, #1           // addr++
 	b to_num1
 to_num4:
 	push {r2}            // push the low word
-to_num5:               
+to_num5:
 	push {r1}            // push the high word
 	push {r0}            // push the string address
 	b next
@@ -715,12 +701,12 @@ word:                     // word - ( char -- addr )
 	ldr r3, =const_num_tib  // r2 += #tib, so r2 = last char address in buffer
 	ldr r3, [r3]
 	ldr r3, [r3]
-	add r2, r3            
+	add r2, r3
 
 	mov r0, r9            // r0 = char
 
-	ldr r9, =var_dp       // push the dictionary pointer, which is used as a buffer area, "pad"
-	ldr r9, [r9]          // r4 = r9 = dp
+	ldr r9, =var_h        // push the dictionary pointer, which is used as a buffer area, "pad"
+	ldr r9, [r9]          // r4 = r9 = h
 	ldr r9, [r9]
 	mov r4, r9
 word_skip:                // skip leading whitespace
@@ -735,13 +721,13 @@ word_copy:
 
 	cmp r1, r2
 	beq word_done
-	
+
 	ldrb r3, [r1], #1     // get next char
 	cmp r0, r3
 	bne word_copy
 word_done:
 	mov r3, #' '          // write a space to the end of the pad
-	str r3, [r4], #1
+	str r3, [r4]
 
 	sub r4, r9            // get the length of the word written to the pad
 	strb r4, [r9]         // store the length byte into the first char of the pad
@@ -758,8 +744,8 @@ word_done:
 
 	// emit ( char -- )
 emit:
-	pop {r3}         
-	ldr r1, =addr_emit_char
+	pop {r3}
+	ldr r1, =emit_char_buf
 	str r3, [r1]
 	mov r0, #stdout
 	mov r2, #1
@@ -781,9 +767,9 @@ enter_immediate:             // Exit compile mode and enter immediate mode.
 	str r1, [r0]
 	b next
 
-	/* copy from: https://github.com/organix/pijFORTHos, jonesforth.s
-	 * args: r0=numerator, r1=denominator
-	 */ returns: r0=remainder, r1 = denominator, r2=quotient
+	// copy from: https://github.com/organix/pijFORTHos, jonesforth.s
+	// args: r0=numerator, r1=denominator
+	// returns: r0=remainder, r1 = denominator, r2=quotient
 fn_divmod:
 	mov r3, r1
 	cmp r3, r0, LSR #1
@@ -802,6 +788,7 @@ fn_divmod:
 
 	bx lr
 
+
 	// / ( n m -- q ) division quotient
 divide:
 	mov r1, r9
@@ -809,6 +796,7 @@ divide:
 	bl fn_divmod
 	mov r9, r2
 	b next
+
 
 	// /mod ( n m -- r q ) division remainder and quotient
 divmod:
@@ -819,6 +807,7 @@ divmod:
 	mov r9, r2
 	b next
 
+
 	// mod ( n m -- r ) division remainder
 mod:
 	mov r1, r9
@@ -827,5 +816,9 @@ mod:
 	mov r9, r0
 	b next
 
-digits: .ascii "0123456789abcdefghijklmnopqrstuvwxyz?"
 
+	// nip ( x y -- y )
+	// equivalent to "swap drop"
+nip:
+	pop {r0}
+	b next
