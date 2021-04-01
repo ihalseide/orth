@@ -1,14 +1,50 @@
 \ This is the rest of my forth written in itself
 
-: recurse latest @ >CFA , ; immediate
+\ Literal takes whatever is on the stack and compiles it to <lit _x_>
+: literal ' lit , , ; immediate 
+
+\ Use literal to define character constants devised at compile-time
+: '(' [ char ( ] literal ;
+: ')' [ char ) ] literal ;
+: ':' [ char : ] literal ;
+: ';' [ char ; ] literal ;
+: '.' [ char . ] literal ;
+: '"' [ char " ] literal ;     \ "
+: '-' [ char - ] literal ;
+: '0' [ char 0 ] literal ;
+: 'A' [ char A ] literal ;
+
+\ When in compile mode, [compile] is used to compile the next word even if it is
+\ an immediate word.
+: [compile] word find >CFA , ; immediate
+
+: recurse Latest @ >CFA , ; immediate
+
+\ Define the if/then/else construct
+\ unless functions as the inverse of if
+: if ' 0branch , Here @ 0 , ; immediate
+
+: unless 
+	' not , [compile] if ; immediate
+
+: then immediate
+	dup Here @ swap - swap ! ;  
+
+: else 
+	' branch ,
+	Here @
+	0 ,
+	swap dup
+	Here @ swap -
+	swap ! ; immediate
 
 \ Define the begin <code> <condition> UNTIL construct
 : begin immediate
 	Here @ ; 
-: until immediate
+: UNTIL immediate
 	' 0branch , Here @ - , ;
 
-\ "begin ... again" construct
+\ begin <code> again construct
 : again immediate
 	' branch ,
 	Here @ - , ;
@@ -39,7 +75,7 @@
 				1-
 			then
 		then
-	dup 0= until \ Repeat until depth is 0
+	dup 0= UNTIL \ Repeat until depth is 0
 	drop ; \ drop depth counter
 
 \ ( ... ) comments are now available
