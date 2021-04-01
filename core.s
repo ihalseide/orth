@@ -1,43 +1,74 @@
-#include <stdio.h>
-#include <inttypes.h>
+/* Linux file stream descriptors */
+	.set stdin, 0
+	.set stdout, 1
+/* System call numbers */
+	.set sys_exit, 1
+	.set sys_read, 3
+	.set sys_write, 4
 
-#define F_IMMEDIATE 0b10000000
-#define F_HIDDEN    0b01000000
-#define F_LENMASK   0b00111111
+/* Word bitmask flags */
+	.set F_IMMEDIATE, 0b10000000
+	.set F_HIDDEN,    0b01000000
+	.set F_LENMASK,   0b00111111
 
-typedef int32_t cell
+/* Previous word link pointer for while it's assembling word defs */
+	.set link,0
 
-struct word {
-	word * prev;
-	char name[32];
-	void * code;
-	cell params[];
-};
+/* Macro for defining a word header in the data section */
+	.macro define name, namelen, flags=0, label, codelabel
+	.data
+	.align 2
+	.global def_\label
+def_\label:
+	.word link               // link to previous word in the dictionary data
+	.set link,def_\label
+	.byte \namelen+\flags    // The name field, including the length byte
+	.ascii "\name"           // is 32 bytes long
+	.space 31-\namelen
+	.data
+	.align 2
+	.global xt_\label
+xt_\label:                   // The next 4 byte word/cell will be the code field
+	.word \codelabel
+	.endm
 
-cell link = 0;
+/*
+ * Begin normal program data, which needs to be before the dictionary
+ * because the dictionary will grow upwards in memory.
+ */
 
-word * latest;
+ 	.data
 
-cell * ip;
+/* DEBUG INFO */
+	.align 2
+docol_word_data:
+	.word 0
+	.align 2
+docol_return_data:
+	.word 0
 
-void define (char * name, char flags, void * code) {
-	
-}
-
+	.align 2
 the_input_buffer:
 	.space 64
 
 	// 256 cells for the return stack, which grows downwards in memory
+	.align 2
+rstack_end:
 	.space 4*256
 rstack_start:
 
 	// 64 cells for the parameter stack, which grows downwards in memory
+	.align 2
 pstack_end:
 	.space 4*64
+pstack_start:
 
-void init_words () {
-	define("state", 0, *dovar);
-}
+/*
+ * Begin word header definitions
+ */
+
+	.data
+	.align 2
 
 	define "state", 5, , state, dovar      // 0 variable state
 val_state:
