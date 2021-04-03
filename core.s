@@ -343,7 +343,8 @@ val_num_tib:
 	.word xt_exit
 
 	define "CR", 2, , cr, docol
-	// ( -- ) emit a newline character
+	// ( -- )
+	// emit a newline character
 	.word xt_lit, '\n', xt_emit
 	.word xt_exit
 
@@ -686,8 +687,27 @@ val_num_tib:
 	// c: character delimiting the word to get from input
 	// c-addr: counted string of the word received
 
-	define "words", 5, , words, words
+	define "words", 5, , words, docol
 	// ( -- ) print all words currently in the dictionary
+	.word xt_latest, xt_fetch   // ( latest )
+1:	.word xt_zero_branch, 2f    // if the word address is 0, its the end of the dictionary
+	.word xt_dup                // ( latest latest )
+	.word xt_cell_plus          // ( latest name-field )
+	.word xt_dup                // ( latest name-field name-field ) skip hidden words
+	.word xt_c_fetch            // ( latest name-field len+flags )
+	.word xt_const_f_hidden
+	.word xt_and                // ( latest name-field F_HIDDEN | latest name-field 0 )
+	.word xt_zero_branch, 3f
+	.word xt_drop               // ( latest )
+	.word xt_fetch              // ( latest->link )
+	.word xt_branch, 1b
+3:	.word xt_drop               // ( latest name-field )
+	.word xt_ctell              // ( latest ) print the name
+	.word xt_space              // print a trailing space
+	.word xt_fetch              // ( latest->link )
+	.word xt_branch, 1b
+2:	.word xt_cr
+	.word xt_exit
 
 	define "or", 1, , or, do_or
 	// ( x y -- x|y ) bitwise or
@@ -716,6 +736,7 @@ val_num_tib:
 
 	// DEBUG {
 	define " ", 0, F_HIDDEN, _test_, docol
+	.word xt_words
 	.word xt_bye
 	// }
 
@@ -1198,33 +1219,6 @@ word_done:
 	b next                // TOS (r9) has been pointing to the pad addr the whole time
 
 
-words:                          // list all words
-	ldr r0, =var_latest     // r0 = current word link field address
-	ldr r0, [r0]            // (r0 will be correctly dereferenced again in the 1st iteration of loop #1)
-
-1:                          // Loops through the dictionary linked list.
-	ldr r0, [r0]            // r0 = r0->link
-	cmp r0, #0              // test for end of dictionary
-	beq next
-
-	ldrb r2, [r0, #4]       // get word length+flags byte
-
-	tst r2, #F_HIDDEN       // skip hidden words
-	bne 1b
-
-	and r2, #F_LENMASK      // get actual length
-
-	push {r0-r2}            // write out the string
-	mov r7, #sys_write
-	mov r0, #stdout
-	add r1, r9, #5
-	swi #0
-	pop {r0-r2}
-
-	mov r0, #' '            // write a trailing space
-	bl do_emit
-
-	b 1b
 
 
 emit:                       // emit ( char -- )
