@@ -1,3 +1,15 @@
+// Forth Implementation in ARMv7 assembly for GNU/Linux eabi
+// by Izak Nathanael Halseide
+// Notes:
+// * This is an indirect threaded forth.
+// * The top of the parameter stack is stored in register R9
+// * The parameter stack pointer (PSP) is stored in register R13
+// * The parameter stack grows downwards
+// * The return stack pointer (RSP) is stored in register R11
+// * The return stack grows downwards.
+// * The forth virtual instruction pointer (IP) is stored in register R10.
+// * The address of the current execution token (XT) is usually stored in register R8
+
 // Constants
 
 	// Linux file stream descriptors
@@ -78,6 +90,12 @@ pstack_start:
 	define "false", 5, , false, doconst
 	// 0 constant false
 	.word 0
+
+	define "S0", 2, , s_zero, doconst
+	.word pstack_start
+
+	define "R0", 2, , r_zero, doconst
+	.word rstack_start
 
 	define "state", 5, , state, dovar
 	// 0 variable state
@@ -201,6 +219,20 @@ val_num_tib:
 	define "here", 4, , here, docol
 	// ( -- c-addr ) c-addr is the data space pointer
 	.word xt_h, xt_fetch
+	.word xt_exit
+
+	define "allot", 5, , allot, docol
+	// ( n -- )
+	// Reserve n chars of data space.
+	.word xt_here
+	.word xt_plus
+	.word xt_h, xt_store
+	.word xt_exit
+
+	define "tuck", 4, , tuck, docol
+	// ( x y -- y x y )
+	.word xt_swap
+	.word xt_over
 	.word xt_exit
 
 	define "create", 6, , create, docol
@@ -450,13 +482,15 @@ val_num_tib:
 	// ( -- )
 1:	.word xt_interpret
 	.word xt_branch, 1b
-	// infinite loop
+	// no exit because it's an infinite loop
 
 	define "quit", 4, , quit, docol
 	// ( -- )
-	.word xt_no_rstack, xt_bracket
+	.word xt_r_zero       // clear the return stack
+	.word xt_rsp_store
+	.word xt_bracket      // enter immediate mode
 	.word xt_interpreter
-	// no exit because there is no Return Stack
+	// no exit because there is no return stack
 
 	define "if", 2, F_IMMEDIATE, if, docol
 	// ( -- addr )
@@ -499,10 +533,22 @@ val_num_tib:
 	.word xt_plus
 	.word xt_exit
 
+	define "PSP@", 4, , psp_fetch, psp_fetch
+	// ( -- addr )
+
+	define "PSP!", 4, , psp_store, psp_store
+	// ( addr -- )
+
+	define "RSP@", 4, , rsp_fetch, rsp_fetch
+	// ( -- addr )
+
+	define "RSP!", 4, , rsp_store, rsp_store
+	// ( addr -- )
+
 	define "depth", 5, , depth, docol
 	// ( -- x ) where x is the stack depth
 	.word xt_s_zero, xt_fetch
-	.word xt_dsp_fetch
+	.word xt_psp_fetch
 	.word xt_minus
 	.word xt_cell_minus
 	.word xt_exit
@@ -524,6 +570,30 @@ val_num_tib:
 	define "and", 3, , and, do_and
 	// ( x y -- z )
 	// z: the result of bitwise and-ing of x and y
+
+	define "max", 3, , max, docol
+	// ( x y -- x | y )
+	// Chooses to keep the maximum of x and y on the stack.
+	.word xt_two_dup
+	.word xt_gt
+	.word xt_zero_branch, 1f
+	.word xt_drop
+	.word xt_nip
+	.word xt_exit
+1:	.word xt_two_drop
+	.word xt_exit
+
+	define "min", 3, , min, docol
+	// ( x y -- x | y )
+	// Chooses to keep the minimum of x and y on the stack.
+	.word xt_two_dup
+	.word xt_lt
+	.word xt_zero_branch, 1f
+	.word xt_drop
+	.word xt_nip
+	.word xt_exit
+1:	.word xt_two_drop
+	.word xt_exit
 
 	define "*", 1, , star, multiply
 	// ( x y -- z ) z:x*y
@@ -662,9 +732,6 @@ val_num_tib:
 	define "nip", 3, , nip, nip
 	// ( x y -- y )
 
-	define "no_rstack", 9, , no_rstack, no_rstack
-	// ( -- ) ( R: x*i -- )
-
 	define "over", 4, , over, over
 	// ( x y -- x y x )
 
@@ -734,8 +801,18 @@ val_num_tib:
 	.word xt_tell
 	.word xt_exit
 
+	define "init", 4, , init, docol
+	// ( x*i -- R: x*j -- )
+	.word xt_decimal              // base 10
+	.word xt_s_zero               // initialize the parameter stack
+	.word xt_psp_store
+	.word xt_num_tib, xt_fetch    // set >in to #tib so that we need to get input
+	.word xt_to_in, xt_store
+	.word xt_quit                 // start the interpreter
+	// no exit because quit does not return
+
 	// DEBUG {
-	define " ", 0, F_HIDDEN, _test_, docol
+	define "test_", 10, F_HIDDEN, test_, docol
 	.word xt_words
 	.word xt_bye
 	// }
@@ -778,29 +855,10 @@ docol_return:
 
 	.global _start
 _start:
-	mov r0, #42
-	push {r0}
-
-	ldr r11, =rstack_start      // Init the return stack.
-	ldr sp, =pstack_start       // Init the parameter stack.
-
-	ldr r1, =var_state          // Set state to 0 (interpreting)
-	ldr r1, [r1]
-	eor r0, r0
-	str r0, [r1]
-
-	ldr r0, =var_num_tib      // Copy value of "#tib" to ">in".
-	ldr r0, [r0]
-	ldr r0, [r0]
-	ldr r1, =var_to_in
-	ldr r1, [r1]
-	str r0, [r1]
-
-	ldr r10, =init_xt
+	ldr r10, =init_code
 	b next
-
-init_xt:
-	.word xt__test_
+init_code:
+	.word xt_test_
 
 docol:
 	// DEBUG purposes {
@@ -1309,8 +1367,27 @@ nip:                            // nip ( x y -- y )
 	b next
 
 
-no_rstack:
-	ldr r11, =rstack_start      // Init or reset the return stack.
+psp_fetch:
+	push {r9}
+	mov r9, sp
+	b next
+
+
+psp_store:
+	mov sp, r9
+	pop {r9}     // could be an invalid operation
+	b next
+
+
+rsp_fetch:
+	push {r9}
+	mov r9, r11
+	b next
+
+
+rsp_store:
+	mov r11, r9
+	pop {r9}
 	b next
 
 
@@ -1343,4 +1420,6 @@ one_dot:                      // print out a single digit
 	pop {r9}
 	b next
 one_dot_buf: .ascii "0123456789abcdefghijklmnopqrstuvwxyz"
+
+	.align 2
 
