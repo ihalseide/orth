@@ -560,13 +560,6 @@ val_num_tib:
 	.word xt_ctell
 	.word xt_exit
 
-	define "!", 1, , store, store
-	// ( x addr -- )
-	// x: the value to be stored in memory at the addr
-
-	define "ok", 0, , ok, ok
-	// ( -- )
-
 	define "and", 3, , and, do_and
 	// ( x y -- z )
 	// z: the result of bitwise and-ing of x and y
@@ -663,9 +656,20 @@ val_num_tib:
 	define ">number", 7, , to_number, to_number
 	// ( d c-addr1 u -- d c-addr2 0 | x addr2 nonzero )
 
+	define "!", 1, , store, store
+	// ( x addr -- )
+	// x: the value to be stored in memory at the addr
+
 	define "@", 1, , fetch, fetch
 	// ( addr -- x )
 	// x: the cell value stored in memory at addr
+
+	define "c!", 2, , cstore, cstore
+	// ( c c-addr -- )
+
+	define "c@", 2, , cfetch, cfetch
+	// ( c-addr -- c )
+	// c: the char stored in c-addr
 
 	define "xor", 1, , xor, xor
 	// ( x y -- z ) z = x XOR y
@@ -682,13 +686,6 @@ val_num_tib:
 
 	define "branch", 6, , branch, branch
 	// ( -- )
-
-	define "c!", 2, , cstore, cstore
-	// ( c c-addr -- )
-
-	define "c@", 2, , cfetch, cfetch
-	// ( c-addr -- c )
-	// c: the char stored in c-addr
 
 	define "count", 5, , count, count
 	// ( c-addr1 -- c-addr2 u )
@@ -826,6 +823,7 @@ dictionary_space:
 	.space 2048
 
 // Variable literal pool for assembly code to reference.
+
 	.text
 	.align 2
 
@@ -896,16 +894,8 @@ doconst:                   // A word whose parameter list is a 1-cell value
 	b next
 
 
-bye_msg: .ascii " bye"
-bye_msg_end:
-	.align 2
 bye:
-	mov r4, r0
-	mov r7, #sys_write
-	mov r0, #stdout
-	ldr r1, =bye_msg
-	mov r2, #bye_msg_end - bye_msg
-	mov r0, r4
+	mov r0, #0           // successful exit code
 exit_program:
 	mov r7, #sys_exit
 	swi #0
@@ -936,14 +926,14 @@ c_comma:
 	cpy r1, r0
 	ldr r0, [r0]
 
-	strb r9, [r0, #1]!
+	strb r9, [r0, #1]!  // only difference with "comma" (see above)
 	str r0, [r1]
 
 	pop {r9}
 	b next
 
 
-find:                       // find - ( addr -- addr2 0 | xt 1 | xt -1 ) 1=immediate, -1=not immediate
+find:                           // ( addr -- addr2 0 | xt 1 | xt -1 ) 1=immediate, -1=not immediate
 	ldr r0, =var_latest     // r0 = current word link field address
 	ldr r0, [r0]            // (r0 will be correctly dereferenced again in the 1st iteration of loop #1)
 
@@ -1137,12 +1127,12 @@ cfetch:
 	b next
 
 
-branch:                   // note: not a relative branch!
+branch:                       // note: not a relative branch!
 	ldr r10, [r10]        // add 4 first or after or at all??
 	b next
 
 
-zero_branch:              // note: not a relative branch!
+zero_branch:                  // note: not a relative branch!
 	cmp r9, #0
 	ldreq r10, [r10]
 	addne r10, #4
@@ -1153,16 +1143,15 @@ zero_branch:              // note: not a relative branch!
 execute:
 	mov r8, r9        // r8 = the xt
 	pop {r9}          // pop the stack
-	ldr r0, [r8]      // r1 = code address
+	ldr r0, [r8]      // r0 = code address
 	bx r0
 
 
 count:
-	mov r0, r9          // push addr + 1
+	mov r0, r9           // push addr + 1
 	add r0, #1
 	push {r0}
 	ldrb r9, [r9]        // push length, which is addr[0]
-	and r9, #F_LENMASK
 	b next
 
 
@@ -1227,27 +1216,27 @@ word:                           // word - ( char -- addr )
 	ldr r1, [r1]
 	mov r2, r1
 
-	ldr r3, =var_to_in    // r1 += >in, so r1 = pointer into the buffer
+	ldr r3, =var_to_in      // r1 += >in, so r1 = pointer into the buffer
 	ldr r3, [r3]
 	ldr r3, [r3]
 	add r1, r3
 
-	ldr r3, =var_num_tib  // r2 += #tib, so r2 = last char address in buffer
+	ldr r3, =var_num_tib    // r2 += #tib, so r2 = last char address in buffer
 	ldr r3, [r3]
 	ldr r3, [r3]
 	add r2, r3
 
-	mov r0, r9            // r0 = char
+	mov r0, r9              // r0 = char
 
-	ldr r9, =var_h        // push the dictionary pointer, which is used as a buffer area, "pad"
-	ldr r9, [r9]          // r4 = r9 = h
+	ldr r9, =var_h          // push the dictionary pointer, which is used as a buffer area, "pad"
+	ldr r9, [r9]            // r4 = r9 = h
 	ldr r9, [r9]
 	mov r4, r9
-word_skip:                    // skip leading whitespace
-	cmp r1, r2            // check for if it reached the end of the buffer
+word_skip:                      // skip leading whitespace
+	cmp r1, r2              // check for if it reached the end of the buffer
 	beq word_done
 
-	ldrb r3, [r1], #1     // get next char
+	ldrb r3, [r1], #1       // get next char
 	cmp r0, r3
 	beq word_skip
 word_copy:
@@ -1256,37 +1245,35 @@ word_copy:
 	cmp r1, r2
 	beq word_done
 
-	ldrb r3, [r1], #1     // get next char
+	ldrb r3, [r1], #1       // get next char
 	cmp r0, r3
 	bne word_copy
 word_done:
-	mov r3, #' '          // write a space to the end of the pad
+	mov r3, #' '            // write a space to the end of the pad
 	str r3, [r4]
 
-	sub r4, r9            // get the length of the word written to the pad
-	strb r4, [r9]         // store the length byte into the first char of the pad
+	sub r4, r9              // get the length of the word written to the pad
+	strb r4, [r9]           // store the length byte into the first char of the pad
 
-	ldr r0, =const_tib      // get length inside the input buffer (includes the skipped whitespace)
+	ldr r0, =const_tib        // get length inside the input buffer (includes the skipped whitespace)
 	ldr r0, [r0]
 	sub r1, r0
 
-	ldr r0, =var_to_in    // store back to the variable ">in"
+	ldr r0, =var_to_in      // store back to the variable ">in"
 	ldr r0, [r0]
 	str r1, [r0]
 
-	b next                // TOS (r9) has been pointing to the pad addr the whole time
-
-
+	b next                  // TOS (r9) has been pointing to the pad addr the whole time
 
 
 emit:                       // emit ( char -- )
 	mov r0, r9
-	bl do_emit
+	bl fn_emit
 	pop {r9}
 	b next
 
 
-do_emit:                    // void do_emit(char);
+fn_emit:                        // void fn_emit(char);
 	push {r4-r11, lr}
 	ldr r1, =var_h          // store the char temporarily in pad
 	ldr r1, [r1]
@@ -1396,19 +1383,7 @@ abs:                            // ( x -- +x ) absolute value
 	neglt r9, r9
 	b next
 
-
-ok:
-	mov r7, #sys_write
-	mov r0, #stdout
-	ldr r1, =ok_msg
-	mov r2, #ok_msg_end - ok_msg
-	swi #0
-	b next
-ok_msg: .ascii " ok"
-ok_msg_end:
-
-	.align 2
-one_dot:                      // print out a single digit
+one_dot:                      // ( c -- ) print out a single digit with a value of c
 	ldr r1, =one_dot_buf
 	add r1, r9
 
@@ -1421,5 +1396,4 @@ one_dot:                      // print out a single digit
 	b next
 one_dot_buf: .ascii "0123456789abcdefghijklmnopqrstuvwxyz"
 
-	.align 2
 
