@@ -201,63 +201,63 @@ val_num_tib:
 	.word xt_lit, 4, xt_add
 	.word xt_exit
 
-	define "interpret-word", 14, , interpret_word, docol  // ( xt 1|-1 -- )
-	.word xt_state, xt_fetch, xt_equals
-	.word xt_zero_branch, 1f                // =0 means an immediate word or immediate mode
-	.word xt_comma
-	.word xt_exit
-1:	.word xt_execute
+	define "find-word?", 10, , find_word_q, docol       // ( -- ca 0 | xt -1 | xt 1 )
+	.word xt_bl
+	.word xt_word
+	.word xt_find
 	.word xt_exit
 
-	define "interpret-number", 16, , interpret_number, docol    // ( addr 0 -- [<x if interpreting> -1] | [nonzero 0] )
-	.word xt_dup                                                // ( -- addr 0 0 )
-	.word xt_rot                                                // ( -- 0 0 addr )
-	.word xt_count                                              // ( -- 0 0 addr+1 len )
+	define "cs>number", 9, , cs_to_number, docol        // ( ca1 -- ud ca2 len )
+	.word xt_lit, 0
+	.word xt_lit, 0
+	.word xt_rot
 	.word xt_to_number
-	.word xt_zero_branch, 1f                      
-	.word xt_nip, xt_nip                                        // ( ... -- nonzero ) err parsing number 
-	.word xt_lit, 0                                             // ( -- nonzero 0 )
-	.word xt_exit
-1:	.word xt_drop, xt_drop                                      // parsed a number successfully
-	.word xt_state, xt_fetch
-	.word xt_zero_branch, 2f
-	.word xt_literal                                            // compile "lit <number>"
-2:	.word xt_lit, -1                                            // ( i*j -- i*j -1 )
 	.word xt_exit
 
-	define "interpret", 9, , interpret, docol      // ( -- -1 | 0 )
-	.word xt_bl, xt_word, xt_dup         // ( addr1 addr1 )
-	.word xt_find                        // ( addr1 addr2 flag )
-	.word xt_zero_branch, 1f       
-	.word xt_interpret_word              // try a word
-	.word xt_drop                        // ( addr -- )
-	.word xt_lit, -1                     // return -1 for success
-	.word xt_exit
-1:	.word xt_interpret_number            // try a number
-	.word xt_zero_branch, 2f
-	.word xt_drop, xt_drop               // ( addr flag -- )
-	.word xt_lit, -1                     // return -1 for success
-	.word xt_exit
-2:	.word xt_drop                        // unknown word! ( addr flag -- addr )
-	.word xt_cr, xt_tell                 // ( addr -- )
-	.word xt_lit, '?', xt_emit           // ask "<name>?"
-	.word xt_paren_semicolon_cancel
-	.word xt_lit, 0                      // return 0 for error
-	.word xt_exit
+	define "do-compile", 10, , do_compile, docol        // ( -- / x*i -- x*j )
+	.word xt_find_word_q                                  
+	.word xt_dup
+	.word xt_zero_branch, 4f
+	.word xt_lit, 1
+1:	.word xt_equals
+	.word xt_zero_branch, 3f
+2:	.word xt_execute
+	.word xt_branch, 4f
+3:	.word xt_comma
+	.word xt_branch, 7f
+4:	.word xt_drop
+	.word xt_cs_to_number
+	.word xt_zero_branch, 6f
+5:	.word xt_paren_semicolon_cancel
+	.word xt_quit
+6:	.word xt_drop, xt_drop
+	.word xt_lit, xt_lit, xt_comma, xt_comma
+7:	.word xt_exit
+
+	define "do-interpret", 12, , do_interpret, docol    // ( -- n / x*i -- x*j )
+	.word xt_find_word_q, xt_dup
+	.word xt_zero_branch, <else>
+	.word xt_execute
+<else>:	.word xt_drop, xt_cs_to_number
+	.word xt_zero_branch, <drop drop>
+	.word xt_quit
+<drop drop>:
+	.word xt_drop, xt_drop
 
 	define ";cancel", 7, F_IMMEDIATE, semicolon_cancel, docol   
+	.word xt_state, xt_fetch
+	.word xt_zero_branch, 1f                                  // make sure it's in compile mode
 	.word xt_paren_semicolon_cancel
-	.word xt_exit
+1:	.word xt_exit
 
 	define "(;cancel)", 9, , paren_semicolon_cancel, docol    // cancel the compilation of the current word
-	.word xt_state, xt_fetch
-	.word xt_zero_branch, 1f
-	.word xt_latest, xt_fetch, xt_dup    
+	.word xt_latest, xt_fetch
+	.word xt_dup    
 	.word xt_fetch                       
 	.word xt_latest, xt_store
 	.word xt_h, xt_store
 	.word xt_bracket
-1:	.word xt_exit
+	.word xt_exit
 
 	define "refill", 6, , refill, docol            // ( -- flag )
 	.word xt_tib, xt_fetch, xt_num_tib, xt_fetch
@@ -265,22 +265,25 @@ val_num_tib:
 	.word xt_lit, 0, xt_to_in, xt_store
 	.word xt_lit, -1
 	.word xt_exit
-	
-	define "quit", 4, , quit, docol                // ( -- )
-1:	.word xt_no_rstack, xt_bracket 
+
+	define "interpret", 9, , interpret, docol         // ( -- )
+	.word xt_source, xt_to_in, xt_fetch
+	.word xt_equals, xt_zero_branch, 1f
 	.word xt_refill
-	.word xt_zero_branch, 5f
-	.word xt_drop
-2:	.word xt_interpret
-	.word xt_lit, -1, xt_equals, xt_zero_branch, 4f
-	.word xt_drop
-	.word xt_state, xt_fetch, xt_lit, 0, xt_equals, xt_zero_branch, 3f
-	.word xt_ok
-3:	.word xt_cr, xt_branch, 1b
-4:	.word xt_drop                  // error in interpreting
-	.word xt_bracket
-	.word xt_branch, 3b
-5:	.word xt_bye
+1:	.word xt_drop, xt_state, xt_fetch
+	.word xt_zero_branch, 2f
+	.word xt_do_compile
+	.word xt_exit
+2:	.word xt_do_interpret
+	.word xt_exit
+
+	define "interpreter", 11, , interpreter, docol    // ( -- )
+1:	.word xt_interpret
+	.word xt_branch, 1b
+	
+	define "quit", 4, , quit, docol                   // ( -- )
+	.word xt_no_rstack, xt_bracket 
+	.word xt_interpreter
 
 	define "if", 2, F_IMMEDIATE, if, docol    // ( -- addr )
 	.word xt_lit, xt_zero_branch, xt_comma
@@ -302,53 +305,185 @@ val_num_tib:
 	.word xt_store                               // ( prev-else )
 	.word xt_exit
 
+	define "cells", 5, , cells, docol            // ( x -- x )
+	.word xt_lit, 4
+	.word xt_star
+	.word xt_exit
+
+	define "cell-", 5, , cell_minus, docol       // ( x -- x )
+	.word xt_lit, 4
+	.word xt_minus
+	.word xt_exit
+
+	define "cell+", 5, , cell_plus, docol       // ( x -- x )
+	.word xt_lit, 4
+	.word xt_plus
+	.word xt_exit
+
+	define "depth", 5, , depth, docol            // ( -- x ) \ pushes the stack depth
+	.word xt_s_zero, xt_fetch
+	.word xt_dsp_fetch
+	.word xt_minus
+	.word xt_cell_minus
+	.word xt_exit
+
+	define ".s", 2, , dot_s, docol               // ( -- ) \ print the stack
+	.word xt_dsp_fetch
+1:	.word xt_dup
+	.word xt_s_zero, xt_fetch
+	.word xt_lt
+2:	.word xt_dup
+	.word xt_fetch
+	.word xt_u_dot
+	.word xt_space
+	.word xt_cell_plus
+	.word xt_zero_branch, <begin or while? (1b or 2b)?>
+3:	.word xt_drop
+	.word xt_exit
+
+	define "id.", 3, , id_dot, docol                 // ( xt -- )
+	.word xt_lit, -32
+	.word xt_add
+	.word xt_tell
+	.word xt_exit
+	
 /* All of these following words are implemented in assembly */
 
+	// ! ( x addr -- )
 	define "!", 1, , store, store
+
+	// ok ( -- )
 	define "ok", 0, , ok, ok
+
+	// & ( x y -- z ) z:x bitwise AND y
 	define "&", 1, , and, do_and
+
+	// (;code) ( xt -- )
 	define "(;code)", 7, , paren_semi_code, paren_semi_code
-	define "*", 1, , multiply, multiply
-	define "+", 1, , add, add
+
+	// * ( x y -- z ) z:x*y
+	define "*", 1, , star, multiply
+
+	// + ( x y -- z ) z:x+y
+	define "+", 1, , plus, add
+
+	// 1. ( x -- )
+	define "1.", 2, , one_dot, one_dot                 // ( x -- )
+
+	// , ( x -- )
 	define ",", 1, , comma, comma
-	define "-", 1, , sub, sub
-	define "/", 1, , divide, divide
-	define "/mod", 4, , divmod, divmod
+
+	// - ( x y -- z ) z:y-x
+	define "-", 1, , minus, sub
+
+	define "/", 1, , slash, divide
+
+	define "/mod", 4, , slash_mod, divmod
+
+	// 0branch ( -- )
 	define "0branch", 7, , zero_branch, zero_branch
+
+	// < ( x y -- f ) f:x<y
 	define "<", 1, , lt, lt
+
+	// = ( x y -- f ) f:x=y?
 	define "=", 1, , equals, equals
+
+	// > ( x y -- f ) f:x>y?
 	define ">", 1, , gt, gt
+
+	// >R ( x -- R: -- x )
 	define ">R", 2, , to_r, to_r
-	define ">number", 7, , to_number, to_number // ( double addr len -- [double addr2 0] | [int addr2 nonzero] )
+
+	// >number ( d addr len -- [double addr2 0] | [int addr2 nonzero] )
+	define ">number", 7, , to_number, to_number 
+
+	// @ ( addr -- x )
 	define "@", 1, , fetch, fetch
+
+	// R> ( -- x R: x -- )
 	define "R>", 2, , r_from, r_from
-	define "^", 1, , xor, xor
+
+	// xor ( x y -- z ) z = x XOR y
+	define "xor", 1, , xor, xor
+
+	// abs ( x -- abs(x) )
 	define "abs", 3, , abs, abs
+
+	// accept ( x -- )
 	define "accept", 6, , accept, accept
+
+	// branch ( -- )
 	define "branch", 6, , branch, branch
+
+	// c! ( c c-addr -- )
 	define "c!", 2, , cstore, cstore
+
+	// c@ ( c-addr -- c )
 	define "c@", 2, , cfetch, cfetch
+
+	// count ( c-addr -- c-addr len )
 	define "count", 5, , count, count
+
+	// drop ( x -- )
 	define "drop", 4, , drop, drop
+
+	// dup ( x -- x x )
 	define "dup", 3, , dup, dup
+	
+	// emit ( c -- )
 	define "emit", 4, , emit, emit
+
+	// execute ( xt -- )
 	define "execute", 4, , execute, execute
+
+	// exit ( -- ) exit and return from the current forth word
 	define "exit", 4, , exit, exit
+
+	// find ( c-addr -- c-addr 0 | xt -1 | xt 1 )
 	define "find", 4, , find, find
+
+	// invert ( x -- ~x ) bitwise invert
 	define "invert", 6, , invert, invert
+
+	// lit ( -- x )
 	define "lit", 3, , lit, lit
+
 	define "mod", 3, , mod, mod
+
+	// negate ( x -- -x )
 	define "negate", 6, , negate, negate
+
+	// nip ( x y -- y )
 	define "nip", 3, , nip, nip
+
+	// no_rstack ( -- ) ( R: i*j -- )
 	define "no_rstack", 9, , no_rstack, no_rstack
+
+	// over ( x y -- x y x )
 	define "over", 4, , over, over
+
+	// rot ( x y z -- y z x )
 	define "rot", 3, , rot, rot
+
+	// swap ( x y -- y x )
 	define "swap", 4, , swap, swap
+
+	// tell ( c-addr -- ) print out a counted string
 	define "tell", 4, , tell, tell
+
+	// word ( c -- )
 	define "word", 4, , word, word
+
+	// words ( -- ) print all words currently in the dictionary
 	define "words", 5, , words, words
+
+	// | ( x y -- x|y ) bitwise or
 	define "|", 1, , or, do_or
+
 the_final_word:
+
+	// bye ( -- ) exit program
 	define "bye", 3, , bye, bye
 
 dictionary_space:
@@ -873,7 +1008,7 @@ do_emit:                    // void do_emit(char);
 
 
 tell:                       // tell ( c-addr -- ) print out a counted string
-	ldr r2, [r9]
+	ldrb r2, [r9]
 
 	mov r7, #sys_write
 	mov r0, #stdout
@@ -957,4 +1092,18 @@ ok:
 	b next
 ok_msg: .ascii " ok"
 ok_msg_end:
+
+	.align 2
+one_dot:                      // print out a single digit
+	ldr r1, =one_dot_buf
+	add r1, r9
+	
+	mov r7, #sys_write
+	mov r0, #stdout
+	mov r2, #1
+	swi #0
+
+	pop {r9}		
+	b next
+one_dot_buf: .ascii "0123456789abcdefghijklmnopqrstuvwxyz"
 
