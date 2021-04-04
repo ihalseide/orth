@@ -21,10 +21,14 @@
 	.set sys_read, 3
 	.set sys_write, 4
 
-	// Word bitmask flags
+	// Word bitmasks
 	.set F_IMMEDIATE, 0b10000000
 	.set F_HIDDEN,    0b01000000
 	.set F_LENMASK,   0b00111111
+
+	// Boolean flags
+	.set F_TRUE, -1
+	.set F_FALSE, 0
 
 // Macro system for defining a word header in the data section
 
@@ -171,17 +175,34 @@ val_num_tib:
 	.word xt_plus
 	.word xt_exit
 
+	define ">body", 5, , to_body, docol
+	// ( xt -- addr )
+	.word xt_lit, 4, xt_plus
+	.word xt_exit
+
 	define "'", 1, F_IMMEDIATE, tick, docol
 	// ( -- xt )
 	.word xt_bl, xt_word
 	.word xt_find, xt_drop
 	.word xt_exit
 
+	define "exit", 4, , exit, exit
+	// ( -- ) exit and return from the current forth word
+
+	define "lit", 3, , lit, lit
+	// ( -- x )
+
 	define "literal", 7, F_IMMEDIATE, literal, docol
 	// ( x -- )
 	.word xt_lit, xt_lit
 	.word xt_comma, xt_comma
 	.word exit
+
+	define ",", 1, , comma, comma
+	// ( x -- )
+
+	define "c,", 2, , c_comma, c_comma
+	// ( c -- )
 
 	define "recurse", 7, F_IMMEDIATE, recurse, docol
 	.word xt_latest, xt_fetch
@@ -228,12 +249,6 @@ val_num_tib:
 	.word xt_here
 	.word xt_plus
 	.word xt_h, xt_store
-	.word xt_exit
-
-	define "tuck", 4, , tuck, docol
-	// ( x y -- y x y )
-	.word xt_swap
-	.word xt_over
 	.word xt_exit
 
 	define "create", 6, , create, docol
@@ -372,34 +387,6 @@ val_num_tib:
 	define "[", 1, F_IMMEDIATE, bracket, docol
 	// ( -- ) enter immediate mode
 	.word xt_lit, 0, xt_state, xt_store
-	.word xt_exit
-
-	define "BL", 2, , bl, docol
-	// ( -- c ) push a space character
-	.word xt_lit, ' '
-	.word xt_exit
-
-	define "CR", 2, , cr, docol
-	// ( -- )
-	// emit a newline character
-	.word xt_lit, '\n', xt_emit
-	.word xt_exit
-
-	define "space", 5, , space, docol
-	// ( -- ) emit a space
-	.word xt_lit, ' ', xt_emit
-	.word xt_exit
-
-	define ">body", 5, , to_body, docol
-	// ( xt -- addr )
-	.word xt_lit, 4, xt_plus
-	.word xt_exit
-
-	define "find-word?", 10, , find_word_question, docol
-	// ( -- c-addr 0 | xt -1 | xt 1 )
-	.word xt_bl
-	.word xt_word
-	.word xt_find
 	.word xt_exit
 
 	define "cs>number", 9, , cs_to_number, docol
@@ -548,6 +535,18 @@ val_num_tib:
 	.word xt_plus
 	.word xt_exit
 
+	define "chars", 5, , chars, docol
+	// ( x -- x )
+	.word xt_exit
+
+	define "char+", 5, , char_plus, docol
+	.word xt_one_plus
+	.word xt_exit
+
+	define "char-", 5, , char_minus, docol
+	.word xt_one_minus
+	.word xt_exit
+
 	define "PSP@", 4, , psp_fetch, psp_fetch
 	// ( -- addr )
 
@@ -589,7 +588,7 @@ val_num_tib:
 	// ( x y -- x | y )
 	// Chooses to keep the maximum of x and y on the stack.
 	.word xt_two_dup
-	.word xt_gt
+	.word xt_more
 	.word xt_zero_branch, 1f
 	.word xt_swap
 1:	.word xt_drop
@@ -599,7 +598,7 @@ val_num_tib:
 	// ( x y -- x | y )
 	// Chooses to keep the minimum of x and y on the stack.
 	.word xt_two_dup
-	.word xt_lt
+	.word xt_less
 	.word xt_zero_branch, 1f
 	.word xt_swap
 1:	.word xt_drop
@@ -611,42 +610,41 @@ val_num_tib:
 	define "+", 1, , plus, add
 	// ( x y -- z ) z:x+y
 
-	define "1+", 2, , one_plus, docol
-	.word xt_lit, 1
-	.word xt_plus
-	.word xt_exit
+	define "invert", 6, , invert, invert
+	// ( x -- y )
+	// y: the bitwise inverse of x
 
-	define ",", 1, , comma, comma
-	// ( x -- )
+	define "mod", 3, , mod, mod
+	// ( x y -- z )
+	// z: result of x mod y
 
-	define "c,", 2, , c_comma, c_comma
-	// ( c -- )
+	define "negate", 6, , negate, negate
+	// ( x -- y )
+	// y: negative x
+
+	define "1+", 2, , one_plus, increment
 
 	define "-", 1, , minus, sub
-	// ( x y -- z ) z: y - x
+	// ( x1 x2 -- x3 )
+	// x3 = x1 - x2
 
-	define "1-", 2, , one_minus, docol
-	.word xt_lit, 1
-	.word xt_minus
-	.word exit
+	define "1-", 2, , one_minus, decrement
 
 	define "/", 1, , slash, divide
 	// ( x y -- z ) z: x / y
 
 	define "/mod", 4, , slash_mod, divmod
 
-	define "branch", 6, , branch, branch
-
-	define "0branch", 7, , zero_branch, zero_branch
-
-	define "<", 1, , lt, lt
-	// ( x y -- f ) f:x<y
+	define "<", 1, , less, less
+	// ( x y -- f )
+	// f: x < y
 
 	define "=", 1, , equals, equals
 	// ( x y -- f ) f:x=y?
 
-	define ">", 1, , gt, gt
-	// ( x y -- f ) f:x > y
+	define ">", 1, , more, more
+	// ( x y -- f )
+	// f: x > y
 
 	define ">R", 2, , to_r, to_r
 	// ( x -- R: -- x )
@@ -710,34 +708,6 @@ val_num_tib:
 	define "dup", 3, , dup, dup
 	// ( x -- x x )
 
-	define "emit", 4, , emit, emit
-	// ( c -- )
-	// Append the character to the output stream
-
-	define "execute", 7, , execute, execute
-	// ( xt -- )
-
-	define "exit", 4, , exit, exit
-	// ( -- ) exit and return from the current forth word
-
-	define "find", 4, , find, find
-	// ( c-addr -- c-addr 0 | xt -1 | xt 1 )
-
-	define "invert", 6, , invert, invert
-	// ( x -- y )
-	// y: the bitwise inverse of x
-
-	define "lit", 3, , lit, lit
-	// ( -- x )
-
-	define "mod", 3, , mod, mod
-	// ( x y -- z )
-	// z: result of x mod y
-
-	define "negate", 6, , negate, negate
-	// ( x -- y )
-	// y: negative x
-
 	define "nip", 3, , nip, nip
 	// ( x y -- y )
 
@@ -753,6 +723,52 @@ val_num_tib:
 	define "swap", 4, , swap, swap
 	// ( x y -- y x )
 
+	define "tuck", 4, , tuck, docol
+	// ( x y -- y x y )
+	.word xt_swap
+	.word xt_over
+	.word xt_exit
+
+	define "execute", 7, , execute, execute
+	// ( xt -- )
+
+	define "branch", 6, , branch, branch
+
+	define "0branch", 7, , zero_branch, zero_branch
+
+	define "find", 4, , find, find
+	// ( c-addr -- c-addr 0 | xt -1 | xt 1 )
+
+	define "find-word?", 10, , find_word_question, docol
+	// ( -- c-addr 0 | xt -1 | xt 1 )
+	.word xt_bl
+	.word xt_word
+	.word xt_find
+	.word xt_exit
+
+	define "emit", 4, , emit, emit
+	// ( c -- )
+	// Emit a character to the output stream
+
+	define "BL", 2, , bl, docol
+	// ( -- c )
+	// push a space character
+	.word xt_lit, ' '
+	.word xt_exit
+
+	define "CR", 2, , cr, docol
+	// ( -- )
+	// emit a newline character
+	.word xt_lit, '\n', xt_emit
+	.word xt_exit
+
+	define "space", 5, , space, docol
+	// ( -- )
+	// emit a space
+	.word xt_bl
+	.word xt_emit
+	.word xt_exit
+
 	define "tell", 4, , tell, tell
 	// ( c-addr u -- )
 	// Print out a counted string
@@ -762,6 +778,14 @@ val_num_tib:
 	// ( c -- c-addr )
 	// c: character delimiting the word to get from input
 	// c-addr: counted string of the word received
+
+	define "char", 4, , char, docol
+	// ( -- c )
+	.word xt_bl
+	.word xt_word
+	.word xt_char_plus
+	.word xt_c_fetch
+	.word xt_exit
 
 	define "words", 5, , words, docol
 	// ( -- ) print all words currently in the dictionary
@@ -778,7 +802,7 @@ val_num_tib:
 2:	.word xt_dup                // ( link link )
 	.word xt_to_cfa             // ( link xt )
 	.word xt_id_dot             // ( link )
-	.word xt_space              // print a trailing space
+	.word xt_space
 3:	.word xt_fetch              // ( link->link )
 	.word xt_branch, 1b
 4:	.word xt_drop               // ( 0 -- )
@@ -842,8 +866,6 @@ val_num_tib:
 	// no exit because quit does not return
 
 	define "test_", 5, F_HIDDEN, test_, docol
-	.word xt_lit, '*', xt_emit
-	.word xt_lit, ' ', xt_emit
 	.word xt_words
 	.word xt_bye
 
@@ -1076,9 +1098,18 @@ add:
 
 sub:
 	pop {r0}
-	sub r9, r9, r0
+	sub r9, r0, r9    // r9 = r0 - r9
 	b next
 
+
+increment:
+	add r9, #1
+	b next
+
+
+decrement:
+	sub r9, #1
+	b next
 
 multiply:
 	pop {r0}
@@ -1090,24 +1121,24 @@ multiply:
 equals:
 	pop {r0}
 	cmp r9, r0
-	moveq r9, #-1      // -1 = true
-	movne r9, #0       //  0 = false
+	moveq r9, #F_TRUE
+	movne r9, #F_FALSE
 	b next
 
 
-lt:
+less:
 	pop {r0}
-	cmp r9, r0
-	movlt r9, #-1
-	movge r9, #0
+	cmp r0, r9      // r9 < r0
+	movlt r9, #F_TRUE
+	movge r9, #F_FALSE
 	b next
 
 
-gt:
+more:
 	pop {r0}
-	cmp r9, r0
-	movge r9, #-1
-	movlt r9, #0
+	cmp r0, r9      // r9 > r0
+	movgt r9, #F_TRUE
+	movle r9, #F_FALSE
 	b next
 
 
@@ -1418,6 +1449,7 @@ abs:                            // ( x -- +x ) absolute value
 	cmp r9, #0
 	neglt r9, r9
 	b next
+
 
 break:
 	mov r0, r0
