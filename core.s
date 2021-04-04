@@ -806,8 +806,12 @@ val_num_tib:
 	// no exit because quit does not return
 
 	define "test_", 5, F_HIDDEN, test_, docol
-	.word xt_lit, '*'
-	.word xt_emit
+	.word xt_tib
+	.word xt_lit, 10
+	.word xt_accept
+	.word xt_tib
+	.word xt_swap
+	.word xt_tell
 	.word xt_bye
 
 the_final_word:
@@ -1196,22 +1200,21 @@ to_num5:
 	b next
 
 
-accept:                       // ( c-addr len -- len2 )
-	pop {r1}              // r1 = c-addr buffer address
-
-	mov r7, #sys_read     // read(fd=r0, buf=r1, count=r2)
+accept:                   // ( c-addr u -- u2 )
+	mov r7, #sys_read     // make a read system call
 	mov r0, #stdin
-	mov r2, r9
+	pop {r1}              // buf = {pop}
+	mov r2, r9            // count = TOS
 	swi #0
 
-	cmp r0, #-1           // the call returns a -1 upon an error.
-	mov r0, #0            // so zero chars were received
+	cmp r0, #0            // the call returns a negative number upon an error,
+	movlt r0, #0          // so zero chars were received
 
 	mov r9, r0            // push number of chars received
 	b next
 
 
-word:                           // word - ( char -- addr )
+word:                       // word - ( char -- addr )
 	ldr r1, =const_tib      // r1 = r2 = tib
 	ldr r1, [r1]
 	mov r2, r1
