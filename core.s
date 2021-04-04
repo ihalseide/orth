@@ -1480,9 +1480,9 @@ break:
 
 
 syscall_zero:
-	mov r7, r9         ; get the syscall id from TOS
-	swi #0             ; syscall()
-	mov r9, r0         ; set TOS to the return value
+	mov r7, r9         // get the syscall id from TOS
+	swi #0             // syscall()
+	mov r9, r0         // set TOS to the return value
 	b next
 
 
