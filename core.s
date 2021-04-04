@@ -10,6 +10,9 @@
 // * The forth virtual instruction pointer (IP) is stored in register R10.
 // * The address of the current execution token (XT) is usually stored in register R8
 
+// Static variables
+	.set RSTACK_SIZE, 4 * 256
+
 // Constants
 
 	// Linux file stream descriptors
@@ -72,17 +75,11 @@ docol_return_data:
 the_input_buffer:
 	.space 64
 
-	// 256 cells for the return stack, which grows downwards in memory
+	// Static buffer for the return stack, which grows downwards in memory
 	.align 2
 rstack_end:
-	.space 4*256
+	.space RSTACK_SIZE
 rstack_start:
-
-	// 64 cells for the parameter stack, which grows downwards in memory
-	.align 2
-pstack_end:
-	.space 4*64
-pstack_start:
 
 // Begin word header definitions.
 	.data
@@ -97,7 +94,8 @@ pstack_start:
 	.word 0
 
 	define "S0", 2, , s_zero, doconst
-	.word pstack_start
+val_s_zero:
+	.word 0                                // needs to be initialized
 
 	define "R0", 2, , r_zero, doconst
 	.word rstack_start
@@ -867,7 +865,8 @@ val_num_tib:
 	// no exit because quit does not return
 
 	define "test_", 5, F_HIDDEN, test_, docol
-	.word xt_words
+	.word xt_s_zero
+	.word xt_break
 	.word xt_bye
 
 	define "syscall0", 8, , syscall_zero, syscall_zero
@@ -903,7 +902,8 @@ dictionary_space:
 
 	.text
 	.align 2
-
+var_s_zero:
+	.word val_s_zero
 var_state:
 	.word val_state
 var_h:
@@ -930,12 +930,13 @@ docol_return:
 
 	.global _start
 _start:
-	ldr sp, =pstack_start    // init parameter stack
+	ldr r0, =var_s_zero      // init parameter stack
+	ldr r0, [r0]
+	str sp, [r0]
 	ldr r11, =rstack_start   // init return stack
-	mov r9, #0               // zero out the top of the stack
-	ldr r10, =init_code      // launch the interpreter with the "init" word
+	ldr r10, =start_code     // launch the interpreter with the "init" word
 	b next
-init_code:
+start_code:
 	.word xt_test_
 
 docol:
