@@ -597,7 +597,7 @@ val_num_tib:
 	define "1+", 2, , one_plus, docol
 	.word xt_lit, 1
 	.word xt_plus
-	.word exit
+	.word xt_exit
 
 	define ",", 1, , comma, comma
 	// ( x -- )
@@ -806,10 +806,13 @@ val_num_tib:
 	// no exit because quit does not return
 
 	define "test_", 5, F_HIDDEN, test_, docol
-	.word xt_tib
-	.word xt_lit, 10
-	.word xt_accept
-	.word xt_tib
+	.word xt_lit, def_test_+4
+	.word xt_dup
+	.word xt_fetch
+	.word xt_f_lenmask
+	.word xt_and
+	.word xt_swap
+	.word xt_one_plus
 	.word xt_swap
 	.word xt_tell
 	.word xt_bye
