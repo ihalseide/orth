@@ -388,14 +388,6 @@ val_num_tib:
 	.word xt_lit, 0, xt_state, xt_store
 	.word xt_exit
 
-	define "cs>number", 9, , cs_to_number, docol
-	// ( ca1 -- ud ca2 len )
-	.word xt_lit, 0
-	.word xt_lit, 0
-	.word xt_rot
-	.word xt_to_number
-	.word xt_exit
-
 	define "do-compile", 10, , do_compile, docol
 	// ( -- / x*i -- x*j )
 	.word xt_find_word_question       // ( xt f )
@@ -645,28 +637,16 @@ val_num_tib:
 	// ( x y -- f )
 	// f: x > y
 
-	define ">R", 2, , to_r, to_r
-	// ( x -- R: -- x )
-
-	define "R>", 2, , r_from, r_from
-	// ( -- x R: x -- )
-
-	define "Rdrop", 5, , r_drop, docol
-	// ( -- R: x -- )
-	.word xt_r_from
-	.word xt_drop
-	.word xt_exit
-
-	define "Rdup", 4, , r_dup, docol
-	// ( -- R: x -- x x )
-	.word xt_r_from
-	.word xt_dup
-	.word xt_to_r
-	.word xt_to_r
-	.word xt_exit
-
 	define ">number", 7, , to_number, to_number
 	// ( d c-addr1 u -- d c-addr2 0 | x addr2 nonzero )
+
+	define "cs>number", 9, , cs_to_number, docol
+	// ( ca1 -- ud ca2 len )
+	.word xt_lit, 0
+	.word xt_lit, 0
+	.word xt_rot
+	.word xt_to_number
+	.word xt_exit
 
 	define "!", 1, , store, store
 	// ( x addr -- )
@@ -726,6 +706,26 @@ val_num_tib:
 	// ( x y -- y x y )
 	.word xt_swap
 	.word xt_over
+	.word xt_exit
+
+	define ">R", 2, , to_r, to_r
+	// ( x -- R: -- x )
+
+	define "R>", 2, , r_from, r_from
+	// ( -- x R: x -- )
+
+	define "Rdrop", 5, , r_drop, docol
+	// ( -- R: x -- )
+	.word xt_r_from
+	.word xt_drop
+	.word xt_exit
+
+	define "Rdup", 4, , r_dup, docol
+	// ( -- R: x -- x x )
+	.word xt_r_from
+	.word xt_dup
+	.word xt_to_r
+	.word xt_to_r
 	.word xt_exit
 
 	define "execute", 7, , execute, execute
