@@ -7,9 +7,13 @@ run: core
 debug: core
 	gdb core
 
-core: core.o
+core: core.x
+	mv core.x core
+
+# Executable files end with .x
+%.x: %.o
 	ld -g -o $@ $<
 	
-core.o: core.s
+%.o: %.s
 	as -adhlns="$@.lst" -g -o $@ $<
 
