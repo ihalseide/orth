@@ -102,7 +102,7 @@ pstack_start:
 val_state:
 	.word 0
 
-	define "h", 2, , h, dovar
+	define "h", 1, , h, dovar
 	// &dictionary_end variable h
 val_h:
 	.word dictionary_space
@@ -112,7 +112,7 @@ val_h:
 val_base:
 	.word 10
 
-	define "latest", 4, , latest, dovar
+	define "latest", 6, , latest, dovar
 	// &the_final_word variable latest
 val_latest:
 	.word the_final_word
@@ -251,12 +251,13 @@ val_num_tib:
 	.word xt_c_comma            // ( c-addr len ) write the name length
 	.word xt_h, xt_fetch        // ( c-addr len here )
 	.word xt_swap               // ( c-addr here len )
-	.word xt_c_move              // write the name
+	.word xt_c_move             // write the name
 	.word xt_h, xt_fetch        // make sure to increment "here" to after the name
 	.word xt_lit, 31
 	.word xt_plus
-	.word xt_h, xt_store        // here has been incremented
-	.word xt_lit, dovar      // make this header push the data field address when it is executed
+	.word xt_h
+	.word xt_store              // here has been incremented
+	.word xt_lit, dovar         // make this header push it's data field address when it is executed
 	.word xt_comma
 	.word xt_exit
 
@@ -280,7 +281,7 @@ val_num_tib:
 	.word xt_minus_rot
 	.word xt_exit
 
-	define "c_move1", 6, , c_move_one, docol
+	define "cmove1", 6, , c_move_one, docol
 	// ( c-addr1 c-addr2 -- ) copy one character from c-addr1 to c-addr2
 	.word xt_swap      // ( c-addr2 c-addr1 )
 	.word xt_c_fetch   // ( c-addr2 c )
@@ -298,7 +299,7 @@ val_num_tib:
 	.word xt_store
 	.word xt_exit
 
-	define "c_move", 5, , c_move, docol
+	define "cmove", 5, , c_move, docol
 	// ( c-addr1 c-addr2 u -- ) - copy u chars from c-addr1 to c-addr2
 	.word xt_over              // save the final c-addr2 to the return stack
 	.word xt_plus
@@ -340,26 +341,28 @@ val_num_tib:
 	.word xt_drop
 	.word xt_exit
 
-	define "constant", 5, , constant, docol
+	define "constant", 8, , constant, docol
 	// ( x -- )
-	.word xt_create         // create the first part of the header
-	.word xt_lit, doconst   // compile doconst to be the codeword
-	.word xt_comma
-	.word xt_comma          // compile x
+	.word xt_create           // create the first part of the header
+	.word xt_comma            // compile x to the data field
+	.word xt_lit, doconst     // make 'doconst' be the codeword
+	.word xt_latest
+	.word xt_fetch 
+	.word xt_to_cfa           // ( doconst cfa )
+	.word xt_store
 	.word xt_exit
 
 	define "postpone", 8, F_IMMEDIATE, postpone, docol
 	// ( -- ) compile the following word
 	.word xt_state, xt_fetch          // ( f )
 	.word xt_zero_branch, 2f          // Must be in compile mode
-	.word xt_bl                       // ( bl )
-	.word xt_word                     // ( addr )
-	.word xt_find                     // ( xt f )
+	.word xt_find_word_question
 	.word xt_zero_branch, 1f          // ( xt ) must find
 	.word xt_comma
 	.word xt_exit
 1:	.word xt_paren_semicolon_cancel
 	.word xt_quit
+2:	.word xt_exit
 
 	define "]", 1, , right_bracket, docol
 	// ( -- ) enter compile mode
@@ -382,7 +385,7 @@ val_num_tib:
 	.word xt_lit, '\n', xt_emit
 	.word xt_exit
 
-	define "space", 2, , space, docol
+	define "space", 5, , space, docol
 	// ( -- ) emit a space
 	.word xt_lit, ' ', xt_emit
 	.word xt_exit
@@ -632,8 +635,9 @@ val_num_tib:
 
 	define "/mod", 4, , slash_mod, divmod
 
-	define "branch", 6, F_HIDDEN, branch, branch
-	define "0branch", 7, F_HIDDEN, zero_branch, zero_branch
+	define "branch", 6, , branch, branch
+
+	define "0branch", 7, , zero_branch, zero_branch
 
 	define "<", 1, , lt, lt
 	// ( x y -- f ) f:x<y
@@ -682,7 +686,7 @@ val_num_tib:
 	// ( c-addr -- c )
 	// c: the char stored in c-addr
 
-	define "xor", 1, , xor, xor
+	define "xor", 3, , xor, xor
 	// ( x y -- z ) z = x XOR y
 
 	define "abs", 3, , abs, abs
@@ -710,7 +714,7 @@ val_num_tib:
 	// ( c -- )
 	// Append the character to the output stream
 
-	define "execute", 4, , execute, execute
+	define "execute", 7, , execute, execute
 	// ( xt -- )
 
 	define "exit", 4, , exit, exit
@@ -805,8 +809,8 @@ val_num_tib:
 	define "or", 2, , or, do_or
 	// ( x y -- x|y ) bitwise or
 
-	// aligned ( c-addr -- addr ) align an address to a cell
 	define "aligned", 7, , aligned, docol
+	// ( c-addr -- addr ) align an address to a cell
 	.word xt_lit, 3
 	.word xt_plus
 	.word xt_lit, 3
@@ -814,15 +818,15 @@ val_num_tib:
 	.word xt_and
 	.word xt_exit
 
-	// align ( -- ) make the address of h(ere) aligned
 	define "align", 5, , align, docol
+	// ( -- ) make the address of h(ere) aligned
 	.word xt_h, xt_fetch
 	.word xt_aligned
 	.word xt_h, xt_store
 	.word xt_exit
 
-	// c_tell ( c-addr -- )
-	define "c_tell", 5, , c_tell, docol
+	define "ctell", 5, , c_tell, docol
+	// ( c-addr -- )
 	.word xt_count
 	.word xt_tell
 	.word xt_exit
@@ -838,6 +842,8 @@ val_num_tib:
 	// no exit because quit does not return
 
 	define "test_", 5, F_HIDDEN, test_, docol
+	.word xt_lit, '*', xt_emit
+	.word xt_lit, ' ', xt_emit
 	.word xt_words
 	.word xt_bye
 
