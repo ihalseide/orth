@@ -21,7 +21,7 @@
 	.set sys_read, 3
 	.set sys_write, 4
 
-	// Word bitmask flags 
+	// Word bitmask flags
 	.set F_IMMEDIATE, 0b10000000
 	.set F_HIDDEN,    0b01000000
 	.set F_LENMASK,   0b00111111
@@ -132,13 +132,13 @@ val_tib:
 val_num_tib:
 	.word 0
 
-	define "F_IMMEDIATE", 11, , const_f_immediate, doconst
+	define "F_IMMEDIATE", 11, , f_immediate, doconst
 	.word F_IMMEDIATE
 
-	define "F_HIDDEN", 8, , const_f_hidden, doconst
+	define "F_HIDDEN", 8, , f_hidden, doconst
 	.word F_HIDDEN
 
-	define "F_LENMASK", 9, , const_f_lenmask, doconst
+	define "F_LENMASK", 9, , f_lenmask, doconst
 	.word F_LENMASK
 
 	// decimal ( -- ) change to base 10
@@ -148,7 +148,7 @@ val_num_tib:
 	.word xt_exit
 
 	// hex ( -- ) change to base 16
-	define "hex", 3, , decimal, docol      
+	define "hex", 3, , decimal, docol
 	.word xt_lit, 16
 	.word xt_base, xt_store
 	.word xt_exit
@@ -489,7 +489,7 @@ val_num_tib:
 	.word xt_r_zero       // clear the return stack
 	.word xt_rsp_store
 	.word xt_bracket      // enter immediate mode
-	.word xt_interpreter
+	.word xt_interpreter  // start interpreting
 	// no exit because there is no return stack
 
 	define "if", 2, F_IMMEDIATE, if, docol
@@ -598,9 +598,6 @@ val_num_tib:
 	.word xt_lit, 1
 	.word xt_plus
 	.word exit
-
-	define "1.", 2, , one_dot, one_dot
-	// ( x -- )
 
 	define ",", 1, , comma, comma
 	// ( x -- )
@@ -712,14 +709,14 @@ val_num_tib:
 	// ( c-addr -- c-addr 0 | xt -1 | xt 1 )
 
 	define "invert", 6, , invert, invert
-	// ( x -- y ) 
+	// ( x -- y )
 	// y: the bitwise inverse of x
 
 	define "lit", 3, , lit, lit
 	// ( -- x )
 
 	define "mod", 3, , mod, mod
-	// ( x y -- z ) 
+	// ( x y -- z )
 	// z: result of x mod y
 
 	define "negate", 6, , negate, negate
@@ -744,7 +741,7 @@ val_num_tib:
 	define "tell", 4, , tell, tell
 	// ( c-addr u -- )
 	// Print out a counted string
-	// u: length of counted string 
+	// u: length of counted string
 
 	define "word", 4, , word, word
 	// ( c -- c-addr )
@@ -759,7 +756,7 @@ val_num_tib:
 	.word xt_cell_plus          // ( latest name-field )
 	.word xt_dup                // ( latest name-field name-field ) skip hidden words
 	.word xt_c_fetch            // ( latest name-field len+flags )
-	.word xt_const_f_hidden
+	.word xt_f_hidden
 	.word xt_and                // ( latest name-field F_HIDDEN | latest name-field 0 )
 	.word xt_zero_branch, 3f
 	.word xt_drop               // ( latest )
@@ -776,7 +773,7 @@ val_num_tib:
 	define "or", 1, , or, do_or
 	// ( x y -- x|y ) bitwise or
 
-	// aligned ( c-addr -- addr ) align an address to a cell 
+	// aligned ( c-addr -- addr ) align an address to a cell
 	define "aligned", 7, , aligned, docol
 	.word xt_lit, 3
 	.word xt_add
@@ -800,15 +797,15 @@ val_num_tib:
 
 	define "init", 4, , init, docol
 	// ( x*i -- R: x*j -- )
-	.word xt_decimal              // base 10
 	.word xt_s_zero               // initialize the parameter stack
 	.word xt_psp_store
+	.word xt_decimal
 	.word xt_num_tib, xt_fetch    // set >in to #tib so that we need to get input
 	.word xt_to_in, xt_store
 	.word xt_quit                 // start the interpreter
 	// no exit because quit does not return
 
-	define "test_", 10, F_HIDDEN, test_, docol
+	define "test_", 5, F_HIDDEN, test_, docol
 	.word xt_lit, '*'
 	.word xt_emit
 	.word xt_bye
@@ -816,7 +813,7 @@ val_num_tib:
 the_final_word:
 
 	define "bye", 3, , bye, bye
-	// ( -- ) exit the program
+	// ( -- ) exit the program (successfully)
 
 dictionary_space:
 	.space 2048
@@ -852,10 +849,10 @@ docol_return:
 
 	.global _start
 _start:
-	ldr sp, =pstack_start
-	ldr r11, =rstack_start
-	mov r9, #0
-	ldr r10, =init_code
+	ldr sp, =pstack_start    // init parameter stack
+	ldr r11, =rstack_start   // init return stack
+	mov r9, #0               // zero out the top of the stack
+	ldr r10, =init_code      // launch the interpreter with the "init" word
 	b next
 init_code:
 	.word xt_test_
@@ -928,7 +925,7 @@ c_comma:
 	cpy r1, r0
 	ldr r0, [r0]
 
-	strb r9, [r0, #1]!  // only difference with "comma" (see above)
+	strb r9, [r0, #1]!      // This line is the only difference with "comma" (see above)
 	str r0, [r1]
 
 	pop {r9}
@@ -940,7 +937,7 @@ find:                           // ( addr -- addr2 0 | xt 1 | xt -1 ) 1=immediat
 	ldr r0, [r0]            // (r0 will be correctly dereferenced again in the 1st iteration of loop #1)
 
 	ldrb r1, [r9]           // r1 = input str len
-1:                          // Loops through the dictionary linked list.
+1:                              // Loops through the dictionary linked list.
 	ldr r0, [r0]            // r0 = r0->link
 	cmp r0, #0              // test for end of dictionary
 	beq 3f
@@ -1042,7 +1039,7 @@ add:
 
 sub:
 	pop {r0}
-	sub r9, r9, r1
+	sub r9, r9, r0
 	b next
 
 
@@ -1142,6 +1139,7 @@ zero_branch:                  // note: not a relative branch!
 	b next
 
 
+// TODO: should this push to the return stack?
 execute:
 	mov r8, r9        // r8 = the xt
 	pop {r9}          // pop the stack
@@ -1268,7 +1266,7 @@ word_done:
 	b next                  // TOS (r9) has been pointing to the pad addr the whole time
 
 
-emit:                       // emit ( char -- )
+emit:                           // emit ( char -- )
 	mov r0, r9
 	bl fn_emit
 	pop {r9}
@@ -1364,7 +1362,6 @@ psp_fetch:
 
 psp_store:
 	mov sp, r9
-	pop {r9}     // could be an invalid operation
 	b next
 
 
@@ -1384,18 +1381,4 @@ abs:                            // ( x -- +x ) absolute value
 	cmp r9, #0
 	neglt r9, r9
 	b next
-
-one_dot:                      // ( c -- ) print out a single digit with a value of c
-	ldr r1, =one_dot_buf
-	add r1, r9
-
-	mov r7, #sys_write
-	mov r0, #stdout
-	mov r2, #1
-	swi #0
-
-	pop {r9}
-	b next
-one_dot_buf: .ascii "0123456789abcdefghijklmnopqrstuvwxyz"
-
 
