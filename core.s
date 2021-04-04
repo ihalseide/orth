@@ -350,12 +350,13 @@ val_num_tib:
 
 	define "postpone", 8, F_IMMEDIATE, postpone, docol
 	// ( -- ) compile the following word
-	.word xt_state, xt_fetch, xt_zero_branch, 1f   // Must be in compile mode
-	.word xt_bl
-	.word xt_word
-	.word xt_find
-	.word xt_zero_branch, 1f                       // Must find the word
-	.word xt_drop, xt_comma
+	.word xt_state, xt_fetch          // ( f )
+	.word xt_zero_branch, 2f          // Must be in compile mode
+	.word xt_bl                       // ( bl )
+	.word xt_word                     // ( addr )
+	.word xt_find                     // ( xt f )
+	.word xt_zero_branch, 1f          // ( xt ) must find
+	.word xt_comma
 	.word xt_exit
 1:	.word xt_paren_semicolon_cancel
 	.word xt_quit
@@ -392,7 +393,7 @@ val_num_tib:
 	.word xt_exit
 
 	define "find-word?", 10, , find_word_question, docol
-	// ( -- ca 0 | xt -1 | xt 1 )
+	// ( -- c-addr 0 | xt -1 | xt 1 )
 	.word xt_bl
 	.word xt_word
 	.word xt_find
@@ -408,36 +409,41 @@ val_num_tib:
 
 	define "do-compile", 10, , do_compile, docol
 	// ( -- / x*i -- x*j )
-	.word xt_find_word_question
-	.word xt_dup
-	.word xt_zero_branch, 4f
+	.word xt_find_word_question       // ( xt f )
+	.word xt_dup                      // ( xt f f )
+	.word xt_zero_branch, 4f          // ( xt f )
 	.word xt_lit, 1
-1:	.word xt_equals
-	.word xt_zero_branch, 3f
-2:	.word xt_execute
-	.word xt_branch, 4f
-3:	.word xt_comma
-	.word xt_branch, 7f
-4:	.word xt_drop
-	.word xt_cs_to_number
-	.word xt_zero_branch, 6f
-5:	.word xt_paren_semicolon_cancel
+1:	.word xt_equals                   // ( xt f2 )
+	.word xt_zero_branch, 3f          // ( xt f2 -- xt )
+2:	.word xt_execute                  // ( )
+	.word xt_exit
+3:	.word xt_comma                    // ( )
+	.word xt_exit
+4:	.word xt_drop                     // ( ca )
+	.word xt_cs_to_number             // ( ud ca2 len )
+	.word xt_zero_branch, 6f          // ( ud ca2 )
+5:	.word xt_drop                     // ( ud )
+	.word xt_two_drop                 // ( )
+	.word xt_paren_semicolon_cancel
 	.word xt_quit
-6:	.word xt_drop, xt_drop
-	.word xt_lit, xt_lit, xt_comma, xt_comma
-7:	.word xt_exit
+6:	.word xt_drop                     // ( ud )
+	.word xt_drop                     // ( u )
+	.word xt_lit, xt_lit
+	.word xt_comma
+	.word xt_comma                    // ( )
+	.word xt_exit
 
 	define "do-interpret", 12, , do_interpret, docol
 	// ( -- n / x*i -- x*j )
-	.word xt_find_word_question
-	.word xt_dup
-	.word xt_zero_branch, 1f
-	.word xt_execute
+	.word xt_find_word_question  // ( c-addr 0 | xt f )
+	.word xt_zero_branch, 1f     // ( c-addr | xt )
+	.word xt_execute             // ( xt -- )
 	.word xt_exit
-1:	.word xt_drop, xt_cs_to_number
-	.word xt_zero_branch, 2f
+1:	.word xt_cs_to_number        // ( c-addr -- ud c-addr2 u )
+	.word xt_zero_branch, 2f     // ( ud c-addr2 )
 	.word xt_quit
-2:	.word xt_drop, xt_drop
+2:	.word xt_drop                // ( ud c-addr2 -- u )
+	.word xt_drop
 	.word xt_exit
 
 	define ";cancel", 7, F_IMMEDIATE, semicolon_cancel, docol
@@ -470,14 +476,15 @@ val_num_tib:
 	.word xt_to_in, xt_fetch
 	.word xt_equals
 	.word xt_zero_branch, 1f
-	.word xt_refill
-1:	.word xt_drop
-	.word xt_state, xt_fetch
+	.word xt_refill            // ( f )
+	.word xt_zero_branch, 3f   // no input available
+1:	.word xt_state, xt_fetch
 	.word xt_zero_branch, 2f
 	.word xt_do_compile
 	.word xt_exit
 2:	.word xt_do_interpret
 	.word xt_exit
+3:	.word xt_bye
 
 	define "interpreter", 11, , interpreter, docol
 	// ( -- )
@@ -495,9 +502,11 @@ val_num_tib:
 
 	define "if", 2, F_IMMEDIATE, if, docol
 	// ( -- addr )
-	.word xt_lit, xt_zero_branch, xt_comma
+	.word xt_lit, xt_zero_branch
+	.word xt_comma
 	.word xt_h, xt_fetch
-	.word xt_lit, 0, xt_comma
+	.word xt_lit, 0
+	.word xt_comma
 	.word xt_exit
 
 	define "then", 4, F_IMMEDIATE, then, docol
@@ -508,9 +517,11 @@ val_num_tib:
 
 	define "else", 4, F_IMMEDIATE, else, docol
 	// ( addr1 -- addr2 ) where: addr1= the previous if branch address, and addr2= the else branch address
-	.word xt_lit, xt_branch, xt_comma
+	.word xt_lit, xt_branch
+	.word xt_comma
 	.word xt_h, xt_fetch                         // (prev-if prev-else )
-	.word xt_lit, 0, xt_comma
+	.word xt_lit, 0
+	.word xt_comma
 	.word xt_h, xt_fetch                         // (prev-if prev-else h )
 	.word xt_rot                                 // ( prev-else h prev-if )
 	.word xt_store                               // ( prev-else )
@@ -577,10 +588,8 @@ val_num_tib:
 	.word xt_two_dup
 	.word xt_gt
 	.word xt_zero_branch, 1f
-	.word xt_drop
-	.word xt_nip
-	.word xt_exit
-1:	.word xt_two_drop
+	.word xt_swap
+1:	.word xt_drop
 	.word xt_exit
 
 	define "min", 3, , min, docol
@@ -589,10 +598,8 @@ val_num_tib:
 	.word xt_two_dup
 	.word xt_lt
 	.word xt_zero_branch, 1f
-	.word xt_drop
-	.word xt_nip
-	.word xt_exit
-1:	.word xt_two_drop
+	.word xt_swap
+1:	.word xt_drop
 	.word xt_exit
 
 	define "*", 1, , star, multiply
@@ -625,8 +632,8 @@ val_num_tib:
 
 	define "/mod", 4, , slash_mod, divmod
 
-	define "0branch", 7, , zero_branch, zero_branch
-	// ( -- )
+	define "branch", 6, F_HIDDEN, branch, branch
+	define "0branch", 7, F_HIDDEN, zero_branch, zero_branch
 
 	define "<", 1, , lt, lt
 	// ( x y -- f ) f:x<y
@@ -687,9 +694,6 @@ val_num_tib:
 	// c-addr: the address to store characters into
 	// len: the number of characters to accept from input
 	// len2: the number of characters actually received (will not be greater than len)
-
-	define "branch", 6, , branch, branch
-	// ( -- )
 
 	define "count", 5, , count, count
 	// ( c-addr1 -- c-addr2 u )
@@ -759,13 +763,13 @@ val_num_tib:
 	// ( -- ) print all words currently in the dictionary
 	.word xt_latest
 	.word xt_fetch              // ( link )
-1:	.word xt_zero_branch, 4f    // break the loop at the end of the dictionary
+1:	.word xt_dup                // ( link link )
+	.word xt_zero_branch, 4f    // ( link ) break the loop at the end of the dictionary
 	.word xt_dup                // ( link link )
 	.word xt_break
 	.word xt_to_cfa             // ( link xt )
 	.word xt_question_hidden    // ( link f )
 	.word xt_zero_branch, 2f
-	.word xt_drop               // ( link )
 	.word xt_branch, 3f
 2:	.word xt_dup                // ( link link )
 	.word xt_to_cfa             // ( link xt )
@@ -798,7 +802,7 @@ val_num_tib:
 	.word xt_equals
 	.word xt_exit
 
-	define "or", 1, , or, do_or
+	define "or", 2, , or, do_or
 	// ( x y -- x|y ) bitwise or
 
 	// aligned ( c-addr -- addr ) align an address to a cell
@@ -834,13 +838,7 @@ val_num_tib:
 	// no exit because quit does not return
 
 	define "test_", 5, F_HIDDEN, test_, docol
-	.word xt_lit, 1
-	.word xt_zero_branch, 1f
-	.word xt_lit, '1', xt_emit
-	.word xt_lit, '0', xt_plus, xt_emit
-	.word xt_bye
-1:	.word xt_lit, '0', xt_emit
-	.word xt_lit, '0', xt_plus, xt_emit
+	.word xt_words
 	.word xt_bye
 
 the_final_word:
@@ -1165,10 +1163,11 @@ branch:                       // note: not a relative branch!
 	b next
 
 
-zero_branch:                  // note: not a relative branch!
+zero_branch:                  // note: not a relative branch
 	cmp r9, #0
 	ldreq r10, [r10]          // Set the IP to the next codeword if 0,
 	addne r10, #4             // or increment IP otherwise
+	pop {r9}                  // DO pop the stack
 	b next
 
 
