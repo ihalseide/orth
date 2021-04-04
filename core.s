@@ -148,7 +148,7 @@ val_num_tib:
 	.word xt_exit
 
 	// hex ( -- ) change to base 16
-	define "hex", 3, , decimal, docol
+	define "hex", 3, , hex, docol
 	.word xt_lit, 16
 	.word xt_base, xt_store
 	.word xt_exit
@@ -163,11 +163,11 @@ val_num_tib:
 
 	define ">LFA", 4, , to_lfa, docol
 	// ( addr -- addr2 ) word address to length field address
-	.word xt_lit, 4, xt_add
+	.word xt_lit, 4, xt_plus
 	.word xt_exit
 
 	define ">CFA", 4, , to_cfa, docol
-	.word xt_lit, 36, xt_add
+	.word xt_lit, 36, xt_plus
 	.word xt_exit
 
 	define "'", 1, F_IMMEDIATE, tick, docol
@@ -192,11 +192,11 @@ val_num_tib:
 	.word xt_latest, xt_fetch
 	.word xt_to_lfa
 	.word xt_dup
-	.word xt_cfetch
+	.word xt_c_fetch
 	.word xt_lit, F_IMMEDIATE
 	.word xt_and
 	.word xt_swap
-	.word xt_cstore
+	.word xt_c_store
 	.word xt_exit
 
 	define ":", 1, , colon, docol
@@ -250,12 +250,12 @@ val_num_tib:
 	.word xt_c_comma            // ( c-addr len ) write the name length
 	.word xt_h, xt_fetch        // ( c-addr len here )
 	.word xt_swap               // ( c-addr here len )
-	.word xt_cmove              // write the name
+	.word xt_c_move              // write the name
 	.word xt_h, xt_fetch        // make sure to increment "here" to after the name
 	.word xt_lit, 31
 	.word xt_plus
 	.word xt_h, xt_store        // here has been incremented
-	.word xt_lit, xt_dovar      // make this header push the data field address when it is executed
+	.word xt_lit, dovar      // make this header push the data field address when it is executed
 	.word xt_comma
 	.word xt_exit
 
@@ -279,7 +279,7 @@ val_num_tib:
 	.word xt_minus_rot
 	.word xt_exit
 
-	define "cmove1", 6, , c_move_one, docol
+	define "c_move1", 6, , c_move_one, docol
 	// ( c-addr1 c-addr2 -- ) copy one character from c-addr1 to c-addr2
 	.word xt_swap      // ( c-addr2 c-addr1 )
 	.word xt_c_fetch   // ( c-addr2 c )
@@ -297,13 +297,13 @@ val_num_tib:
 	.word xt_store
 	.word xt_exit
 
-	define "cmove", 5, , cmove, docol
+	define "c_move", 5, , c_move, docol
 	// ( c-addr1 c-addr2 u -- ) - copy u chars from c-addr1 to c-addr2
 	.word xt_over              // save the final c-addr2 to the return stack
 	.word xt_plus
 	.word xt_to_r
 1:	.word xt_two_dup           // loop to copy chars:
-	.word xt_cmove_one         // copy one char
+	.word xt_c_move_one         // copy one char
 	.word xt_one_plus          // increment both of the c-addr
 	.word xt_swap
 	.word xt_one_plus
@@ -313,7 +313,7 @@ val_num_tib:
 	.word xt_r_from
 	.word xt_equals
 	.word xt_zero_branch, 1b   // keep copying chars until they are equal
-	.word xt_rdrop             // clean the return stack
+	.word xt_r_drop             // clean the return stack
 	.word xt_drop              // clean the parameter stack
 	.word xt_drop
 	.word xt_exit
@@ -334,7 +334,7 @@ val_num_tib:
 	.word xt_r_from
 	.word xt_equals
 	.word xt_zero_branch, 1b   // keep copying until they are equal
-	.word xt_rdrop             // clean the return stack
+	.word xt_r_drop             // clean the return stack
 	.word xt_drop              // clean the parameter stack
 	.word xt_drop
 	.word xt_exit
@@ -387,7 +387,7 @@ val_num_tib:
 
 	define ">body", 5, , to_body, docol
 	// ( xt -- addr )
-	.word xt_lit, 4, xt_add
+	.word xt_lit, 4, xt_plus
 	.word xt_exit
 
 	define "find-word?", 10, , find_word_q, docol
@@ -556,7 +556,7 @@ val_num_tib:
 	define "id.", 3, , id_dot, docol
 	// ( xt -- )
 	.word xt_lit, -32
-	.word xt_add
+	.word xt_plus
 	.word xt_ctell
 	.word xt_exit
 
@@ -638,13 +638,13 @@ val_num_tib:
 
 	define "Rdrop", 5, , r_drop, docol
 	// ( -- R: x -- )
-	.word xt_from_r
+	.word xt_r_from
 	.word xt_drop
 	.word xt_exit
 
 	define "Rdup", 4, , r_dup, docol
 	// ( -- R: x -- x x )
-	.word xt_from_r
+	.word xt_r_from
 	.word xt_dup
 	.word xt_to_r
 	.word xt_to_r
@@ -661,10 +661,10 @@ val_num_tib:
 	// ( addr -- x )
 	// x: the cell value stored in memory at addr
 
-	define "c!", 2, , cstore, cstore
+	define "c!", 2, , c_store, c_store
 	// ( c c-addr -- )
 
-	define "c@", 2, , cfetch, cfetch
+	define "c@", 2, , c_fetch, c_fetch
 	// ( c-addr -- c )
 	// c: the char stored in c-addr
 
@@ -776,7 +776,7 @@ val_num_tib:
 	// aligned ( c-addr -- addr ) align an address to a cell
 	define "aligned", 7, , aligned, docol
 	.word xt_lit, 3
-	.word xt_add
+	.word xt_plus
 	.word xt_lit, 3
 	.word xt_invert
 	.word xt_and
@@ -1114,14 +1114,14 @@ fetch:
 	b next
 
 
-cstore:
+c_store:
 	pop {r0}
 	strb r0, [r9]
 	pop {r9}
 	b next
 
 
-cfetch:
+c_fetch:
 	ldrb r9, [r9]
 	b next
 
