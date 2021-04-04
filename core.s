@@ -808,11 +808,10 @@ val_num_tib:
 	.word xt_quit                 // start the interpreter
 	// no exit because quit does not return
 
-	// DEBUG {
 	define "test_", 10, F_HIDDEN, test_, docol
-	.word xt_words
+	.word xt_lit, '*'
+	.word xt_emit
 	.word xt_bye
-	// }
 
 the_final_word:
 
@@ -853,6 +852,9 @@ docol_return:
 
 	.global _start
 _start:
+	ldr sp, =pstack_start
+	ldr r11, =rstack_start
+	mov r9, #0
 	ldr r10, =init_code
 	b next
 init_code:
