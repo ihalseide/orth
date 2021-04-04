@@ -15,6 +15,7 @@
 	// Linux file stream descriptors
 	.set stdin, 0
 	.set stdout, 1
+	.set stderr, 2
 
 	// System call numbers
 	.set sys_exit, 1
@@ -362,7 +363,7 @@ val_num_tib:
 	.word xt_comma            // compile x to the data field
 	.word xt_lit, doconst     // make 'doconst' be the codeword
 	.word xt_latest
-	.word xt_fetch 
+	.word xt_fetch
 	.word xt_to_cfa           // ( doconst cfa )
 	.word xt_store
 	.word xt_exit
@@ -868,6 +869,27 @@ val_num_tib:
 	define "test_", 5, F_HIDDEN, test_, docol
 	.word xt_words
 	.word xt_bye
+
+	define "syscall0", 8, , syscall_zero, syscall_zero
+	// ( X -- )
+
+	define "syscall1", 8, , syscall_one, syscall_one
+	// ( x X -- )
+
+	define "syscall2", 8, , syscall_two, syscall_two
+	// ( x x X -- )
+
+	define "syscall3", 8, , syscall_three, syscall_three
+	// ( x x x X -- )
+
+	define "syscall4", 8, , syscall_four, syscall_four
+	// ( x x x x X -- )
+
+	define "syscall5", 8, , syscall_five, syscall_five
+	// ( x x x x x X -- )
+
+	define "syscall6", 8, , syscall_six, syscall_six
+	// ( x x x x x x X -- )
 
 the_final_word:
 
@@ -1453,5 +1475,75 @@ abs:                            // ( x -- +x ) absolute value
 
 break:
 	mov r0, r0
+	b next
+
+
+syscall_zero:
+	mov r7, r9         ; get the syscall id from TOS
+	swi #0             ; syscall()
+	mov r9, r0         ; set TOS to the return value
+	b next
+
+
+syscall_one:
+	mov r7, r9   // get the syscall id from TOS
+	pop {r0}     // get the 1st arg from stack
+	swi #0       // syscall()
+	mov r9, r0   // set TOS to the return value
+	b next
+
+
+syscall_two:
+	mov r7, r9   // get the syscall id from TOS
+	pop {r0}     // get the 1st arg from stack
+	pop {r1}     // get the 2nd arg from stack
+	swi #0       // syscall()
+	mov r9, r0   // set TOS to the return value
+	b next
+
+
+syscall_three:
+	mov r7, r9   // get the syscall id from TOS
+	pop {r0}     // get the 1st arg from stack
+	pop {r1}     // get the 2nd arg from stack
+	pop {r2}     // get the 3rd arg from stack
+	swi #0       // syscall()
+	mov r9, r0   // set TOS to the return value
+	b next
+
+
+syscall_four:
+	mov r7, r9   // get the syscall id from TOS
+	pop {r0}     // get the 1st arg from stack
+	pop {r1}     // get the 2nd arg from stack
+	pop {r2}     // get the 3rd arg from stack
+	pop {r3}     // get the 4th arg from stack
+	swi #0       // syscall()
+	mov r9, r0   // set TOS to the return value
+	b next
+
+
+syscall_five:
+	mov r7, r9   // get the syscall id from TOS
+	pop {r0}     // get the 1st arg from stack
+	pop {r1}     // get the 2nd arg from stack
+	pop {r2}     // get the 3rd arg from stack
+	pop {r3}     // get the 4th arg from stack
+	pop {r4}     // get the 5th arg from stack
+	swi #0       // syscall()
+	mov r9, r0   // set TOS to the return value
+	b next
+
+
+syscall_six:
+	mov r7, r9   // get the syscall id from TOS
+	pop {r0}     // get the 1st arg from stack
+	pop {r1}     // get the 2nd arg from stack
+	pop {r2}     // get the 3rd arg from stack
+	pop {r3}     // get the 4th arg from stack
+	pop {r4}     // get the 5th arg from stack
+	pop {r5}     // get the 6th arg from stack
+	swi #0       // syscall()
+	mov r9, r0   // set TOS to the return value
 	b next
 
