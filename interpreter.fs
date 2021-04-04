@@ -5,20 +5,20 @@
 : do-compile ( -- / x*i -- x*j )
 	find-word?  dup
 	if
-		( 1 ) 1 =
+		( #1 ) 1 =
 		if
-			( 2 ) execute
+			( #2 ) execute
 		else
-			( 3 ),
+			( #3 ),
 		then
 	else
-		( 4 ) drop cs>number
+		( #4 ) drop cs>number
 		if
-			( 5 ) last @ dup @ last ! dp ! abort
+			( #5 ) last @ dup @ last ! dp ! abort
 		then
-		( 6 ) drop drop ['] lit , ,
+		( #6 ) drop drop ['] lit , ,
 	then 
-	( 7 ) ;
+	( #7 ) ;
 
 : do-interpret ( --n / x*i -- x*j )
 	find-word? dup if
