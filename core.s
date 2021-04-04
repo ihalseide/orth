@@ -167,7 +167,8 @@ val_num_tib:
 	.word xt_exit
 
 	define ">CFA", 4, , to_cfa, docol
-	.word xt_lit, 36, xt_plus
+	.word xt_lit, 36
+	.word xt_plus
 	.word xt_exit
 
 	define "'", 1, F_IMMEDIATE, tick, docol
@@ -390,7 +391,7 @@ val_num_tib:
 	.word xt_lit, 4, xt_plus
 	.word xt_exit
 
-	define "find-word?", 10, , find_word_q, docol
+	define "find-word?", 10, , find_word_question, docol
 	// ( -- ca 0 | xt -1 | xt 1 )
 	.word xt_bl
 	.word xt_word
@@ -407,7 +408,7 @@ val_num_tib:
 
 	define "do-compile", 10, , do_compile, docol
 	// ( -- / x*i -- x*j )
-	.word xt_find_word_q
+	.word xt_find_word_question
 	.word xt_dup
 	.word xt_zero_branch, 4f
 	.word xt_lit, 1
@@ -428,7 +429,7 @@ val_num_tib:
 
 	define "do-interpret", 12, , do_interpret, docol
 	// ( -- n / x*i -- x*j )
-	.word xt_find_word_q
+	.word xt_find_word_question
 	.word xt_dup
 	.word xt_zero_branch, 1f
 	.word xt_execute
@@ -557,7 +558,13 @@ val_num_tib:
 	// ( xt -- )
 	.word xt_lit, -32
 	.word xt_plus
-	.word xt_ctell
+	.word xt_dup
+	.word xt_one_plus
+	.word xt_swap
+	.word xt_fetch
+	.word xt_f_lenmask
+	.word xt_and
+	.word xt_tell
 	.word xt_exit
 
 	define "and", 3, , and, do_and
@@ -750,24 +757,45 @@ val_num_tib:
 
 	define "words", 5, , words, docol
 	// ( -- ) print all words currently in the dictionary
-	.word xt_latest, xt_fetch   // ( latest )
-1:	.word xt_zero_branch, 2f    // if the word address is 0, its the end of the dictionary
-	.word xt_dup                // ( latest latest )
-	.word xt_cell_plus          // ( latest name-field )
-	.word xt_dup                // ( latest name-field name-field ) skip hidden words
-	.word xt_c_fetch            // ( latest name-field len+flags )
-	.word xt_f_hidden
-	.word xt_and                // ( latest name-field F_HIDDEN | latest name-field 0 )
-	.word xt_zero_branch, 3f
-	.word xt_drop               // ( latest )
-	.word xt_fetch              // ( latest->link )
-	.word xt_branch, 1b
-3:	.word xt_drop               // ( latest name-field )
-	.word xt_ctell              // ( latest ) print the name
+	.word xt_latest
+	.word xt_fetch              // ( link )
+1:	.word xt_zero_branch, 4f    // break the loop at the end of the dictionary
+	.word xt_dup                // ( link link )
+	.word xt_break
+	.word xt_to_cfa             // ( link xt )
+	.word xt_question_hidden    // ( link f )
+	.word xt_zero_branch, 2f
+	.word xt_drop               // ( link )
+	.word xt_branch, 3f
+2:	.word xt_dup                // ( link link )
+	.word xt_to_cfa             // ( link xt )
+	.word xt_id_dot             // ( link )
 	.word xt_space              // print a trailing space
-	.word xt_fetch              // ( latest->link )
+3:	.word xt_fetch              // ( link->link )
 	.word xt_branch, 1b
-2:	.word xt_cr
+4:	.word xt_drop               // ( 0 -- )
+	.word xt_cr
+	.word xt_exit
+
+	define "?hidden", 7, , question_hidden, docol
+	// ( xt -- f )
+	.word xt_break
+	.word xt_lit, -32
+	.word xt_plus                 // ( c-addr )
+	.word xt_break
+	.word xt_c_fetch              // ( len+flags )
+	.word xt_f_hidden
+	.word xt_and                  // ( F_HIDDEN | 0 )
+	.word xt_zero_equals
+	.word xt_invert
+	.word xt_exit
+
+	define "break", 5, , break, break
+
+	define "0=", 2, , zero_equals, docol
+	// ( x -- f )
+	.word xt_lit, 0
+	.word xt_equals
 	.word xt_exit
 
 	define "or", 1, , or, do_or
@@ -789,8 +817,8 @@ val_num_tib:
 	.word xt_h, xt_store
 	.word xt_exit
 
-	// ctell ( c-addr -- )
-	define "ctell", 5, , ctell, docol
+	// c_tell ( c-addr -- )
+	define "c_tell", 5, , c_tell, docol
 	.word xt_count
 	.word xt_tell
 	.word xt_exit
@@ -806,15 +834,13 @@ val_num_tib:
 	// no exit because quit does not return
 
 	define "test_", 5, F_HIDDEN, test_, docol
-	.word xt_lit, def_test_+4
-	.word xt_dup
-	.word xt_fetch
-	.word xt_f_lenmask
-	.word xt_and
-	.word xt_swap
-	.word xt_one_plus
-	.word xt_swap
-	.word xt_tell
+	.word xt_lit, 1
+	.word xt_zero_branch, 1f
+	.word xt_lit, '1', xt_emit
+	.word xt_lit, '0', xt_plus, xt_emit
+	.word xt_bye
+1:	.word xt_lit, '0', xt_emit
+	.word xt_lit, '0', xt_plus, xt_emit
 	.word xt_bye
 
 the_final_word:
@@ -1129,20 +1155,20 @@ c_store:
 
 
 c_fetch:
+	mov r0, r0
 	ldrb r9, [r9]
 	b next
 
 
 branch:                       // note: not a relative branch!
-	ldr r10, [r10]        // add 4 first or after or at all??
+	ldr r10, [r10]
 	b next
 
 
 zero_branch:                  // note: not a relative branch!
 	cmp r9, #0
-	ldreq r10, [r10]
-	addne r10, #4
-	pop {r9}
+	ldreq r10, [r10]          // Set the IP to the next codeword if 0,
+	addne r10, #4             // or increment IP otherwise
 	b next
 
 
@@ -1386,5 +1412,9 @@ rsp_store:
 abs:                            // ( x -- +x ) absolute value
 	cmp r9, #0
 	neglt r9, r9
+	b next
+
+break:
+	mov r0, r0
 	b next
 
