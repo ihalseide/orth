@@ -34,12 +34,11 @@
 	.set F_TRUE, -1
 	.set F_FALSE, 0
 
-// Macro system for defining a word header in the data section
+// The macro for defining a word header
 
 	// Previous word link pointer for while it's assembling word defs
 	.set link, 0
 
-	// The macro defines a word with it's name (and length), flags, xt, and runtime code
 	.macro define name, namelen, flags=0, xt_label, code_label
 	.data
 	.align 2
@@ -57,23 +56,15 @@ xt_\xt_label:                   // The next 4 byte word/cell will be the code fi
 	.word \code_label
 	.endm
 
-// Begin normal program data, which needs to be before the dictionary because the dictionary will grow upwards in memory.
+// Data section
 
  	.data
 
-	// DEBUG {
-	.align 2
-docol_word_data:
-	.word 0
-
-	.align 2
-docol_return_data:
-	.word 0
-	// }
-
+	// Static buffer for the input buffer
 	.align 2
 the_input_buffer:
-	.space 64
+	.space 256 // chars
+
 
 	// Static buffer for the return stack, which grows downwards in memory
 	.align 2
@@ -81,9 +72,6 @@ rstack_end:
 	.space RSTACK_SIZE
 rstack_start:
 
-// Begin word header definitions.
-	.data
-	.align 2
 
 	define "true", 4, , true, doconst
 	// -1 constant true
@@ -95,7 +83,7 @@ rstack_start:
 
 	define "S0", 2, , s_zero, doconst
 val_s_zero:
-	.word 0                                // needs to be initialized
+	.word 0                                // MUST be initialized later
 
 	define "R0", 2, , r_zero, doconst
 	.word rstack_start
@@ -443,24 +431,17 @@ val_num_tib:
 	.word xt_bracket
 	.word xt_exit
 
-	define "refill", 6, , refill, docol
-	// ( -- flag )
-	.word xt_tib, xt_fetch, xt_num_tib, xt_fetch
-	.word xt_accept
-	.word xt_lit, 0, xt_to_in, xt_store
-	.word xt_lit, -1
-	.word xt_exit
-
 	define "interpret", 9, , interpret, docol
 	// ( -- )
-	.word xt_source
-	.word xt_to_in, xt_fetch
-	.word xt_equals
-	.word xt_zero_branch, 1f
-	.word xt_refill            // ( f )
+	.word xt_source            // ( c-addr u )
+	.word xt_nip               // ( u ) assume normal source input
+	.word xt_to_in, xt_fetch   // ( u u2 )
+	.word xt_equals            // ( f )
+	.word xt_zero_branch, 1f   // ( )
+	.word xt_refill            // ( f2 )
 	.word xt_zero_branch, 3f   // no input available
-1:	.word xt_state, xt_fetch
-	.word xt_zero_branch, 2f
+1:	.word xt_state, xt_fetch   // ( f3 )
+	.word xt_zero_branch, 2f   // ( )
 	.word xt_do_compile
 	.word xt_exit
 2:	.word xt_do_interpret
@@ -793,7 +774,6 @@ val_num_tib:
 1:	.word xt_dup                // ( link link )
 	.word xt_zero_branch, 4f    // ( link ) break the loop at the end of the dictionary
 	.word xt_dup                // ( link link )
-	.word xt_break
 	.word xt_to_cfa             // ( link xt )
 	.word xt_question_hidden    // ( link f )
 	.word xt_zero_branch, 2f
@@ -810,10 +790,8 @@ val_num_tib:
 
 	define "?hidden", 7, , question_hidden, docol
 	// ( xt -- f )
-	.word xt_break
 	.word xt_lit, -32
 	.word xt_plus                 // ( c-addr )
-	.word xt_break
 	.word xt_c_fetch              // ( len+flags )
 	.word xt_f_hidden
 	.word xt_and                  // ( F_HIDDEN | 0 )
@@ -863,11 +841,6 @@ val_num_tib:
 	.word xt_to_in, xt_store
 	.word xt_quit                 // start the interpreter
 	// no exit because quit does not return
-
-	define "test_", 5, F_HIDDEN, test_, docol
-	.word xt_s_zero
-	.word xt_break
-	.word xt_bye
 
 	define "syscall0", 8, , syscall_zero, syscall_zero
 	// ( X -- )
@@ -919,13 +892,6 @@ var_num_tib:
 const_tib:
 	.word val_tib
 
-	// DEBUG purposes {
-docol_word:
-	.word docol_word_data
-docol_return:
-	.word docol_return_data
-	// }
-
 // Begin the main assembly code.
 
 	.global _start
@@ -937,20 +903,14 @@ _start:
 	ldr r10, =start_code     // launch the interpreter with the "init" word
 	b next
 start_code:
-	.word xt_test_
+	.word xt_quit
+
 
 docol:
-	// DEBUG purposes {
-	ldr r0, =docol_word
-	ldr r0, [r0]
-	str r8, [r0]
-	ldr r0, =docol_return
-	ldr r0, [r0]
-	str r10, [r0]
-docol2:
-	// } DEBUG purposes
 	str r10, [r11, #-4]!    // Save the return address to the return stack
 	add r10, r8, #4         // Get the next instruction
+	// fall-into 'next'
+
 
 next:                       // The inner interpreter
 	ldr r8, [r10], #4       // r10 = the virtual instruction pointer
@@ -1231,7 +1191,6 @@ zero_branch:                  // note: not a relative branch
 	b next
 
 
-// TODO: should this push to the return stack?
 execute:
 	mov r8, r9        // r8 = the xt
 	pop {r9}          // pop the stack
@@ -1247,7 +1206,7 @@ count:
 	b next
 
 
-// TODO: this algorithm may be wrong
+// TODO
 to_number:                   // ( d c-addr1 u -- d c-addr2 0 | x addr2 nonzero )
 	pop {r0}             // r0 = addr
 	pop {r1}             // r1 = d.hi
@@ -1364,8 +1323,9 @@ emit:                           // emit ( char -- )
 	b next
 
 
-fn_emit:                        // void fn_emit(char);
-	push {r4-r11, lr}
+fn_emit:                    // void fn_emit(char);
+	push {r0-r11, lr}
+
 	ldr r1, =var_h          // store the char temporarily in pad
 	ldr r1, [r1]
 	ldr r1, [r1]
@@ -1376,7 +1336,7 @@ fn_emit:                        // void fn_emit(char);
 	mov r2, #1
 	swi #0
 
-	pop {r4-r11, lr}        // return
+	pop {r0-r11, lr}        // return
 	bx lr
 
 
