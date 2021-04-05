@@ -144,14 +144,6 @@ val_num_tib:
 	.word xt_base, xt_store
 	.word xt_exit
 
-	// source ( -- c-addr u ) length and address of input to use
-	define "source", 6, , source, docol
-	.word xt_tib
-	.word xt_to_in, xt_fetch
-	.word xt_num_tib, xt_fetch
-	.word xt_minus
-	.word xt_exit
-
 	define ">LFA", 4, , to_lfa, docol
 	// ( addr -- addr2 ) word address to length field address
 	.word xt_lit, 4, xt_plus
@@ -456,10 +448,12 @@ val_num_tib:
 
 	define "quit", 4, , quit, docol
 	// ( -- )
-	.word xt_r_zero       // clear the return stack
+	.word xt_r_zero             // clear the return stack
 	.word xt_rsp_store
-	.word xt_bracket      // enter immediate mode
-	.word xt_interpreter  // start interpreting
+	.word xt_bracket            // enter immediate mode
+	.word xt_num_tib, xt_fetch  // force input to be received later by interpret
+	.word xt_to_in, xt_store
+	.word xt_interpreter        // start interpreting
 	// no exit because there is no return stack
 
 	define "if", 2, F_IMMEDIATE, if, docol
@@ -651,6 +645,25 @@ val_num_tib:
 	// ( x -- y )
 	// y: absolute value of x
 
+	define "source", 6, , source, docol
+	// source ( -- c-addr u ) length and address of input to use
+	.word xt_tib
+	.word xt_to_in, xt_fetch
+	.word xt_num_tib, xt_fetch
+	.word xt_minus
+	.word xt_exit
+
+	define "refill", 6, , refill, docol
+	// ( -- flag )
+	.word xt_tib, xt_fetch      // ( tib-addr )
+	.word xt_num_tib, xt_fetch  // ( tib-addr #tib )
+	.word xt_accept             // ( u )
+	.word xt_drop               // ( )
+	.word xt_lit, 0
+	.word xt_to_in, xt_store    // >in == 0
+	.word xt_lit, F_TRUE
+	.word xt_exit
+
 	define "accept", 6, , accept, accept
 	// ( c-addr len -- len2 )
 	// c-addr: the address to store characters into
@@ -799,8 +812,6 @@ val_num_tib:
 	.word xt_invert
 	.word xt_exit
 
-	define "break", 5, , break, break
-
 	define "0=", 2, , zero_equals, docol
 	// ( x -- f )
 	.word xt_lit, 0
@@ -863,6 +874,9 @@ val_num_tib:
 	define "syscall6", 8, , syscall_six, syscall_six
 	// ( x x x x x x X -- )
 
+	define "break", 5, , break, break
+	// Debugging breakpoint
+
 the_final_word:
 
 	define "bye", 3, , bye, bye
@@ -915,6 +929,7 @@ docol:
 next:                       // The inner interpreter
 	ldr r8, [r10], #4       // r10 = the virtual instruction pointer
 	ldr r0, [r8]            // r8 = xt of current word
+	bl fn_log        // DEBUG
 	bx r0
 
 
@@ -1439,6 +1454,30 @@ break:
 	b next
 
 
+fn_log:
+	push {r0-r11, lr}
+
+	mov r0, r8              // log the word
+	bl fn_this_dot
+	mov r0, #' '
+	bl fn_emit
+
+	pop {r0-r11, lr}
+	bx lr
+
+
+fn_this_dot:
+	push {r0-r11}
+	mov r7, #sys_write
+	sub r1, r0, #32
+	ldr r2, [r1], #1
+	and r2, #F_LENMASK
+	mov r0, #stdout
+	swi #0
+	pop {r0-r11}
+	bx lr
+
+	
 syscall_zero:
 	mov r7, r9         // get the syscall id from TOS
 	swi #0             // syscall()
