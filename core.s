@@ -9,6 +9,7 @@
 // * The return stack grows downwards.
 // * The forth virtual instruction pointer (IP) is stored in register R10.
 // * The address of the current execution token (XT) is usually stored in register R8
+// * Unfortunately, forth variables have to go through 2 layers of indirection to be accessed directly in assembly code. One layer is the forth variable layer, and the other is the assembler literal pool
 
 // Static variables
 	.set RSTACK_SIZE, 4 * 256
