@@ -11,9 +11,6 @@
 // * The address of the current execution token (XT) is usually stored in register R8
 // * Unfortunately, forth variables have to go through 2 layers of indirection to be accessed directly in assembly code. One layer is the forth variable layer, and the other is the assembler literal pool
 
-// Static variables
-	.set RSTACK_SIZE, 4 * 256
-
 // Constants
 
 	// Linux file stream descriptors
@@ -34,6 +31,10 @@
 	// Boolean flags
 	.set F_TRUE, -1
 	.set F_FALSE, 0
+
+// Static variables
+
+	.set RSTACK_SIZE, 4 * 256
 
 // The macro for defining a word header
 
@@ -57,7 +58,7 @@ xt_\xt_label:                   // The next 4 byte word/cell will be the code fi
 	.word \code_label
 	.endm
 
-// Data section
+// Data section and word headers
 
  	.data
 
@@ -159,15 +160,11 @@ val_num_tib:
 	define "c,", 2, , c_comma, c_comma
 	// ( c -- )
 
-	define "recurse", 7, F_IMMEDIATE, recurse, docol
-	.word xt_latest, xt_fetch
-	.word xt_to_cfa, xt_comma
-	.word xt_exit
-
 	define "immediate", 9, , immediate, docol
 	// ( -- )
 	.word xt_latest, xt_fetch
-	.word xt_to_lfa
+	.word xt_lit, 4
+	.word xt_plus
 	.word xt_dup
 	.word xt_c_fetch
 	.word xt_lit, F_IMMEDIATE
@@ -237,7 +234,8 @@ val_num_tib:
 	.word xt_lit, doconst     // make 'doconst' be the codeword
 	.word xt_latest
 	.word xt_fetch
-	.word xt_to_cfa           // ( doconst cfa )
+	.word xt_lit, 36
+	.word xt_plus
 	.word xt_store
 	.word xt_exit
 
@@ -928,7 +926,7 @@ word:                       // word - ( char -- addr )
 	ldr r9, [r9]            // r4 = r9 = h
 	ldr r9, [r9]
 	mov r4, r9
-word_skip:                      // skip leading whitespace
+word_skip:                  // skip leading whitespace
 	cmp r1, r2              // check for if it reached the end of the buffer
 	beq word_done
 
@@ -951,7 +949,7 @@ word_done:
 	sub r4, r9              // get the length of the word written to the pad
 	strb r4, [r9]           // store the length byte into the first char of the pad
 
-	ldr r0, =const_tib        // get length inside the input buffer (includes the skipped whitespace)
+	ldr r0, =const_tib      // get length inside the input buffer (includes the skipped whitespace)
 	ldr r0, [r0]
 	sub r1, r0
 
@@ -963,25 +961,20 @@ word_done:
 
 
 	// Function for integer division modulo
-	// copy from: https://github.com/organix/pijFORTHos, jonesforth.s
-	// args: r0=numerator, r1=denominator
-	// returns: r0=remainder, r1 = denominator, r2=quotient
+	// Copied from the project https://github.com/organix/pijFORTHos (which itself is a copy)
+	// Arguments: r0 = numerator, r1 = denominator
+	// Returns: r0 = remainder, r1 = denominator, r2 = quotient
 fn_divmod:
 	mov r3, r1
 	cmp r3, r0, LSR #1
-1:
-	movls r3, r3, LSL #1
+1:	movls r3, r3, LSL #1
 	cmp r3, r0, LSR #1
 	bls 1b
 	mov r2, #0
-2:
-	cmp r0, r3
+2:	cmp r0, r3
 	subcs r0, r0, r3
 	adc r2, r2, r2
 	mov r3, r3, LSR #1
 	cmp r3, r1
 	bhs 2b
-
 	bx lr
-
-
