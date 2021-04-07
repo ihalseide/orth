@@ -1,33 +1,37 @@
-My forth for Raspberry Pi, ARM v71 
-by Izak Nathanael Halseide
+= My forth for Raspberry Pi, ARM v71 =
 
-Indirect threaded forth in assembler language
+Forth in assembler language by Izak Nathanael Halseide
 
-In ARM, a machine word = 4 bytes = 32 bits, and
-In Linux on ARM eabi,
-system calls store their return value in r0,
-system calls are invoked with "swi #0",
-system calls select the function that is called with the value in r7
+== System Features ==
 
-These registers are reserved for specific use:
-* r13 : data stack pointer (DSP). The stack grows downward
-* r11 : return stack pointer (RSP). The stack grows downward
-* r10 : virtual instruction pointer (IP)
-* r9  : top of data stack value (TOS), which is not kept in the r13 data stack
-* r8  : address of current execution token (XT), a.k.a.
-        the code field address (CFA) of the current word being executed
+* cooperate with Linux OS
+* spaces are the only non-word character
+* buffered input
+* immediate mode: run code at compile time
+* word headers only guaranteed at compile time
+    * challenge: how to variables and constants? see C?
+* word headers include name, source code, and compiled code
+* words can have names up to a 31-characters long
+* compile ARM code
+* save word headers at run time only if desired
 
-Pushing and popping single registers to the data stack looks like this:
-* push <reg> = str <reg>, [r13, #-4]!
-* pop  <reg> = ldr <reg>, [r13], #4
+== Library Features ==
 
-Layout of a word definition:
-* 4 bytes : link field. address of previous word
-* 1 byte  : length field, also has a bit flag set if the word is immediate
-* x bytes : name field. <length field> characters that make up the word's name
-* 4 bytes : code field. contains the address of the executable code for the
-            word, which can either be docol, dovar, doconst, or 
-  	      the label/address of plain assembly code
-* y bytes : data field. contains codewords for docol, assembly code,
-            or data values for dovar and doconst
+* music synthesis
+* arrays
+* file I/O
+
+== Word header structure ==
+
+ struct WordHeader {
+     struct WordHeader * link;
+     struct {
+         char len_flags;  // binary: ffflllll
+         char name[31];
+     } name;
+     void * code_field;
+     void * code_field2;
+     ExecutionToken params[];
+ }
+
 
