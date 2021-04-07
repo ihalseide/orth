@@ -26,11 +26,11 @@
 	// Word bitmasks
 	.set F_IMMEDIATE, 0b10000000
 	.set F_HIDDEN,    0b01000000
-	.set F_LENMASK,   0b00111111
+	.set F_LENMASK,   0b00011111
 
 	// Boolean flags
-	.set F_TRUE, -1
-	.set F_FALSE, 0
+	.set F_TRUE, 0xFFFFFFFF
+	.set F_FALSE, 0x0
 
 // Static variables
 
