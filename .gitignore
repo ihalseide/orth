@@ -1,3 +1,15 @@
+# Temporary and output files
 *.swp
 *.tmp
 *.exe
+*.x
+
+# Secrets
+rpi_2b_secret.txt
+
+# Reference documents
+doc/
+
+# Windows stuff
+System\ Volume\ Information/
+
