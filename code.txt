@@ -1,0 +1,241 @@
+= Code and Programming Resources =
+
+== Programming Books ==
+
+* Assemblers and Loaders / David Salomon
+
+* Computer Architecture: A Quantitative Approach / John L. Hennessy and David A. Patterson
+
+* Computer Systems: A Programmer's Perspective / Randal E. Bryant and David R. O'Hallaron
+
+* Structured Computer Organization / Andrew S. Tanenbaum and Todd Austin
+
+* The Indispensable PC Hardware Book / Hans-Peter Messmer
+
+* USB: The Univeral Serial Bus / Benjamin David Lunt
+
+* Windows Internals / Mark Russinovich, David A. Solomon, and Alex Ionescu (Multi-part series)
+
+== Forth links ==
+
+Python forth assembly blog
+http://blog.asrpo.com/forth_tutorial_part_1
+
+Some blog that I heard about
+(Good!! Criticizes and upholds forth for what it's worth)
+https://yosefk.com/blog/my-history-with-forth-stack-machines.html
+
+Forth Lessons from laptop.org
+http://wiki.laptop.org/go/Forth_Lessons
+
+Online Book - Stack computers: the new wave
+http://users.ece.cmu.edu/~koopman/stack_computers/index.html
+
+Forth Standard website
+https://forth-standard.org
+https://forth-standard.org/systems - has a list of implementations
+
+ForthHub Systems on github - list of systems and implementations
+https://github.com/ForthHub/wiki/wiki/Forth-Systems
+
+The Forth Net - website
+https://github.com/ForthHub/wiki/wiki/Forth-Systems
+
+Forth Interest Group
+http://www.forth.org
+
+Forth (programming language) - Wikipedia
+https://en.wikipedia.org/wiki/Forth_(programming_language) 
+
+Data and the Forth Stack
+https://www.forth.com/starting-forth/
+https://www.forth.com/starting-forth/1-forth-stacks-dictionary/ 
+
+nornagon/jonesforth: Mirror of JONESFORTH
+https://github.com/nornagon/jonesforth 
+
+A prefix notation programming language · Probably Programming
+http://probablyprogramming.com/2008/11/16/a-prefix-notation-programming-language 
+
+Forth (programming language) - Wikipedia
+https://en.wikipedia.org/wiki/Forth_(programming_language) 
+
+Forth: The Hacker’s Language - Hackaday
+https://hackaday.com/2017/01/27/forth-the-hackers-language/   
+
+Forth Tutorial (Part 1)
+https://blog.asrpo.com/forth_tutorial_part_1 
+
+Forth: The Hacker’s Language - Hackaday
+https://hackaday.com/2017/01/27/forth-the-hackers-language/   
+
+Data and the Forth Stack
+https://www.forth.com/starting-forth/
+https://www.forth.com/starting-forth/1-forth-stacks-dictionary/ 
+
+nornagon/jonesforth: Mirror of JONESFORTH
+https://github.com/nornagon/jonesforth 
+
+A Beginner's Guide to Forth
+http://galileo.phys.virginia.edu/classes/551.jvn.fall01/primer.htm 
+
+Jonesforth
+http://git.annexia.org/?p=jonesforth.git;a=blob_plain;f=jonesforth.S;hb=HEAD 
+
+Chuck Moore's colorForth, OKAD and S40 Forth Multicomputer chip
+https://colorforth.github.io/index.html 
+
+Forth
+http://www.albany.net/~hello/simple.htm 
+
+Why Forth?
+http://www.jwdt.com/~paysan/why-forth.html 
+
+Forth Discussion
+http://lambda-the-ultimate.org/node/2452 
+
+Artic Software (Forth)	
+http://en.wikipedia.org/wiki/Artic_Software 
+
+eForth Overview
+http://www.exemark.com/FORTH/eForthOverviewv5.pdf 
+
+What Are the Primitive Forth Operators - Stack Overflow
+https://stackoverflow.com/questions/407987/what-are-the-primitive-forth-operators 
+
+Forth Thread
+http://newsgroups.derkeiler.com/Archive/Comp/comp.lang.forth/2005-09/msg00337.html
+
+A 3-INSTRUCTION FORTH FOR EMBEDDED SYSTEMS WORK
+http://pygmy.utoh.org/3ins4th.html
+
+Starting Forth
+http://home.iae.nl/users/mhx/sf.html
+
+Forth Standard
+https://forth-standard.org
+
+Forth – Esolangs.org
+https://esolangs.org/wiki/Forth
+
+Simple Forth
+http://www.murphywong.net/hello/simple.htm
+
+Laws of Computing
+https://wiki.forth-ev.de/lib/exe/fetch.php/projects:laws_of_computing_pages_10_v5.pdf
+
+FIG Forth Implementation
+http://www.forth.org/fig-forth/contents.html
+
+FIG-FORTH Internals
+http://www.jimbrooks.org/archive/programming/forth/FIG-FORTH_internals.php
+
+ciForth
+https://home.hccnet.nl/a.w.m.van.der.horst/ciforth.html
+
+Lina Forth
+https://home.hccnet.nl/a.w.m.van.der.horst/lina.html
+
+Seeking a Special Forth
+https://groups.google.com/g/comp.lang.forth/c/KHw28PKZXUk/m/JrXcjrYshxAJ
+
+Taygeta collection on Forth
+https://www.taygeta.com/forth.html
+
+Forth Internals
+http://www.jimbrooks.org/archive/programming/forth/FIG-FORTH_internals.php
+
+GNU Forth gforth
+https://www.gnu.org/software/gforth/
+
+rjungemann/lbForth.c
+https://gist.github.com/rjungemann/1a049a7c4bf70162c13168856e49ddb5
+
+First Third and Forth
+http://ftp.funet.fi/pub/doc/IOCCC/1992/buzzard.2.design
+
+PYCON UK 2017: What I learned building Forth in 64 bit Intel assembly
+https://www.youtube.com/watch?v=iZ-5rBQS_p4&list=WL&index=2
+Threaded Interpreted Languages / Loeliger 
+Anjana Vakil Python bytecodes
+Forth programmer's handbook
+Chuck Moore the early years
+
+David Jones (maybe of Jonesforth?)
+https://github.com/drj11
+
+Forth - The New Synthesis Growing Forth with preForth and seedForth
+https://www.youtube.com/watch?v=5vYUTQAfzr4&list=WL&index=3
+Take away until the minimum is left to achieve perfection
+
+Bitwise, Day 35: Implementing Forth
+https://youtu.be/rlayTh3sjiw
+
+OKF
+https://github.com/larsbrinkhoff/okf
+A 32-bit x86 subroutine-threaded Forth whose core fits in 1KB
+
+Forth Documents
+Forth douments, books, papers
+larsbrinkhoff/forth-documents
+https://github.com/larsbrinkhoff/forth-documents
+
+nybbleForth
+larsbrinkhoff/nybbleForth
+Stack machine with 4-bit instructions
+https://github.com/larsbrinkhoff/nybbleForth
+
+lbForth Forth Implementation
+larsbrinkhoff/lbForth
+https://github.com/larsbrinkhoff/lbForth
+Self-hosting metacompiled Forth, bootstrapping from a few lines of C; targets Linux, Windows, ARM, RISC-V, 68000, PDP-11, asm.js.
+
+
+ANS Forth standard
+http://lars.nocrew.org/dpans/dpans.htm
+
+
+cmForth (Chuck Moore Forth)
+Ok prompt flow chart
+https://github.com/ForthHub/cmFORTH/blob/master/cmforth.fth
+http://galileo.phys.virginia.edu/classes/551.jvn.fall01/primer.htm
+
+Retro Forth
+http://forthworks.com/retro/book.htmlt
+
+Forth Operating System
+http://www.forth.org/svfig/osf.html
+
+== Arm assembly notes ==
+
+conditional instruction code modifiers:
+eq: zero set
+ne: zero not set
+cs: carry set
+cc: carry not set
+mi: negative set
+pl: negative not set
+vs: overflow set
+vc: overflow not set
+hi: carry set and zero not set
+ls: carry not set and zero set
+ge: negative set == overflow set
+lt: negative set != overflow set
+gt: zero not set and negative set == overflow set
+gt: zero set or negative set == overflow set
+
+difference between TST instruction and CMP instruction?
+
+difference between .balign and .align
+
+this snippet
+'''
+(.text)
+ADR r_, <label>
+(.data)
+<label>:
+	.word _x_
+'''
+--> will put the value _x_ into register r_
+
+
