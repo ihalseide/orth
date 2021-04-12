@@ -53,7 +53,6 @@ Forth in assembler language by Izak Nathanael Halseide
          char name[31];
      } name;
      void * code_field;
-     void * code_field2;
      ExecutionToken params[];
  }
 
