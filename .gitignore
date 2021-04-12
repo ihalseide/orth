@@ -3,6 +3,8 @@
 *.tmp
 *.exe
 *.x
+*.o
+*.list
 
 # Secrets
 rpi_2b_secret.txt
