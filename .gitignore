@@ -4,4 +4,9 @@
 *.x
 
 bin/
+build/
+
+kernel.img
+kernel.list
+kernel.map
 
