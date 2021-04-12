@@ -39,16 +39,13 @@ baseN:                        // Base that is not a power of 2
 	cmp r9, #0
 	beq finish
 
-	// ------------------
-	                            // q, r = divmod(n, base)
-	                            // num_buf[i] = r
-	                            // i += 1
-	                            // n = q
-	// Function for integer division modulo
+	// (Inlined) Function for integer division modulo
 	// Copied from the project https://github.com/organix/pijFORTHos (which itself is a copy)
 	// Arguments: r0 = numerator, r1 = denominator
 	// Returns: r0 = remainder, r1 = denominator, r2 = quotient
-fn_divmod:
+	push {r0-r2}
+	mov r0, r9
+
 	mov r3, r1
 	cmp r3, r0, LSR #1
 1:	movls r3, r3, LSL #1
@@ -61,9 +58,13 @@ fn_divmod:
 	mov r3, r3, LSR #1
 	cmp r3, r1
 	bhs 2b
-	bx lr
 
-	// ------------------
+	mov r9, r2
+	mov r3, r0
+	pop {r0-r2}
+
+	add r2, #1
+	str r3, [r0, r2]
 
 	b baseN
 	
