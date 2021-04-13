@@ -1,10 +1,92 @@
+\ This is rest of FemtoForth written in itself. No more assembly!
+
+\ Create a null definition for STDLIB so that it can all be forgotten with FORGET later.
+\ This would only be used by the user if they wanted to replace all further standard definitions.
+: STDLIB ;
+
+\ Comparison and Boolean values
+: TRUE -1 ;
+: FALSE 0 ;
+: 0= 0 = ;
+: not 0= ;
+: <> = not ;
+: <= > not ;
+: >= < not ; 
+: 0> 0 > ;
+: 0< 0 < ;
+: 0<= 0 <= ;
+: 0>= 0 >= ;
+: 0<> 0= not ;
+
+\ Incrementation shortcuts
+: 1+ 1 + ;
+: 1- 1 - ;
+: 4+ 4 + ;
+: 4- 4 - ; 
+
+\ Negate a number
+: negate 0 swap - ;
+
+\ Use the DIVMOD operation defined in assembly
+\ in order to create DIV and MOD
+: / /mod swap drop ; 
+: mod /mod drop ;
+
+\ Whitespace character constants
+: BL 32 ;
+: '\n' 10 ; 
+: '\t' 9 ;
+
+\ Character emitters
+: space BL emit ;
+: CR '\n' emit ;
+: tab '\t' emit ;
+
+\ literal takes whatever is on the stack and compiles it to <lit _x_>
+: literal immediate ' lit , , ; 
+
+\ Use literal to define character constants devised at compile-time
+: '(' [ char ( ] literal ;
+: ')' [ char ) ] literal ;
+: ':' [ char : ] literal ;
+: ';' [ char ; ] literal ;
+: '.' [ char . ] literal ;
+: '"' [ char " ] literal ;
+: '-' [ char - ] literal ;
+: '0' [ char 0 ] literal ;
+: 'A' [ char A ] literal ;
+
+\ When in compile mode, [compile] is used to compile the next word even if it is
+\ an immediate word.
+: [compile] word find >CFA , ;
+immediate
+
+: recurse Latest @ >CFA , ;
+immediate
+
+\ Define the if/then/else construct
+\ unless functions as the inverse of if
+: if immediate
+	' 0branch , Here @ 0 , ; 
+: unless immediate
+	' not , [compile] if ;
+: then immediate
+	dup Here @ swap - swap ! ;  
+: else immediate
+	' branch ,
+	Here @
+	0 ,
+	swap dup
+	Here @ swap -
+	swap ! ;
+
 \ Define the begin <code> <condition> UNTIL construct
 : begin immediate
 	Here @ ; 
-: until immediate
+: UNTIL immediate
 	' 0branch , Here @ - , ;
 
-\ "begin ... again" construct
+\ begin <code> again construct
 : again immediate
 	' branch ,
 	Here @ - , ;
@@ -23,6 +105,23 @@
 	Here @ swap -
 	swap ! ;
 
+\ Allow ( ... ) as comments within function definitions
+: ( immediate
+	1 \ Push depth, starting as 1
+	begin
+		KEY dup \ Get a character
+		'(' = if \ Open paren --> increase depth
+			drop 1+
+		else
+			')' = if \ Close paren --> decrease depth
+				1-
+			then
+		then
+	dup 0= UNTIL \ Repeat until depth is 0
+	drop ; \ drop depth counter
+
+\ ( ... ) comments are now available
+
 \ Words with more complex stack effects
 : 2drop ( x x -- ) drop drop ; 
 : 2dup ( x1 x2 -- x1 x2 x1 x2 ) over over ; 
@@ -32,10 +131,26 @@
 	1+ 4 *
 	DSP@ + @ ; 
 
+\ space will print out n spaces. If n < 0, then no spaces are printed.
+: space ( n -- )
+	begin
+		dup 0> \ While n > 0
+	while
+		SPACE 1- \ Print a space, and decrement
+	repeat
+	drop ;
+	
+\ Words for manipulating the number Base
+: hex ( -- )
+	16 Base ! ;
+: decimal ( -- )
+	10 Base ! ;
+: binary ( -- )
+	2 Base ! ;
+	
 \ Print an unsigned number
 : U. ( u -- )
-	Base @         ( u u )
-	/MOD           ( ur uq )
+	Base @ /MOD
 	?dup if
 		recurse
 	then
@@ -50,20 +165,17 @@
 : .s ( -- )
 	DSP@
 	begin
-		dup
-		S0 @
-	< while
-		dup @
-		U.
+		dup S0 @ <
+	while
+		dup @ U.
 		SPACE
 		4+
 	repeat
 	drop ;
 
 \ uwidth returns the character width of an unsigned number in the current base
-: uwidth ( u1 -- u2 )
-	Base @
-	/
+: uwidth
+	Base @ /
 	?dup if
 		recurse 1+
 	else
@@ -75,7 +187,7 @@
 	swap dup
 	uwidth
 	rot swap -
-	spaces
+	space \ space will only print if n is positive
 	U. ;
 
 \ .R prints a signed number padded to a certain width
@@ -110,6 +222,47 @@
 \ `?' will fetch the number at an address and print it
 : ? ( addr -- )
 	@ . ;
+
+\ within 
+: within ( c a b -- f) \ where f is a<=c<b
+	-rot
+	over
+	<= if
+		> if TRUE
+		else FALSE
+		then
+	else
+		2drop
+		FALSE
+	then ;
+
+\ DEPTH returns the stack depth
+: DEPTH ( -- n )
+	S0 @ DSP@ -
+	4- ;
+
+\ Takes an address and rounds it up to the next 4-byte boundary
+\ {addr+3 & ~3}
+: ALIGNED ( addr -- addr )
+	3 +
+	3 ~ & ;
+
+\ ALIGN aligns the address of the Here pointer
+: ALIGN
+	Here @ ALIGNED Here ! ;
+
+\ +! adds a value to the value in an address
+: +! ( x addr -- )
+	dup ( x addr addr )
+	@ ( x addr v )
+	rot + ( addr x+v )
+	swap ( x+v addr )
+	! ;
+
+\ `C,' appends a byte to Here
+: C,
+	Here @ C!
+	1 Here +! ;
 
 \ S" <string> " is used to define strings.
 \ This word has to do different things depending on whether it is in compile or
@@ -163,6 +316,30 @@
 			emit
 		again
 	then ;
+
+\ SKIPLINK is used to skip link pointers in word headers
+: SKIPLINK 4+ ;
+
+\ ID. takes a word dictionary address and prints the word's name
+: ID. ( addr -- )
+	SKIPLINK
+	dup C@ \ get flags and length byte
+	F_LENMASK & \ get just the length
+	begin
+		dup 0>
+	while \ while length > 0
+		swap 1+
+		dup C@
+		emit
+		swap 1-
+	repeat
+	2drop ;
+
+\ ?hidden is used to return whether a word is hidden
+\ Example: word <word> find ?hidden
+: ?hidden ( addr -- flag )
+	SKIPLINK
+	C@ F_hidden & ;
 
 \ ?immediate does what ?hidden does, but for whether a word is marked immediate
 : ?immediate ( addr -- flag )
@@ -499,6 +676,27 @@
 	then ;
 
 
+\ Begin System interaction and System calls...  
+
+\ Create standard shortcuts for System Calls with a certain number of arguments
+: syscall0 0 SYSCALL ;
+: syscall1 1 SYSCALL ;
+: syscall2 2 SYSCALL ;
+: syscall3 3 SYSCALL ;
+
+\ Also, redefine syscall to do nothing now so that making syscalls with too many 
+\ parameters isn't easy.
+\ (Only syscalls with 0-3 parameters are allowed, at least on ARM chips)
+: syscall ;
+
+\ Halt and exit the whole FemtoForth program 
+: halt
+	0 SYS_exit syscall1 ;
+
+\ Get the program memory breakpoint by calling "brk(0)"
+: get-brk ( -- brkpoint )
+	0 SYS_brk syscall1 ;
+	
 \ Get the number of unused memory cells
 : unused ( -- n )
 	get-brk
@@ -518,3 +716,18 @@
 		hidden
 	then ; 
 
+\ bye will print out a message and get out of Forth
+: bye
+	."  bye. "
+	halt ;
+
+\ Print out the ok prompt
+: ok ."  ok." ;
+
+\ Finally, print the FemtoForth startup prompt
+: hello
+	." FemtoForth version " VERSION . CR
+	unused . ." memory cells remaining" CR
+	ok CR ; 
+hello
+hide hello

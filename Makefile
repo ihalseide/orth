@@ -63,3 +63,5 @@ clean :
 	-rm -f $(LIST)
 	-rm -f $(MAP)
 
+old_c_build:
+	gcc main.c -o forth.exe -g -std=c99 -Wall -Werror 

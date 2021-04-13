@@ -1,12 +1,27 @@
-*.swp
+# Temporary and output files
 *.o
-*.lst
+*.swp
+*.tmp
+*.exe
 *.x
-
-bin/
-build/
-
+*.lst
+*.list
 kernel.img
 kernel.list
 kernel.map
+
+# Output directories
+bin/
+build/
+
+# Secrets
+rpi_2b_secret.txt
+
+# Reference documents
+doc/
+
+# Windows stuff
+System\ Volume\ Information/
+
+
 

@@ -1,3 +1,85 @@
+\ This is rest of FemtoForth written in itself. No more assembly!
+
+\ Create a null definition for STDLIB so that it can all be forgotten with FORGET later.
+\ This would only be used by the user if they wanted to replace all further standard definitions.
+: STDLIB ;
+
+\ Comparison and Boolean values
+: TRUE -1 ;
+: FALSE 0 ;
+: 0= 0 = ;
+: not 0= ;
+: <> = not ;
+: <= > not ;
+: >= < not ; 
+: 0> 0 > ;
+: 0< 0 < ;
+: 0<= 0 <= ;
+: 0>= 0 >= ;
+: 0<> 0= not ;
+
+\ Incrementation shortcuts
+: 1+ 1 + ;
+: 1- 1 - ;
+: 4+ 4 + ;
+: 4- 4 - ; 
+
+\ Negate a number
+: negate 0 swap - ;
+
+\ Use the DIVMOD operation defined in assembly
+\ in order to create DIV and MOD
+: / /mod swap drop ; 
+: mod /mod drop ;
+
+\ Whitespace character constants
+: BL 32 ;
+: '\n' 10 ; 
+: '\t' 9 ;
+
+\ Character emitters
+: space BL emit ;
+: CR '\n' emit ;
+: tab '\t' emit ;
+
+\ literal takes whatever is on the stack and compiles it to <lit _x_>
+: literal immediate ' lit , , ; 
+
+\ Use literal to define character constants devised at compile-time
+: '(' [ char ( ] literal ;
+: ')' [ char ) ] literal ;
+: ':' [ char : ] literal ;
+: ';' [ char ; ] literal ;
+: '.' [ char . ] literal ;
+: '"' [ char " ] literal ;
+: '-' [ char - ] literal ;
+: '0' [ char 0 ] literal ;
+: 'A' [ char A ] literal ;
+
+\ When in compile mode, [compile] is used to compile the next word even if it is
+\ an immediate word.
+: [compile] word find >CFA , ;
+immediate
+
+: recurse Latest @ >CFA , ;
+immediate
+
+\ Define the if/then/else construct
+\ unless functions as the inverse of if
+: if immediate
+	' 0branch , Here @ 0 , ; 
+: unless immediate
+	' not , [compile] if ;
+: then immediate
+	dup Here @ swap - swap ! ;  
+: else immediate
+	' branch ,
+	Here @
+	0 ,
+	swap dup
+	Here @ swap -
+	swap ! ;
+
 \ Define the begin <code> <condition> UNTIL construct
 : begin immediate
 	Here @ ; 
@@ -23,6 +105,25 @@
 	Here @ swap -
 	swap ! ;
 
+\ Allow ( ... ) as comments within function definitions
+: ( immediate
+	1 \ Push depth, starting as 1
+	begin
+		KEY dup \ Get a character
+		'(' = if \ Open paren --> increase depth
+			drop 1+
+		else
+			')' = if \ Close paren --> decrease depth
+				1-
+			then
+		then
+	dup 0= until \ Repeat until depth is 0
+	drop ; \ drop depth counter
+
+\ print out n spaces
+: spaces ( n -- )
+\ ( ... ) comments are now available
+
 \ Words with more complex stack effects
 : 2drop ( x x -- ) drop drop ; 
 : 2dup ( x1 x2 -- x1 x2 x1 x2 ) over over ; 
@@ -32,6 +133,16 @@
 	1+ 4 *
 	DSP@ + @ ; 
 
+\ space will print out n spaces. If n < 0, then no spaces are printed.
+: space ( n -- )
+	begin
+		dup
+	0> while
+		SPACE
+		1-
+	repeat
+	drop ;
+	
 \ Print an unsigned number
 : U. ( u -- )
 	Base @         ( u u )
@@ -498,6 +609,23 @@
 		!
 	then ;
 
+
+\ Begin System interaction and System calls...  
+
+\ Create standard shortcuts for System Calls with a certain number of arguments
+: syscall0 0 SYSCALL ;
+: syscall1 1 SYSCALL ;
+: syscall2 2 SYSCALL ;
+: syscall3 3 SYSCALL ;
+
+\ Also, redefine syscall to do nothing now so that making syscalls with too many 
+\ parameters isn't easy.
+\ (Only syscalls with 0-3 parameters are allowed, at least on ARM chips)
+: syscall ;
+
+\ Halt and exit the whole FemtoForth program 
+: halt
+	0 SYS_exit syscall1 ;
 
 \ Get the number of unused memory cells
 : unused ( -- n )
