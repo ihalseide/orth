@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 = My forth for Raspberry Pi, ARM v71 =
 
 Forth in assembler language by Izak Nathanael Halseide
@@ -56,4 +57,15 @@ Forth in assembler language by Izak Nathanael Halseide
      ExecutionToken params[];
  }
 
+=======
+Izak Nathanael Halseide
+2020 Timberline Ln
+Fort Collins, CO, 80525, United States
+
+(970) 889-4661
+
+imitatio-ignotum@protonmail.com
+
+[2021-03-23]
+>>>>>>> 7bac1dfe3668fba4d534a9037c7915675ff93307
 
