@@ -1,3 +1,14 @@
 *.swp
 *.tmp
 *.exe
+*.o
+*.lst
+*.x
+
+bin/
+build/
+
+kernel.img
+kernel.list
+kernel.map
+
