@@ -1,8 +1,8 @@
-# Rapsberry Pi Pico
+= Rapsberry Pi Pico =
 
 Raspberry Pi Pico Microcontroller
 
-## Links
+== Links ==
 
 * [How to set up raspberry pi pico](https://www.tomshardware.com/how-to/raspberry-pi-pico-setup  
 
