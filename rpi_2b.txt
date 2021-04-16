@@ -1,20 +1,20 @@
 == My Raspberry Pi ==
 
+== Version ==
+
 Raspberry Pi 2 Model B+ version 1.1
 (c) Raspberry Pi 2014
 
-Processor:
-ARM Cortex A7,
-4 Cores,
-32-bit.
+== Processor ==
 
-== Raspberry Pi ==
+* ARM Cortex A7
+* 4 Cores
+* 32-bit
+
+== Links ==
 
 * Wiring Pi
 http://wiringpi.com
-
-* Kernel, Raspberry pi boot, atags
-http://www.simtec.co.uk/products/SWLINUX/files/booting_article.html#appendix_tag_reference
 
 * Broadcom, System on a Chip
 https://en.wikipedia.org/wiki/ARM_Cortex-A7
@@ -22,29 +22,15 @@ https://en.wikipedia.org/wiki/ARM_Cortex-A7
 * Raspberry Pi Official Website
 https://www.raspberrypi.org
 
-* Programming embedded Raspbery Pi
-https://www.studica.com/blog/program-embedded-systems-raspberry-pi
-
-* ThinkGeek Raspberry Pi Assembly
-https://thinkingeek.com/arm-assembler-raspberry-pi/
-
 * Raspberry Pi Peripherals Addresses
 https://www.raspberrypi.org/documentation/hardware/raspberrypi/peripheral_addresses.md
 
 * Boot Folder
 https://www.raspberrypi.org/documentation/configuration/boot_folder.md
+
 * Raspberry Pi Projects written in Assembly
 https://www.raspberrypi.org/blog/pifox-bare-metal-arm-assembly-language-star-fox/
 https://www.raspberrypi.org/blog/chess-bare-metal-assembly-chess/
-
-* Baking Pi
-https://www.cl.cam.ac.uk/projects/raspberrypi/tutorials/os/
-
-* Building an Operating System for the Raspberry Pi
-https://jsandler18.github.io
-
-* Hackaday roll you own raspberry pi os
-https://hackaday.com/2018/01/19/roll-your-own-raspberry-pi-os/
 
 * Raspberry pi emulators
 https://www.ubuntupit.com/best-raspberry-pi-emulators-available/
@@ -56,10 +42,4 @@ https://www.qemu.org
 
 * Rapsberry Pi OS videos
 https://www.youtube.com/watch?v=pd9AVmcRc6U
-
-* Raspberry Pi Forth
-https://raspberrypi.stackexchange.com/questions/15095/baremetal-forth-for-raspberry-pi
-
-* Raspberry Pi JonesFORTH O/S
-https://github.com/organix/pijFORTHos
 

@@ -1,13 +1,28 @@
 = Programming Notes =
 
-== Hardware and Software ==
+* Raspberry Pi JonesFORTH O/S
+https://github.com/organix/pijFORTHos
+
+* Baking Pi
+https://www.cl.cam.ac.uk/projects/raspberrypi/tutorials/os/
+
+* Kernel, Raspberry pi boot, atags
+http://www.simtec.co.uk/products/SWLINUX/files/booting_article.html#appendix_tag_reference
+
+* Programming embedded Raspbery Pi
+https://www.studica.com/blog/program-embedded-systems-raspberry-pi
+
+* ThinkGeek Raspberry Pi Assembly
+https://thinkingeek.com/arm-assembler-raspberry-pi/
+
+* Building an Operating System for the Raspberry Pi
+https://jsandler18.github.io
+
+* Hackaday roll you own raspberry pi os
+https://hackaday.com/2018/01/19/roll-your-own-raspberry-pi-os/
 
 * Introduction to Computer Organization: ARM Assembly Language Using the Raspberry Pi
 http://bob.cs.sonoma.edu/IntroCompOrg-RPi/intro-co-rpi.html
-
-== Hardware ==
-
-== Software ==
 
 * TWO KINDS OF BOOTSTRAPPING
 https://lispcast.com/two-kinds-of-bootstrapping/
@@ -36,7 +51,7 @@ https://wiki.osdev.org/Books
 * Threaded code
 https://www.complang.tuwien.ac.at/forth/threaded-code.html
 
-== Programming Language Links ==
+== Programming Languages ==
 
 * Concatenative language/Meta-programming
 https://concatenative.org/wiki/view/Concatenative%20language/Meta-programming 
@@ -555,9 +570,6 @@ http://en.wikipedia.org/wiki/Artic_Software
 
 eForth Overview
 http://www.exemark.com/FORTH/eForthOverviewv5.pdf 
-
-What Are the Primitive Forth Operators - Stack Overflow
-https://stackoverflow.com/questions/407987/what-are-the-primitive-forth-operators 
 
 Forth Thread
 http://newsgroups.derkeiler.com/Archive/Comp/comp.lang.forth/2005-09/msg00337.html
