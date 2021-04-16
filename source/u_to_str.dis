@@ -1,0 +1,350 @@
+
+u_to_str.o:     file format elf32-littlearm
+
+
+Disassembly of section .text:
+
+00000000 <u_to_str>:
+
+/* u1 -> u2
+ * where u2 is length
+ * writes string result into the pad
+ */
+unsigned int u_to_str (unsigned int u) {
+   0:	e92d4800 	push	{fp, lr}
+   4:	e28db004 	add	fp, sp, #4
+   8:	e24dd018 	sub	sp, sp, #24
+   c:	e50b0018 	str	r0, [fp, #-24]	; 0xffffffe8
+	/* Base error */
+	if (base < 2) {
+  10:	e59f33b8 	ldr	r3, [pc, #952]	; 3d0 <u_to_str+0x3d0>
+  14:	e5933000 	ldr	r3, [r3]
+  18:	e3530001 	cmp	r3, #1
+  1c:	ca000001 	bgt	28 <u_to_str+0x28>
+		return 0;
+  20:	e3a03000 	mov	r3, #0
+  24:	ea0000e5 	b	3c0 <u_to_str+0x3c0>
+	}
+
+	/* Index into the pad */
+	unsigned int i = 0;
+  28:	e3a03000 	mov	r3, #0
+  2c:	e50b3008 	str	r3, [fp, #-8]
+
+	/* Clear pad to be zero in case n==0 */
+	if (u == 0) { 
+  30:	e51b3018 	ldr	r3, [fp, #-24]	; 0xffffffe8
+  34:	e3530000 	cmp	r3, #0
+  38:	1a000005 	bne	54 <u_to_str+0x54>
+		i = 1;
+  3c:	e3a03001 	mov	r3, #1
+  40:	e50b3008 	str	r3, [fp, #-8]
+		pad[0] = 0;
+  44:	e59f3388 	ldr	r3, [pc, #904]	; 3d4 <u_to_str+0x3d4>
+  48:	e5933000 	ldr	r3, [r3]
+  4c:	e3a02000 	mov	r2, #0
+  50:	e5c32000 	strb	r2, [r3]
+	}
+
+	switch (base) {
+  54:	e59f3374 	ldr	r3, [pc, #884]	; 3d0 <u_to_str+0x3d0>
+  58:	e5933000 	ldr	r3, [r3]
+  5c:	e2433002 	sub	r3, r3, #2
+  60:	e353001e 	cmp	r3, #30
+  64:	979ff103 	ldrls	pc, [pc, r3, lsl #2]
+  68:	ea000096 	b	2c8 <u_to_str+0x2c8>
+  6c:	00000124 	.word	0x00000124
+  70:	000002c8 	.word	0x000002c8
+  74:	00000170 	.word	0x00000170
+  78:	000002c8 	.word	0x000002c8
+  7c:	000002c8 	.word	0x000002c8
+  80:	000002c8 	.word	0x000002c8
+  84:	000001bc 	.word	0x000001bc
+  88:	000002c8 	.word	0x000002c8
+  8c:	000002c8 	.word	0x000002c8
+  90:	000002c8 	.word	0x000002c8
+  94:	000002c8 	.word	0x000002c8
+  98:	000002c8 	.word	0x000002c8
+  9c:	000002c8 	.word	0x000002c8
+  a0:	000002c8 	.word	0x000002c8
+  a4:	00000208 	.word	0x00000208
+  a8:	000002c8 	.word	0x000002c8
+  ac:	000002c8 	.word	0x000002c8
+  b0:	000002c8 	.word	0x000002c8
+  b4:	000002c8 	.word	0x000002c8
+  b8:	000002c8 	.word	0x000002c8
+  bc:	000002c8 	.word	0x000002c8
+  c0:	000002c8 	.word	0x000002c8
+  c4:	000002c8 	.word	0x000002c8
+  c8:	000002c8 	.word	0x000002c8
+  cc:	000002c8 	.word	0x000002c8
+  d0:	000002c8 	.word	0x000002c8
+  d4:	000002c8 	.word	0x000002c8
+  d8:	000002c8 	.word	0x000002c8
+  dc:	000002c8 	.word	0x000002c8
+  e0:	000002c8 	.word	0x000002c8
+  e4:	00000254 	.word	0x00000254
+		case 2:
+			while (u != 0) {
+				pad[i] = u & 1;
+  e8:	e51b3018 	ldr	r3, [fp, #-24]	; 0xffffffe8
+  ec:	e20320ff 	and	r2, r3, #255	; 0xff
+  f0:	e59f32dc 	ldr	r3, [pc, #732]	; 3d4 <u_to_str+0x3d4>
+  f4:	e5931000 	ldr	r1, [r3]
+  f8:	e51b3008 	ldr	r3, [fp, #-8]
+  fc:	e0813003 	add	r3, r1, r3
+ 100:	e2022001 	and	r2, r2, #1
+ 104:	e20220ff 	and	r2, r2, #255	; 0xff
+ 108:	e5c32000 	strb	r2, [r3]
+				u = u >> 1;
+ 10c:	e51b3018 	ldr	r3, [fp, #-24]	; 0xffffffe8
+ 110:	e1a030a3 	lsr	r3, r3, #1
+ 114:	e50b3018 	str	r3, [fp, #-24]	; 0xffffffe8
+				i++;
+ 118:	e51b3008 	ldr	r3, [fp, #-8]
+ 11c:	e2833001 	add	r3, r3, #1
+ 120:	e50b3008 	str	r3, [fp, #-8]
+			while (u != 0) {
+ 124:	e51b3018 	ldr	r3, [fp, #-24]	; 0xffffffe8
+ 128:	e3530000 	cmp	r3, #0
+ 12c:	1affffed 	bne	e8 <u_to_str+0xe8>
+			}
+			break;
+ 130:	ea000068 	b	2d8 <u_to_str+0x2d8>
+		case 4:
+			while (u != 0) {
+				pad[i] = u & 3;
+ 134:	e51b3018 	ldr	r3, [fp, #-24]	; 0xffffffe8
+ 138:	e20320ff 	and	r2, r3, #255	; 0xff
+ 13c:	e59f3290 	ldr	r3, [pc, #656]	; 3d4 <u_to_str+0x3d4>
+ 140:	e5931000 	ldr	r1, [r3]
+ 144:	e51b3008 	ldr	r3, [fp, #-8]
+ 148:	e0813003 	add	r3, r1, r3
+ 14c:	e2022003 	and	r2, r2, #3
+ 150:	e20220ff 	and	r2, r2, #255	; 0xff
+ 154:	e5c32000 	strb	r2, [r3]
+				u = u >> 2;
+ 158:	e51b3018 	ldr	r3, [fp, #-24]	; 0xffffffe8
+ 15c:	e1a03123 	lsr	r3, r3, #2
+ 160:	e50b3018 	str	r3, [fp, #-24]	; 0xffffffe8
+				i++;
+ 164:	e51b3008 	ldr	r3, [fp, #-8]
+ 168:	e2833001 	add	r3, r3, #1
+ 16c:	e50b3008 	str	r3, [fp, #-8]
+			while (u != 0) {
+ 170:	e51b3018 	ldr	r3, [fp, #-24]	; 0xffffffe8
+ 174:	e3530000 	cmp	r3, #0
+ 178:	1affffed 	bne	134 <u_to_str+0x134>
+			}
+			break;
+ 17c:	ea000055 	b	2d8 <u_to_str+0x2d8>
+		case 8:
+			while (u != 0) {
+				pad[i] = u & 7;
+ 180:	e51b3018 	ldr	r3, [fp, #-24]	; 0xffffffe8
+ 184:	e20320ff 	and	r2, r3, #255	; 0xff
+ 188:	e59f3244 	ldr	r3, [pc, #580]	; 3d4 <u_to_str+0x3d4>
+ 18c:	e5931000 	ldr	r1, [r3]
+ 190:	e51b3008 	ldr	r3, [fp, #-8]
+ 194:	e0813003 	add	r3, r1, r3
+ 198:	e2022007 	and	r2, r2, #7
+ 19c:	e20220ff 	and	r2, r2, #255	; 0xff
+ 1a0:	e5c32000 	strb	r2, [r3]
+				u = u >> 3;
+ 1a4:	e51b3018 	ldr	r3, [fp, #-24]	; 0xffffffe8
+ 1a8:	e1a031a3 	lsr	r3, r3, #3
+ 1ac:	e50b3018 	str	r3, [fp, #-24]	; 0xffffffe8
+				i++;
+ 1b0:	e51b3008 	ldr	r3, [fp, #-8]
+ 1b4:	e2833001 	add	r3, r3, #1
+ 1b8:	e50b3008 	str	r3, [fp, #-8]
+			while (u != 0) {
+ 1bc:	e51b3018 	ldr	r3, [fp, #-24]	; 0xffffffe8
+ 1c0:	e3530000 	cmp	r3, #0
+ 1c4:	1affffed 	bne	180 <u_to_str+0x180>
+			}
+			break;
+ 1c8:	ea000042 	b	2d8 <u_to_str+0x2d8>
+		case 16:
+			while (u != 0) {
+				pad[i] = u & 15;
+ 1cc:	e51b3018 	ldr	r3, [fp, #-24]	; 0xffffffe8
+ 1d0:	e20320ff 	and	r2, r3, #255	; 0xff
+ 1d4:	e59f31f8 	ldr	r3, [pc, #504]	; 3d4 <u_to_str+0x3d4>
+ 1d8:	e5931000 	ldr	r1, [r3]
+ 1dc:	e51b3008 	ldr	r3, [fp, #-8]
+ 1e0:	e0813003 	add	r3, r1, r3
+ 1e4:	e202200f 	and	r2, r2, #15
+ 1e8:	e20220ff 	and	r2, r2, #255	; 0xff
+ 1ec:	e5c32000 	strb	r2, [r3]
+				u = u >> 4;
+ 1f0:	e51b3018 	ldr	r3, [fp, #-24]	; 0xffffffe8
+ 1f4:	e1a03223 	lsr	r3, r3, #4
+ 1f8:	e50b3018 	str	r3, [fp, #-24]	; 0xffffffe8
+				i++;
+ 1fc:	e51b3008 	ldr	r3, [fp, #-8]
+ 200:	e2833001 	add	r3, r3, #1
+ 204:	e50b3008 	str	r3, [fp, #-8]
+			while (u != 0) {
+ 208:	e51b3018 	ldr	r3, [fp, #-24]	; 0xffffffe8
+ 20c:	e3530000 	cmp	r3, #0
+ 210:	1affffed 	bne	1cc <u_to_str+0x1cc>
+			}
+			break;
+ 214:	ea00002f 	b	2d8 <u_to_str+0x2d8>
+		case 32:
+			while (u != 0) {
+				pad[i] = u & 31;
+ 218:	e51b3018 	ldr	r3, [fp, #-24]	; 0xffffffe8
+ 21c:	e20320ff 	and	r2, r3, #255	; 0xff
+ 220:	e59f31ac 	ldr	r3, [pc, #428]	; 3d4 <u_to_str+0x3d4>
+ 224:	e5931000 	ldr	r1, [r3]
+ 228:	e51b3008 	ldr	r3, [fp, #-8]
+ 22c:	e0813003 	add	r3, r1, r3
+ 230:	e202201f 	and	r2, r2, #31
+ 234:	e20220ff 	and	r2, r2, #255	; 0xff
+ 238:	e5c32000 	strb	r2, [r3]
+				u = u >> 5;
+ 23c:	e51b3018 	ldr	r3, [fp, #-24]	; 0xffffffe8
+ 240:	e1a032a3 	lsr	r3, r3, #5
+ 244:	e50b3018 	str	r3, [fp, #-24]	; 0xffffffe8
+				i++;
+ 248:	e51b3008 	ldr	r3, [fp, #-8]
+ 24c:	e2833001 	add	r3, r3, #1
+ 250:	e50b3008 	str	r3, [fp, #-8]
+			while (u != 0) {
+ 254:	e51b3018 	ldr	r3, [fp, #-24]	; 0xffffffe8
+ 258:	e3530000 	cmp	r3, #0
+ 25c:	1affffed 	bne	218 <u_to_str+0x218>
+			}
+			break;
+ 260:	ea00001c 	b	2d8 <u_to_str+0x2d8>
+		default:
+			while (u != 0) {
+				pad[i] = u % base;
+ 264:	e59f3164 	ldr	r3, [pc, #356]	; 3d0 <u_to_str+0x3d0>
+ 268:	e5933000 	ldr	r3, [r3]
+ 26c:	e1a02003 	mov	r2, r3
+ 270:	e51b3018 	ldr	r3, [fp, #-24]	; 0xffffffe8
+ 274:	e1a01002 	mov	r1, r2
+ 278:	e1a00003 	mov	r0, r3
+ 27c:	ebfffffe 	bl	0 <__aeabi_uidivmod>
+ 280:	e1a03001 	mov	r3, r1
+ 284:	e1a01003 	mov	r1, r3
+ 288:	e59f3144 	ldr	r3, [pc, #324]	; 3d4 <u_to_str+0x3d4>
+ 28c:	e5932000 	ldr	r2, [r3]
+ 290:	e51b3008 	ldr	r3, [fp, #-8]
+ 294:	e0823003 	add	r3, r2, r3
+ 298:	e20120ff 	and	r2, r1, #255	; 0xff
+ 29c:	e5c32000 	strb	r2, [r3]
+				u = u / base;
+ 2a0:	e59f3128 	ldr	r3, [pc, #296]	; 3d0 <u_to_str+0x3d0>
+ 2a4:	e5933000 	ldr	r3, [r3]
+ 2a8:	e1a01003 	mov	r1, r3
+ 2ac:	e51b0018 	ldr	r0, [fp, #-24]	; 0xffffffe8
+ 2b0:	ebfffffe 	bl	0 <__aeabi_uidiv>
+ 2b4:	e1a03000 	mov	r3, r0
+ 2b8:	e50b3018 	str	r3, [fp, #-24]	; 0xffffffe8
+				i++;
+ 2bc:	e51b3008 	ldr	r3, [fp, #-8]
+ 2c0:	e2833001 	add	r3, r3, #1
+ 2c4:	e50b3008 	str	r3, [fp, #-8]
+			while (u != 0) {
+ 2c8:	e51b3018 	ldr	r3, [fp, #-24]	; 0xffffffe8
+ 2cc:	e3530000 	cmp	r3, #0
+ 2d0:	1affffe3 	bne	264 <u_to_str+0x264>
+			}
+			break;
+ 2d4:	e1a00000 	nop			; (mov r0, r0)
+	}
+
+	/* Reverse the output string */
+	u = 0;
+ 2d8:	e3a03000 	mov	r3, #0
+ 2dc:	e50b3018 	str	r3, [fp, #-24]	; 0xffffffe8
+	int j = i;
+ 2e0:	e51b3008 	ldr	r3, [fp, #-8]
+ 2e4:	e50b300c 	str	r3, [fp, #-12]
+	while (u <= j) {
+ 2e8:	ea00002f 	b	3ac <u_to_str+0x3ac>
+		/* Get the characters on the opposite sides of the array */
+		char c, d;
+		c = pad[u];
+ 2ec:	e59f30e0 	ldr	r3, [pc, #224]	; 3d4 <u_to_str+0x3d4>
+ 2f0:	e5932000 	ldr	r2, [r3]
+ 2f4:	e51b3018 	ldr	r3, [fp, #-24]	; 0xffffffe8
+ 2f8:	e0823003 	add	r3, r2, r3
+ 2fc:	e5d33000 	ldrb	r3, [r3]
+ 300:	e54b300d 	strb	r3, [fp, #-13]
+		d = pad[j];
+ 304:	e59f30c8 	ldr	r3, [pc, #200]	; 3d4 <u_to_str+0x3d4>
+ 308:	e5932000 	ldr	r2, [r3]
+ 30c:	e51b300c 	ldr	r3, [fp, #-12]
+ 310:	e0823003 	add	r3, r2, r3
+ 314:	e5d33000 	ldrb	r3, [r3]
+ 318:	e54b300e 	strb	r3, [fp, #-14]
+
+		/* Convert values to digits */
+		if (c > 9) { c = c + 7; }
+ 31c:	e55b300d 	ldrb	r3, [fp, #-13]
+ 320:	e3530009 	cmp	r3, #9
+ 324:	9a000002 	bls	334 <u_to_str+0x334>
+ 328:	e55b300d 	ldrb	r3, [fp, #-13]
+ 32c:	e2833007 	add	r3, r3, #7
+ 330:	e54b300d 	strb	r3, [fp, #-13]
+		if (d > 9) { d = d + 7; }
+ 334:	e55b300e 	ldrb	r3, [fp, #-14]
+ 338:	e3530009 	cmp	r3, #9
+ 33c:	9a000002 	bls	34c <u_to_str+0x34c>
+ 340:	e55b300e 	ldrb	r3, [fp, #-14]
+ 344:	e2833007 	add	r3, r3, #7
+ 348:	e54b300e 	strb	r3, [fp, #-14]
+		c = c + '0';
+ 34c:	e55b300d 	ldrb	r3, [fp, #-13]
+ 350:	e2833030 	add	r3, r3, #48	; 0x30
+ 354:	e54b300d 	strb	r3, [fp, #-13]
+		d = d + '0';
+ 358:	e55b300e 	ldrb	r3, [fp, #-14]
+ 35c:	e2833030 	add	r3, r3, #48	; 0x30
+ 360:	e54b300e 	strb	r3, [fp, #-14]
+
+		/* Swap characters */
+		pad[j] = c;
+ 364:	e59f3068 	ldr	r3, [pc, #104]	; 3d4 <u_to_str+0x3d4>
+ 368:	e5932000 	ldr	r2, [r3]
+ 36c:	e51b300c 	ldr	r3, [fp, #-12]
+ 370:	e0823003 	add	r3, r2, r3
+ 374:	e55b200d 	ldrb	r2, [fp, #-13]
+ 378:	e5c32000 	strb	r2, [r3]
+		pad[u] = d;
+ 37c:	e59f3050 	ldr	r3, [pc, #80]	; 3d4 <u_to_str+0x3d4>
+ 380:	e5932000 	ldr	r2, [r3]
+ 384:	e51b3018 	ldr	r3, [fp, #-24]	; 0xffffffe8
+ 388:	e0823003 	add	r3, r2, r3
+ 38c:	e55b200e 	ldrb	r2, [fp, #-14]
+ 390:	e5c32000 	strb	r2, [r3]
+
+		/* Move indices towards each other */
+		u++;
+ 394:	e51b3018 	ldr	r3, [fp, #-24]	; 0xffffffe8
+ 398:	e2833001 	add	r3, r3, #1
+ 39c:	e50b3018 	str	r3, [fp, #-24]	; 0xffffffe8
+		j--;
+ 3a0:	e51b300c 	ldr	r3, [fp, #-12]
+ 3a4:	e2433001 	sub	r3, r3, #1
+ 3a8:	e50b300c 	str	r3, [fp, #-12]
+	while (u <= j) {
+ 3ac:	e51b300c 	ldr	r3, [fp, #-12]
+ 3b0:	e51b2018 	ldr	r2, [fp, #-24]	; 0xffffffe8
+ 3b4:	e1520003 	cmp	r2, r3
+ 3b8:	9affffcb 	bls	2ec <u_to_str+0x2ec>
+	}
+
+	return i;
+ 3bc:	e51b3008 	ldr	r3, [fp, #-8]
+}
+ 3c0:	e1a00003 	mov	r0, r3
+ 3c4:	e24bd004 	sub	sp, fp, #4
+ 3c8:	e8bd4800 	pop	{fp, lr}
+ 3cc:	e12fff1e 	bx	lr
+	...

@@ -469,7 +469,7 @@ to_num_done:                  // number conversion done
 	push {r1}                 // push the high word
 	NEXT
 
-defword "u>str", 5, u_to_str  // ( u1 -- addr u2 )
+defword "n>str", 5, u_to_str  // ( n1 -- addr u2 )
 	ldr r0, =var_h            // r0 = pad addr
 	ldr r0, [r0]
 	add r0, #64
@@ -487,6 +487,11 @@ defword "u>str", 5, u_to_str  // ( u1 -- addr u2 )
 	streq r1, [r0]
 	moveq r9, #1
 	beq next                  // early return
+
+	eor r2, r2                // use the stack to remember if the number is negative
+	cmp r9, #0
+	addle r2, #1
+	push {r2}
 
 	mov r2, #-1               // r2 = index i
 
@@ -569,7 +574,13 @@ base32:
 	lsr r9, #5
 	b base32
 finish:                    
-	mov r9, r2             // push the string length to the stack
+	pop {r3}               // get if the number was negative
+	cmp r3, #0
+	movne r4, #'-'
+	add r2, r3
+	strbne r4, [r0, r2]
+
+	add r9, r2, #1         // move the string length to TOS
 	cmp r2, #1             // only need to reverse the string if it's longer than 1 char
 	blt next
 	mov r1, #0             // r0 = index
