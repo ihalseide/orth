@@ -431,7 +431,7 @@ defcode "h", 1, h              // variable
 	ldr r9, =var_h
 	NEXT
 
-defword "str>d", 5, str_to_u  // ( addr u1 -- d u2 )
+defword "str>d", 5, str_to_u  // ( a u1 -- d u2 )
 	pop {r0}                  // r0 = addr
 	eor r1, r1                // r1 = d.hi
 	eor r2, r2                // r2 = d.lo
@@ -447,7 +447,9 @@ to_num1:
 to_num2:
 	cmp r3, #'9'+1            // if char is less than '9' its probably a decimal digit
 	blt to_num3
-	cmp r3, #'A'              // its a character between '9' and 'A', which is an error
+	cmp r3, #'A'              // if it's a character between '9' and 'A', it's an error
+	blt to_num_done
+	cmp r3, #'0'              // if it's a character below '0', it's an error
 	blt to_num_done
 	sub r3, #7                // a valid char for a base>10, so convert it so that 'A' signifies 10
 to_num3:
@@ -459,8 +461,8 @@ to_num3:
 	mul r5, r2, r4            // multiply the low-word by the base
 	mov r2, r5
 	add r2, r2, r3            // add the digit value to the low word (no need to carry)
-	sub r9, #1                // length--
-	add r0, #1                // addr++
+	sub r9, #1                // decrement length remaining
+	add r0, #1                // a++
 	b to_num1
 to_num_done:                  // number conversion done
 	push {r2}                 // push the low word
