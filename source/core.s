@@ -123,6 +123,7 @@ enter_does:
 // args: r0=numerator, r1=denominator
 // returns: r0=remainder, r1 = denominator, r2=quotient
 fn_divmod:
+	// No need to push anything because this just uses r0-r3
 	mov r3, r1
 	cmp r3, r0, LSR #1
 1:
