@@ -468,6 +468,9 @@ http://forthworks.com/retro/book.htmlt
 
 == Forth links ==
 
+* The Heart of Forth
+http://www.figuk.plus.com/build/heart.htm
+
 * Forth inspired programming language for the ESP8266
 https://github.com/zeroflag/punyforth
 
