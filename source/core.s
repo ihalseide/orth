@@ -9,26 +9,51 @@ current execution token (XT) is stored in register R8. */
 // Word bitmasks constant
 .set F_LENMASK, 0b00011111
 
-// Next as a macro => code with less branches/jumps
+// The inner interpreter
 .macro NEXT
 	ldr r8, [r10], #4       // r10 = the virtual instruction pointer
 	ldr r0, [r8]            // r8 = xt of current word
 	bx r0
 .endm
 
-// Word header definition macro
+// Word header definition macros
 .set link, 0
-.macro def name, len, label, code
+
+.macro defcode name, len, label
+	.section .rodata
 	.align 2                 // link field
+	.global def_\label
 def_\label:
-	.word link
+	.int link
 	.set link, def_\label
 	.byte \len               // name field
 	.ascii "\name"
 	.space 31-\len
 	.align 2
+	.global xt_\label
 xt_\label:                   // code field
-	.word \code
+	.int code_\label
+params_\label:               // parameter field
+	.text
+	.align 2
+	.global code_\label
+code_\label:
+.endm
+
+.macro defword name, len, label
+	.section .rodata
+	.align 2                 // link field
+	.global def_\label
+def_\label:
+	.int link
+	.set link, def_\label
+	.byte \len               // name field
+	.ascii "\name"
+	.space 31-\len
+	.align 2
+	.global xt_\label
+xt_\label:                   // code field
+	.int enter_colon
 params_\label:               // parameter field
 .endm
 
@@ -162,9 +187,26 @@ _start:
 next:                        // Inner interpreter
 	NEXT
 
-enter:
+enter_colon:
 	str r10, [r11, #-4]!     // Save the return address to the return stack
 	add r10, r8, #4          // Get the next instruction
+	NEXT
+
+enter_variable:                 // A word whose parameter list is a 1-cell value
+	push {r9}
+	add r9, r8, #4              // Push the address of the value
+	NEXT
+
+enter_constant:                 // A word whose parameter list is a 1-cell value
+	push {r9}
+	ldr r9, [r8, #4]            // Push the value
+	NEXT
+
+enter_does:
+	str r10, [r11, #-4]!        // save the IP return address
+	ldr r10, [r8, #4]!          // load the behavior pointer into the IP
+	push {r9}                   // put the parameter on the stack for the behavior when it runs
+	add r9, r8, #4
 	NEXT
 
 exit:                        // End a forth word.
@@ -173,16 +215,6 @@ exit:                        // End a forth word.
 
 halt:
 	b halt
-
-do_variable:                 // A word whose parameter list is a 1-cell value
-	push {r9}
-	add r9, r8, #4           // Push the address of the value
-	NEXT
-
-do_constant:                 // A word whose parameter list is a 1-cell value
-	push {r9}
-	ldr r9, [r8, #4]         // Push the value
-	NEXT
 
 lit:
 	push {r9}                // Push the next virtual instruction value to the stack.
