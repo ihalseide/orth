@@ -432,11 +432,39 @@ defcode "h", 1, h              // variable
 	NEXT
 
 defword "str>d", 5, str_to_u  // ( addr u1 -- d u2 )
-	pop {r0}
-str_to_u_loop:
-	cmp r9, #0
-	beq str_to_u_done
-str_to_u_done:
+	pop {r0}                  // r0 = addr
+	eor r1, r1                // r1 = d.hi
+	eor r2, r2                // r2 = d.lo
+	ldr r4, =var_base         // get the current number base
+	ldr r4, [r4]
+to_num1:
+	cmp r9, #0                // if length=0 then it's done converting
+	beq to_num_done
+	ldrb r3, [r0], #1         // get next char in the string
+	cmp r3, #'a'              // if it's less than 'a', it's not lower case
+	blt to_num2
+	sub r3, #32               // convert the 'a'-'z' from lower case to upper case
+to_num2:
+	cmp r3, #'9'+1            // if char is less than '9' its probably a decimal digit
+	blt to_num3
+	cmp r3, #'A'              // its a character between '9' and 'A', which is an error
+	blt to_num_done
+	sub r3, #7                // a valid char for a base>10, so convert it so that 'A' signifies 10
+to_num3:
+	sub r3, #48               // convert char digit to value
+	cmp r3, r4                // if digit >= base then it's an error
+	bge to_num_done
+	mul r5, r1, r4            // multiply the high-word by the base
+	mov r1, r5
+	mul r5, r2, r4            // multiply the low-word by the base
+	mov r2, r5
+	add r2, r2, r3            // add the digit value to the low word (no need to carry)
+	sub r9, #1                // length--
+	add r0, #1                // addr++
+	b to_num1
+to_num_done:                  // number conversion done
+	push {r2}                 // push the low word
+	push {r1}                 // push the high word
 	NEXT
 
 defword "u>str", 5, u_to_str  // ( u1 -- addr u2 )
