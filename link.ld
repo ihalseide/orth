@@ -1,6 +1,31 @@
-# Desired Layout in memory
-# * 0x0-0x8000 : parameter and return stacks
-# * 0x8000...0x8000+X : core code
-# * 0x8000+X...0x8000+X+Y : read-only data
-# * 0x8000+X+Y... : data (heap)
-
+ENTRY(_start)
+ 
+SECTIONS
+{
+    . = 0x8000;
+    __start = .;
+    __text_start = .;
+    .text :
+    {
+        KEEP(*(.text.boot))
+        *(.text)
+    }
+    . = ALIGN(4096); /* align to page size */
+    __text_end = .;
+ 
+    __rodata_start = .;
+    .rodata :
+    {
+        *(.rodata)
+    }
+    . = ALIGN(4096); /* align to page size */
+    __rodata_end = .;
+ 
+    __data_start = .;
+    .data :
+    {
+        *(.data)
+    }
+    . = ALIGN(4096); /* align to page size */
+    __data_end = .;
+}
