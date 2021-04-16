@@ -57,6 +57,11 @@ xt_\label:                   // do colon
 params_\label:               // parameter field
 .endm
 
+// Label for relative branches within "defword" macros
+.macro label name
+	.int \name - .
+.endm
+
 // ----- Data -----
 
 .data
@@ -736,6 +741,38 @@ defword "n>str", 5, n_to_str
 	.int xt_exit
 n_positive:                           // n >= 0
 	.int xt_u_to_str
+	.int xt_exit
+
+defword "u.", 2, u_dot                // ( u -- )
+	.int xt_u_to_str, xt_tell
+	.int xt_exit
+
+defword ".", 1, dot                   // ( n -- )
+	.int xt_n_to_str, xt_tell
+	.int xt_exit
+
+defword "?", 1, question              // ( a -- )
+	.int xt_fetch, xt_dot
+	.int xt_exit
+
+defword "u?", 2, u_question           // ( a -- )
+	.int xt_fetch, xt_u_dot
+	.int xt_exit
+	
+defword "tell", 4, tell               // ( a u -- )
+tell_loop:
+	.int xt_dup, xt_zero_branch
+	label tell_done
+	.int xt_one_minus
+	.int xt_swap, xt_dup
+	.int xt_c_fetch, xt_emit, xt_one_plus
+	.int xt_swap, xt_branch
+	label tell_loop
+tell_done:
+	.int xt_exit
+
+defword "BL", 2, bl
+	.int xt_lit, ' '
 	.int xt_exit
 
 the_last_word:
