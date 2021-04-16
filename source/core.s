@@ -1,16 +1,10 @@
-/* Forth Implementation in ARMv7 assembly for GNU/Linux eabi by Izak Nathanael
-Halseide. This is an indirect threaded forth. The top of the parameter stack
-is stored in register R9. The parameter stack pointer (PSP) is stored in
-register R13. The parameter stack grows downwards. The return stack pointer
-(RSP) is stored in register R11. The return stack grows downwards. The forth
-virtual instruction pointer (IP) is stored in register R10. The address of the
-current execution token (XT) is stored in register R8. */
-
 // Constants
 .set F_LENMASK, 0b00011111
 .set NAME_LEN, 31
 .set NUM_TIB, 1024
 .set NUM_TOB, 1024
+.set TRUE, -1
+.set FALSE, 0
 
 // The inner interpreter
 .macro NEXT
@@ -19,7 +13,9 @@ current execution token (XT) is stored in register R8. */
 	bx r0                   // (r0 = temp)
 .endm
 
-// Word header definition macros
+// ----- Word header definition macros -----
+
+// Define a code word (primitive)
 .set link, 0
 .macro defcode name, len, label
 	.section .rodata
@@ -41,6 +37,7 @@ xt_\label:                   // code field
 code_\label:
 .endm
 
+// Define an indirect threaded word
 .macro defword name, len, label
 	.section .rodata
 	.align 2                 // link field
@@ -58,20 +55,23 @@ xt_\label:                   // do colon
 params_\label:               // parameter field
 .endm
 
-	.data
+// ----- Data -----
 
-	.align 2
-input_buffer:
-	.space NUM_TIB
+.data
 
-	.align 2
-output_buffer: 
-	.space NUM_TOB
+.align 2
+input_buffer: .space NUM_TIB
 
-	.text
+.align 2
+output_buffer: .space NUM_TOB
 
-// Program entry point
-	.global _start
+.align 2
+var_state: .int 0
+
+// ----- Init -----
+
+.text
+.global _start
 _start:
 	ldr sp, =0x100              // init parameter stack
 	ldr r11, =0x8000            // init return stack
@@ -108,6 +108,30 @@ enter_does:
 	push {r9}                   // put the parameter on the stack for the behavior when it runs
 	add r9, r8, #4
 	NEXT
+
+// Function for integer division and modulo
+// copy from: https://github.com/organix/pijFORTHos, jonesforth.s
+// args: r0=numerator, r1=denominator
+// returns: r0=remainder, r1 = denominator, r2=quotient
+fn_divmod:
+	mov r3, r1
+	cmp r3, r0, LSR #1
+1:
+	movls r3, r3, LSL #1
+	cmp r3, r0, LSR #1
+	bls 1b
+	mov r2, #0
+2:
+	cmp r0, r3
+	subcs r0, r0, r3
+	adc r2, r2, r2
+	mov r3, r3, LSR #1
+	cmp r3, r1
+	bhs 2b
+
+	bx lr
+
+// ----- Dictionary code -----
 
 defcode "exit", 4, exit
 	ldr r10, [r11], #4          // ip = pop return stack
@@ -364,6 +388,8 @@ defcode "mod", 3, mod       // ( n m -- r ) division remainder
 	mov r9, r0
 	NEXT
 
+// ----- High-level words ----- 
+
 defword "quit", 4, quit
 	.word xt_halt
 
@@ -374,26 +400,4 @@ defword "'", 1, tick                  // ( -- xt )
 defword ">xt", 3, to_xt               // ( a -- xt )
 	.int xt_lit, 36, xt_plus
 	.int xt_exit
-
-// Function for integer division and modulo
-// copy from: https://github.com/organix/pijFORTHos, jonesforth.s
-// args: r0=numerator, r1=denominator
-// returns: r0=remainder, r1 = denominator, r2=quotient
-fn_divmod:
-	mov r3, r1
-	cmp r3, r0, LSR #1
-1:
-	movls r3, r3, LSL #1
-	cmp r3, r0, LSR #1
-	bls 1b
-	mov r2, #0
-2:
-	cmp r0, r3
-	subcs r0, r0, r3
-	adc r2, r2, r2
-	mov r3, r3, LSR #1
-	cmp r3, r1
-	bhs 2b
-
-	bx lr
 
