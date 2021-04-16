@@ -4,8 +4,9 @@
 // where addr is the start address for the output string;
 // where u2 is the length of the output string, and is 0 upon an error.
 u_to_chars:
-	ldr r0, =var_pad   // r0 = pad addr
+	ldr r0, =var_h     // r0 = pad addr
 	ldr r0, [r0]
+	add r0, #64
 	push {r0}          // push addr
 
 	ldr r1, =var_base  // r1 = number base
@@ -57,10 +58,10 @@ baseN:                        // Base that is not a power of 2
 	cmp r6, r1
 	bhs 2b
 
-_div_end:	mov r9, r4         // n = n / base (quotient)
-	add r2, #1         // increment index into the number output buffer
-	str r3, [r0, r2]   // put remainder into the buffer
-	b baseN            // loop
+	mov r9, r4          // n = n / base (quotient)
+	add r2, #1          // increment index into the number output buffer
+	strb r3, [r0, r2]   // put remainder into the buffer
+	b baseN             // loop
 	
 base2:                   // this program structure is duplicated for bases which are powers of 2
 	cmp r9, #0
@@ -110,17 +111,18 @@ base32:
 finish:                    
 	mov r9, r2             // push the string length to the stack
 	cmp r2, #1             // only need to reverse the string if it's longer than 1 char
-	ble next
+	blt next
 	mov r1, #0             // r0 = index
 revloop:                   // Reverse the number buffer for printing
 	ldrb r3, [r0, r1]      // fetch at two indices
 	ldrb r4, [r0, r2]
 
-	cmp r3, #9             // convert digits to chars
-	addgt r3, #7           // if digit >9 then make A = digit.10
+	cmp r3, #9             // Make digits larger than 9 to map to ascii A
+	addgt r3, #7
 	cmp r4, #9
 	addgt r4, #7
-	add r3, #'0'
+
+	add r3, #'0'           // Base off of the ascii char for 0
 	add r4, #'0'
 
 	strb r3, [r0, r2]      // swap the chars into different indices
@@ -130,6 +132,6 @@ revloop:                   // Reverse the number buffer for printing
 	add r1, #1
 
 	cmp r1, r2             // we're done when no more chars to swap
-	bne revloop
+	blt revloop
 	b next
 
