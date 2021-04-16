@@ -6,19 +6,21 @@ register R13. The parameter stack grows downwards. The return stack pointer
 virtual instruction pointer (IP) is stored in register R10. The address of the
 current execution token (XT) is stored in register R8. */
 
-// Word bitmasks constant
+// Constants
 .set F_LENMASK, 0b00011111
+.set NAME_LEN, 31
+.set NUM_TIB, 1024
+.set NUM_TOB, 1024
 
 // The inner interpreter
 .macro NEXT
 	ldr r8, [r10], #4       // r10 = the virtual instruction pointer
 	ldr r0, [r8]            // r8 = xt of current word
-	bx r0
+	bx r0                   // (r0 = temp)
 .endm
 
 // Word header definition macros
 .set link, 0
-
 .macro defcode name, len, label
 	.section .rodata
 	.align 2                 // link field
@@ -28,13 +30,12 @@ def_\label:
 	.set link, def_\label
 	.byte \len               // name field
 	.ascii "\name"
-	.space 31-\len
+	.space NAME_LEN-\len
 	.align 2
 	.global xt_\label
 xt_\label:                   // code field
 	.int code_\label
-params_\label:               // parameter field
-	.text
+	.text                    // start defining the code after the macro
 	.align 2
 	.global code_\label
 code_\label:
@@ -49,147 +50,46 @@ def_\label:
 	.set link, def_\label
 	.byte \len               // name field
 	.ascii "\name"
-	.space 31-\len
+	.space NAME_LEN-\len
 	.align 2
 	.global xt_\label
-xt_\label:                   // code field
+xt_\label:                   // do colon
 	.int enter_colon
 params_\label:               // parameter field
 .endm
 
-.data
+	.data
 
-.align 2
-.set NUM_TIB, 1024
-input_buffer: .space NUM_TIB
+	.align 2
+input_buffer:
+	.space NUM_TIB
 
-.align 2
-.set NUM_TOB, 1024
-output_buffer: .space NUM_TOB
+	.align 2
+output_buffer: 
+	.space NUM_TOB
 
-dictionary:
+	.text
 
-def "!", 1, store, store
-def "c!", 2, c_store, c_store
-def "@", 1, fetch, fetch
-def "c@", 2, c_fetch, c_fetch
-def "=", 1, equals, equals
-def "<", 1, less, less
-def ">", 1, more, more
-def "+", 1, plus, plus
-def "-", 1, minus, minus
-def "*", 1, star, star
-def "/", 1, slash, slash
-def "/mod", 4, slash_mod, slash_mod
-def "mod", 3, mod, mod
-def "negate", 6, negate, negate
-def "not", 3, not, not
-def "and", 3, and, and
-def "or", 2, or, or
-def "xor", 3, xor, xor
-def "dup", 3, dup, dup
-def "drop", 4, drop, drop
-def "swap", 4, swap, swap
-def "nip", 3, nip, nip
-def "over", 4, over, over
-def "PSP!", 4, psp_store, psp_store
-def "PSP@", 4, psp_fetch, psp_fetch
-def "RSP!", 4, rsp_store, rsp_store
-def "RSP@", 4, rsp_fetch, rsp_fetch
-def ">R", 2, to_r, to_r
-def "R>", 2, r_from, r_from
-def "key", 3, key, key
-def "emit", 4, emit, emit
-def "exit", 4, exit, exit
-def "lit", 3, lit, lit
-def "branch", 6, branch, branch
-def "0branch", 7, zero_branch, zero_branch
-def "create", 6, create, create
-def "'", 1, tick, tick
-def ",", 1, comma, comma
-def "c,", 1, c_comma, c_comma
-def "execute", 7, execute, execute
-def "skip", 4, skip, skip
-def "word", 4, word, word
-def "find", 4, find, find
-def ">num", 4, to_num, to_num
-def "halt", 4, halt, halt
-
-def "S0", 2, s_zero, do_constant
-	.word 0x100
-
-def "R0", 2, r_zero, do_constant
-	.word 0x8000
-
-def "H", 1, h, do_variable
-	.word freespace
-
-def "latest", 6, latest, do_variable
-	.word the_last_word
-
-def ">in", 3, to_in, do_variable
-	.word 0
-
-def "#tib", 4, num_tib, do_constant
-	.word NUM_TIB
-
-def "tib", 3, tib, do_constant
-	.word input_buffer
-
-def ">out", 3, to_out, do_variable
-	.word 0
-
-def "#tob", 4, num_tob, do_constant
-	.word NUM_TOB
-
-def "tob", 3, tob, do_constant
-	.word output_buffer
-
-def "enter", 5, enter, do_constant
-	.word enter
-
-def "variable", 8, variable, enter
-	.word xt_create
-	.word xt_lit, xt_do_variable
-	.word xt_comma
-	.word xt_lit, 0
-	.word xt_comma
-	.word xt_exit
-
-def "constant", 8, constant, enter
-	.word xt_create
-	.word xt_lit, xt_do_constant
-	.word xt_comma
-	.word xt_comma
-	.word xt_exit
-
-the_last_word:
-
-def "quit", 4, quit, enter
-	.word xt_halt
-
-free:
-
-.text
-
-init_code: .word xt_quit
-
-.global _start
+// Program entry point
+	.global _start
 _start:
-	ldr sp, =0x100           // init parameter stack
-	ldr r11, =0x8000         // init return stack
+	ldr sp, =0x100              // init parameter stack
+	ldr r11, =0x8000            // init return stack
 
-	mov r9, #0               // zero the TOS register
+	mov r9, #0                  // zero the TOS register
 
-	ldr r10, =init_code      // start the inner interpreter
+	ldr r10, =init_code         // set the IP to point to the first forth word to execute
 	NEXT
 
-next:                        // Inner interpreter
+init_code:
+	.int xt_quit
+
+next:                           // Inner interpreter
 	NEXT
 
 enter_colon:
-	str r10, [r11, #-4]!     // Save the return address to the return stack
-	add r10, r8, #4          // Get the next instruction
+	str r10, [r11, #-4]!        // Save the return address to the return stack
+	add r10, r8, #4             // Get the next instruction
 	NEXT
 
 enter_variable:                 // A word whose parameter list is a 1-cell value
@@ -209,19 +109,19 @@ enter_does:
 	add r9, r8, #4
 	NEXT
 
-exit:                        // End a forth word.
-	ldr r10, [r11], #4       // ip = pop return stack
+defcode "exit", 4, exit
+	ldr r10, [r11], #4          // ip = pop return stack
 	NEXT
 
-halt:
-	b halt
+defcode "halt", 4, halt         // infinite loop
+	b code_halt
 
-lit:
-	push {r9}                // Push the next virtual instruction value to the stack.
+defcode "lit", 3, lit
+	push {r9}                   // Push the next instruction value to the stack.
 	ldr r9, [r10], #4
 	NEXT
 
-comma:
+defcode ",", 1, comma
 	ldr r0, =params_h
 	cpy r1, r0
 	ldr r0, [r0]
@@ -232,7 +132,7 @@ comma:
 	pop {r9}
 	NEXT
 
-c_comma:
+defcode "c,", 1, c_comma
 	ldr r0, =params_h
 	cpy r1, r0
 	ldr r0, [r0]
@@ -243,180 +143,163 @@ c_comma:
 	pop {r9}
 	NEXT
 
-psp_fetch:
+defcode "PSP@", 4, psp_fetch
 	push {r9}
 	mov r9, sp
 	NEXT
 
-psp_store:
+defcode "PSP!", 4, psp_store
 	mov sp, r9
 	NEXT
 
-rsp_fetch:
+defcode "RSP@", 4, rsp_fetch
 	push {r9}
 	mov r9, r11
 	NEXT
 
-rsp_store:
+defcode "RSP!", 4, rsp_store
 	mov r11, r9
 	pop {r9}
 	NEXT
 
-dup:
+defcode "dup", 3, dup
 	push {r9}
 	NEXT
 
-drop:
+defcode "drop", 4, drop
 	pop {r9}
 	NEXT
 
-nip:
+defcode "nip", 3, nip
 	pop {r0}
 	NEXT
 
-swap:
+defcode "swap", 4, swap
 	pop {r0}
 	push {r9}
 	mov r9, r0
 	NEXT
 
-over:
+defcode "over", 4, over
 	ldr r0, [r13]       // get a copy of the second item on stack
 	push {r9}           // push TOS to the rest of the stack
 	mov r9, r0          // TOS = copy of the second item from earlier
 	NEXT
 
-to_r:
+defcode ">R", 2, to_r
 	str r9, [r11, #-4]!
 	pop {r9}
 	NEXT
 
-r_from:
+defcode "R>", 2, r_from
 	push {r9}
 	ldr r9, [r11], #4
 	NEXT
 
-plus:
+defcode "+", 1, plus
 	pop {r0}
 	add r9, r0
 	NEXT
 
-minus:
+defcode "-", 1, minus
 	pop {r0}
 	sub r9, r0, r9    // r9 = r0 - r9
 	NEXT
 
-star:
+defcode "*", 1, star
 	pop {r0}
 	mov r1, r9        // use r1 because multiply can't be a src and a dest on ARM
 	mul r9, r0, r1
 	NEXT
 
-equals:            // ( x1 x2 -- f )
+defcode "=", 1, equals           // ( x1 x2 -- f )
 	pop {r0}
 	cmp r9, r0
 	eor r9, r9     // 0 for false
 	mvneq r9, r9   // invert for true
 	NEXT
 
-less:
+defcode "<", 1, less
 	pop {r0}
 	cmp r0, r9      // r9 < r0
 	eor r9, r9
 	mvnlt r9, r9
 	NEXT
 
-more:
+defcode ">", 1, more:
 	pop {r0}
 	cmp r0, r9      // r9 > r0
 	eor r9, r9
 	mvngt r9, r9
 	NEXT
 
-and:
+defcode "and", 3, and
 	pop {r0}
 	and r9, r9, r0
 	NEXT
 
-or:
+defcode "or", 2, or
 	pop {r0}
 	orr r9, r9, r0
 	NEXT
 
-xor:
+defcode "xor", 3, xor
 	pop {r0}
 	eor r9, r9, r0
 	NEXT
 
-not:
+defcode "not", 3, not
 	mvn r9, r9
 	NEXT
 
-negate:
+defcode "negate", 6, negate
 	neg r9, r9
 	NEXT
 
-store:
+defcode "!", 1, store
 	pop {r0}
 	str r0, [r9]
 	pop {r9}
 	NEXT
 
-fetch:
+def "@", 1, fetch
 	ldr r9, [r9]
 	NEXT
 
-c_store:
+def "c!", 2, c_store
 	pop {r0}
 	strb r0, [r9]
 	pop {r9}
 	NEXT
 
-c_fetch:
+def "c@", 2, c_fetch
 	mov r0, r0
 	ldrb r9, [r9]
 	NEXT
 
-branch:
-	ldr r10, [r10]
+defcode "branch", 6, branch          // branch ( -- ) relative branch
+	ldr r0, [r10]
+	add r10, r0
 	NEXT
 
-zero_branch:                  // 0branch ( x -- )
+defcode "0branch", 7, zero_branch    // 0branch ( x -- )
 	cmp r9, #0
-	ldreq r10, [r10]          // Set the IP to the next codeword if 0,
-	addne r10, #4             // or increment IP otherwise
-	pop {r9}                  // DO pop the stack (regardless if it was 0)
+	ldreq r0, [r10]                  // Set the IP to the next codeword if 0,
+	addeq r10, r0
+	addne r10, #4                    // or increment IP otherwise
+	pop {r9}                         // DO pop the stack (regardless if it was 0)
 	NEXT
 
-execute:
-	mov r8, r9                // r8 = the xt
-	pop {r9}                  // pop the stack
-	ldr r0, [r8]              // r0 = code address
+defcode "execute", 7, execute
+	mov r8, r9                       // r8 = the xt
+	pop {r9}                         // pop the stack
+	ldr r0, [r8]                     // r0 = code address
 	bx r0
 
-accept:                       // ( c-addr u -- u2 )
-	pop {r1}
-	eor r2, r2
-accept_key:
-	cmp r2, r9
-	beq accept_done
-	bl fn_key
-	// TODO: handle lots of keys
-	add r2, #1
-accept_done:
-	mov r2, r9
-	NEXT
-
-key:                          // key ( -- c )
-	push {r9}
-	bl fn_key
-	mov r9, r0
-	NEXT
-
-emit:                         // emit ( c -- )
-	ldr r3, =params_num_tob   // Write a char to the output buffer, increment
-	ldr r3, [r3]              // >out, and reset >out if it goes out of range
-	ldr r0, =const_tob        // for the output buffer.
+defcode "emit", 4, emit
+	ldr r3, =params_num_tob          // Write a char to the output buffer, increment
+	ldr r3, [r3]                     // >out, and reset >out if it goes out of range
+	ldr r0, =const_tob               // for the output buffer.
 	ldr r0, [r0]
 	ldr r1, =params_to_tob
 	cpy r2, r1
@@ -429,7 +312,7 @@ emit:                         // emit ( c -- )
 	pop {r9}
 	NEXT
 
-find:                       // ( addr u -- xt )
+defcode "find", 4, find
 	ldr r0, =params_latest  // r0 = address of current word link field address
 	pop {r1}                // r1 = address of string to find
 	sub r6, r9, #1          // r6 = 0-based index of r9 (which is u)
@@ -459,20 +342,14 @@ no_find:
 	eor r9, r9              // return 0 for not found (no xt is equal to 0)
 	NEXT
 
-word:                       // ( c -- addr u )
-	// TODO
-	NEXT
-
-// / ( n m -- q ) division quotient
-slash:
+defcode "/", 1, slash        // ( n m -- q ) division quotient
 	mov r1, r9
 	pop {r0}
 	bl fn_divmod
 	mov r9, r2
 	NEXT
 
-// /mod ( n m -- r q ) division remainder and quotient
-slash_mod:
+defcode "/mod", 4, slash_mod // ( n m -- r q ) division remainder and quotient
 	mov r1, r9
 	pop {r0}
 	bl fn_divmod
@@ -480,13 +357,23 @@ slash_mod:
 	mov r9, r2
 	NEXT
 
-// mod ( n m -- r ) division remainder
-mod:
+defcode "mod", 3, mod       // ( n m -- r ) division remainder
 	mov r1, r9
 	pop {r0}
 	bl fn_divmod
 	mov r9, r0
 	NEXT
+
+defword "quit", 4, quit
+	.word xt_halt
+
+defword "'", 1, tick                  // ( -- xt )
+	.int xt_word, xt_find, xt_to_xt
+	.int xt_exit
+
+defword ">xt", 3, to_xt               // ( a -- xt )
+	.int xt_lit, 36, xt_plus
+	.int xt_exit
 
 // Function for integer division and modulo
 // copy from: https://github.com/organix/pijFORTHos, jonesforth.s
@@ -508,9 +395,5 @@ fn_divmod:
 	cmp r3, r1
 	bhs 2b
 
-	bx lr
-
-fn_key:
-	// TODO: usb craziness
 	bx lr
 
