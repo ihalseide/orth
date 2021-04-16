@@ -6,110 +6,91 @@ char pad [33];
 /* global base */
 int base = 10;
 
-/* n -> u
- * where u is length
+/* u1 -> u2
+ * where u2 is length
  * writes string result into the pad
  */
-unsigned int n_to_str (int n) {
-	char d;
-	char negative = 0;
-	unsigned int i = 0;
-
-	/* Error */
+unsigned int u_to_str (unsigned int u) {
+	/* Base error */
 	if (base < 2) {
 		return 0;
 	}
 
-	/* Trivial case of 0 */
-	if (n == 0) {
-		pad[0] = 48;
-		return 1;
-	}
+	unsigned int i = 0;
 
-	/* Handle negatives */
-	if (n < 0) {
-		negative = 1;
-		n = -n;
+	/* Clear pad to be zero in case n==0 */
+	if (u == 0) { 
+		i = 1;
+		pad[0] = 0;
 	}
 
 	switch (base) {
 		case 2:
-			while (n != 0) {
-				pad[i] = n & 1;
-				n = n >> 1;
+			while (u != 0) {
+				pad[i] = u & 1;
+				u = u >> 1;
 				i++;
 			}
 			break;
 		case 4:
-			while (n != 0) {
-				pad[i] = n & 3;
-				n = n >> 2;
+			while (u != 0) {
+				pad[i] = u & 3;
+				u = u >> 2;
 				i++;
 			}
 			break;
 		case 8:
-			while (n != 0) {
-				pad[i] = n & 7;
-				n = n >> 3;
+			while (u != 0) {
+				pad[i] = u & 7;
+				u = u >> 3;
 				i++;
 			}
 			break;
 		case 16:
-			while (n != 0) {
-				pad[i] = n & 15;
-				n = n >> 4;
+			while (u != 0) {
+				pad[i] = u & 15;
+				u = u >> 4;
 				i++;
 			}
 			break;
 		case 32:
-			while (n != 0) {
-				pad[i] = n & 31;
-				n = n >> 5;
+			while (u != 0) {
+				pad[i] = u & 31;
+				u = u >> 5;
 				i++;
 			}
 			break;
 		default:
-			while (n != 0) {
-				pad[i] = n % base;
-				n = n / base;
+			while (u != 0) {
+				pad[i] = u % base;
+				u = u / base;
 				i++;
 			}
 			break;
 	}
 
-	/* Add a minus sign if it was negative */
-	if (negative) {
-		/* Weird value because of conversion in the following loop */
-		pad[i] = -3; 
-		i += 1;
-	}
-
 	/* Reverse the output string */
-	int x = 0;
-	int y = i - 1;
-	char e;
-	while (x <= y) {
+	u = 0;
+	int j = i;
+	while (u <= j) {
 		/* Get the characters on the opposite sides of the array */
-		d = pad[x];
-		e = pad[y];
+		char c, d;
+		c = pad[u];
+		d = pad[j];
 
 		/* Convert values to digits */
-		if (d > 9) {
-			d = d + 7;
-		}
-		if (e > 9) {
-			e = e + 7;
-		}
-		d = d + 48;
-		e = e + 48;
+		if (c > 9) { c = c + 7; }
+		if (d > 9) { d = d + 7; }
+		c = c + '0';
+		d = d + '0';
 
 		/* Swap characters */
-		pad[y] = d;
-		pad[x] = e;
+		pad[j] = c;
+		pad[u] = d;
 
 		/* Move indices towards each other */
-		x++;
-		y--;
+		u++;
+		j--;
 	}
 
 	return i;
@@ -117,17 +98,17 @@ unsigned int n_to_str (int n) {
 
 void wrap (int n) {
 	unsigned int i, len;
-	len = n_to_str(n);
+	len = u_to_str(n);
 	for (i = 0; i < len; i++) {
-		putchar(pad[i]);
+		putchar(pad[1+i]);
 	}
 }
 
 int main () {
 	int i;
-	for (base = 0; base < 36; base++) {
-		printf("base %d:\n", base);
-		for (i = -100; i <= 100; i++) {
+	for (base = 2; base <= 36; base++) {
+		printf("\nbase %d:\n", base);
+		for (i = 0; i <= 100; i++) {
 			wrap(i);
 			putchar(' ');
 		}
