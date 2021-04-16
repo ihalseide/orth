@@ -1,10 +1,9 @@
-#include <stdio.h>
 
 /* pad array to use */
-char pad [33];
+extern char * pad;
 
 /* global base */
-int base = 10;
+extern int base;
 
 /* u1 -> u2
  * where u2 is length
@@ -16,6 +15,7 @@ unsigned int u_to_str (unsigned int u) {
 		return 0;
 	}
 
+	/* Index into the pad */
 	unsigned int i = 0;
 
 	/* Clear pad to be zero in case n==0 */
@@ -94,26 +94,5 @@ unsigned int u_to_str (unsigned int u) {
 	}
 
 	return i;
-}
-
-void wrap (int n) {
-	unsigned int i, len;
-	len = u_to_str(n);
-	for (i = 0; i < len; i++) {
-		putchar(pad[1+i]);
-	}
-}
-
-int main () {
-	int i;
-	for (base = 2; base <= 36; base++) {
-		printf("\nbase %d:\n", base);
-		for (i = 0; i <= 100; i++) {
-			wrap(i);
-			putchar(' ');
-		}
-		printf("\n");
-	}
-	return 0;
 }
 
