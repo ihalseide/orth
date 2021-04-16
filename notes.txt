@@ -9,6 +9,9 @@ http://bob.cs.sonoma.edu/IntroCompOrg-RPi/intro-co-rpi.html
 
 == Software ==
 
+* TWO KINDS OF BOOTSTRAPPING
+https://lispcast.com/two-kinds-of-bootstrapping/
+
 * ARM Cross-compiler GNU
 https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain/gnu-rm/downloads
 
@@ -465,7 +468,13 @@ http://forthworks.com/retro/book.htmlt
 
 == Forth links ==
 
-Python forth assembly blog
+* Forth inspired programming language for the ESP8266
+https://github.com/zeroflag/punyforth
+
+* Small forth Interpreter in C
+https://github.com/howerj/libforth
+
+* Python forth assembly blog
 http://blog.asrpo.com/forth_tutorial_part_1
 
 Some blog that I heard about
