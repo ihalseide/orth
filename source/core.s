@@ -1,5 +1,7 @@
 // Constants
-.set F_LENMASK, 0b00011111
+.set F_LENMASK,   0b00011111
+.set F_IMMEDIATE, 0b10000000
+.set F_HIDDEN,    0b01000000
 .set NAME_LEN, 31
 .set NUM_TIB, 1024
 .set NUM_TOB, 1024
@@ -60,13 +62,20 @@ params_\label:               // parameter field
 .data
 
 .align 2
+var_to_in: .int 0
+var_to_out: .int 0
+var_state: .int 0
+var_base: .int 10
+var_latest: .int the_last_word
+var_h: .int heap
+
+.align 2
 input_buffer: .space NUM_TIB
 
 .align 2
 output_buffer: .space NUM_TOB
 
-.align 2
-var_state: .int 0
+heap:
 
 // ----- Init -----
 
@@ -146,22 +155,24 @@ defcode "lit", 3, lit
 	NEXT
 
 defcode ",", 1, comma
-	ldr r0, =params_h
+	ldr r0, =var_h
 	cpy r1, r0
+	
 	ldr r0, [r0]
-
 	str r9, [r0, #4]!    // *H = TOS
+
 	str r0, [r1]         // H += 4
 
 	pop {r9}
 	NEXT
 
 defcode "c,", 1, c_comma
-	ldr r0, =params_h
+	ldr r0, =var_h
 	cpy r1, r0
-	ldr r0, [r0]
 
+	ldr r0, [r0]
 	strb r9, [r0, #1]!   // *H = TOS
+
 	str r0, [r1]         // H += 1
 
 	pop {r9}
@@ -172,7 +183,8 @@ defcode "PSP@", 4, psp_fetch
 	mov r9, sp
 	NEXT
 
-defcode "PSP!", 4, psp_store
+// Question: should this pop the stack or too?
+defcode "PSP!", 4, psp_store 
 	mov sp, r9
 	NEXT
 
@@ -239,8 +251,8 @@ defcode "*", 1, star
 defcode "=", 1, equals           // ( x1 x2 -- f )
 	pop {r0}
 	cmp r9, r0
-	eor r9, r9     // 0 for false
-	mvneq r9, r9   // invert for true
+	eor r9, r9                   // 0 for false
+	mvneq r9, r9                 // invert for true
 	NEXT
 
 defcode "<", 1, less
@@ -272,7 +284,7 @@ defcode "xor", 3, xor
 	eor r9, r9, r0
 	NEXT
 
-defcode "not", 3, not
+defcode "not", 3, not        // invert bits
 	mvn r9, r9
 	NEXT
 
@@ -280,23 +292,23 @@ defcode "negate", 6, negate
 	neg r9, r9
 	NEXT
 
-defcode "!", 1, store
+defcode "!", 1, store         // ( x a -- )
 	pop {r0}
 	str r0, [r9]
 	pop {r9}
 	NEXT
 
-def "@", 1, fetch
-	ldr r9, [r9]
-	NEXT
-
-def "c!", 2, c_store
+def "c!", 2, c_store          // ( c a -- )
 	pop {r0}
 	strb r0, [r9]
 	pop {r9}
 	NEXT
 
-def "c@", 2, c_fetch
+def "@", 1, fetch             // ( a -- x )
+	ldr r9, [r9]
+	NEXT
+
+def "c@", 2, c_fetch          // ( a -- c )
 	mov r0, r0
 	ldrb r9, [r9]
 	NEXT
@@ -310,22 +322,22 @@ defcode "0branch", 7, zero_branch    // 0branch ( x -- )
 	cmp r9, #0
 	ldreq r0, [r10]                  // Set the IP to the next codeword if 0,
 	addeq r10, r0
-	addne r10, #4                    // or increment IP otherwise
-	pop {r9}                         // DO pop the stack (regardless if it was 0)
+	addne r10, #4                    // but increment IP otherwise.
+	pop {r9}                         // discard TOS
 	NEXT
 
 defcode "execute", 7, execute
 	mov r8, r9                       // r8 = the xt
 	pop {r9}                         // pop the stack
 	ldr r0, [r8]                     // r0 = code address
-	bx r0
+	bx r0                            // dangerous branch
 
 defcode "emit", 4, emit
-	ldr r3, =params_num_tob          // Write a char to the output buffer, increment
+	ldr r3, =num_tob                 // Write a char to the output buffer, increment
 	ldr r3, [r3]                     // >out, and reset >out if it goes out of range
-	ldr r0, =const_tob               // for the output buffer.
+	ldr r0, =output_buffer           // for the output buffer.
 	ldr r0, [r0]
-	ldr r1, =params_to_tob
+	ldr r1, =to_tob
 	cpy r2, r1
 	ldr r1, [r1]
 	cmp r1, r3
@@ -337,40 +349,33 @@ defcode "emit", 4, emit
 	NEXT
 
 defcode "find", 4, find
-	ldr r0, =params_latest  // r0 = address of current word link field address
-	pop {r1}                // r1 = address of string to find
-	sub r6, r9, #1          // r6 = 0-based index of r9 (which is u)
-link_loop:                  // Search through the dictionary linked list.
-	ldr r0, [r0]            // r0 = r0->link
-	cmp r0, #0              // test for end of dictionary
+	ldr r0, =var_latest      // r0 = address of current word link field address
+	pop {r1}                 // r1 = address of string to find
+	sub r6, r9, #1           // r6 = 0-based index of r9 (which is u)
+link_loop:                   // Search through the dictionary linked list.
+	ldr r0, [r0]             // r0 = r0->link
+	cmp r0, #0               // test for end of dictionary
 	beq no_find
-	ldrb r2, [r0, #4]       // get word length+flags byte
+	ldrb r2, [r0, #4]        // get word length+flags byte
 	and r2, #F_LENMASK
-	cmp r2, r9              // compare the lengths
-	bne link_loop           // loop back since lengths are not equal
+	cmp r2, r9               // compare the lengths
+	bne link_loop            // loop back since lengths are not equal
 
-	add r2, r0, #5          // r2 = start address of word name string buffer
-	eor r3, r3              // r3 = 0 index
-char_loop:                  // Loop through both strings to test for equality.
-	ldrb r4, [r1, r3]       // compare input string char to word char
+	add r2, r0, #5           // r2 = start address of word name string buffer
+	eor r3, r3               // r3 = 0 index
+char_loop:                   // Loop through both strings to test for equality.
+	ldrb r4, [r1, r3]        // compare input string char to word char
 	ldrb r5, [r2, r3]
 	cmp r4, r5
-	bne link_loop           // go to the next word if the chars don't match
-	cmp r3, r6              // keep looping until the whole strings have been compared
-	add r3, #1              // increment index (starts at index 1)
+	bne link_loop            // go to the next word if the chars don't match
+	cmp r3, r6               // keep looping until the whole strings have been compared
+	add r3, #1               // increment index (starts at index 1)
 	bne char_loop
 
-	mov r9, r0              // return the link field address
+	mov r9, r0               // return the link field address
 	NEXT
 no_find:
-	eor r9, r9              // return 0 for not found (no xt is equal to 0)
-	NEXT
-
-defcode "/", 1, slash        // ( n m -- q ) division quotient
-	mov r1, r9
-	pop {r0}
-	bl fn_divmod
-	mov r9, r2
+	eor r9, r9               // return 0 for not found (no xt is equal to 0)
 	NEXT
 
 defcode "/mod", 4, slash_mod // ( n m -- r q ) division remainder and quotient
@@ -381,23 +386,313 @@ defcode "/mod", 4, slash_mod // ( n m -- r q ) division remainder and quotient
 	mov r9, r2
 	NEXT
 
-defcode "mod", 3, mod       // ( n m -- r ) division remainder
-	mov r1, r9
+defcode "tib", 3, tib          // constant
+	push {r9}
+	ldr r9, =input_buffer
+	NEXT
+
+defcode "#tib", 4, num_tib     // constant
+	push {r9}
+	mov r9, NUM_TIB
+	NEXT
+
+defcode ">in", 3, to_in        // variable
+	push {r9}
+	ldr r9, =var_to_in
+	NEXT
+
+defcode "tob", 3, tob          // constant
+	push {r9}
+	ldr r9, =output_buffer
+	NEXT
+
+defcode "#tob", 4, num_tob     // constant
+	push {r9}
+	mov r9, NUM_TOB
+	NEXT
+
+defcode ">out", 4, to_out      // variable
+	push {r9}
+	ldr r9, =var_to_out
+	NEXT
+
+defcode "state", 5, state      // variable
+	push {r9}
+	ldr r9, =var_state
+	NEXT
+
+defcode "latest", 6, latest    // variable
+	push {r9}
+	ldr r9, =var_latest
+	NEXT
+
+defcode "h", 1, h              // variable
+	push {r9}
+	ldr r9, =var_h
+	NEXT
+
+defword "str>d", 5, str_to_u  // ( addr u1 -- d u2 )
 	pop {r0}
-	bl fn_divmod
-	mov r9, r0
+str_to_u_loop:
+	cmp r9, #0
+	beq str_to_u_done
+str_to_u_done:
+	NEXT
+
+defword "u>str", 5, u_to_str  // ( u1 -- addr u2 )
+	ldr r0, =var_h            // r0 = pad addr
+	ldr r0, [r0]
+	add r0, #64
+	push {r0}                 // push addr
+
+	ldr r1, =var_base         // r1 = number base
+	ldr r1, [r1]
+
+	cmp r1, #2                // if base < 2, error condition
+	movlt r9, #0                 
+	blt next
+
+	cmp r9, #0                // u = 0 is a trivial case
+	moveq r1, #'0'
+	streq r1, [r0]
+	moveq r9, #1
+	beq next                  // early return
+
+	mov r2, #-1               // r2 = index i
+
+    // Hard-coded routines for a base that is a power of 2
+	cmp r1, #2
+	beq base2
+	cmp r1, #4
+	beq base4
+	cmp r1, #8
+	beq base8
+	cmp r1, #16
+	beq base16
+	cmp r1, #32
+	beq base32
+
+baseN:                        // Base that is not a power of 2
+	cmp r9, #0                // loop until input number is divided and turned into 0
+	beq finish
+
+	// This (Inlined) Function for integer division modulo
+	// Copied and modified from the project https://github.com/organix/pijFORTHos (which itself is a copy)
+	// Arguments: r3 = numerator, r1 = denominator
+	// Returns: r3 = remainder, r1 = denominator, r4 = quotient
+	// Temporary: r6
+	mov r6, r1
+	cmp r6, r3, LSR #1
+1:	movls r6, r6, LSL #1
+	cmp r6, r3, LSR #1
+	bls 1b
+	mov r4, #0
+2:	cmp r3, r6
+	subcs r3, r3, r6
+	adc r4, r4, r4
+	mov r6, r6, LSR #1
+	cmp r6, r1
+	bhs 2b
+
+	mov r9, r4          // n = n / base (quotient)
+	add r2, #1          // increment index into the number output buffer
+	strb r3, [r0, r2]   // put remainder into the buffer
+	b baseN             // loop
+base2:                   // this program structure is duplicated for bases which are powers of 2
+	cmp r9, #0
+	beq finish
+	and r4, r9, #0b1     // get last bit(s)
+	add r2, #1           // increment index into number buffer
+	strb r4, [r0, r2]    // store into number buffer
+	lsr r9, #1           // shift the number down
+	b base2
+base4:
+	cmp r9, #0
+	beq finish
+	and r4, r9, #0b11
+	add r2, #1
+	strb r4, [r0, r2]
+	lsr r9, #2
+	b base4
+base8:
+	cmp r9, #0
+	beq finish
+	and r4, r9, #0b111
+	add r2, #1
+	strb r4, [r0, r2]
+	lsr r9, #3
+	b base8
+base16:
+	cmp r9, #0
+	beq finish
+	and r4, r9, #0b1111
+	add r2, #1
+	strb r4, [r0, r2]
+	lsr r9, #4
+	b base16
+base32:
+	cmp r9, #0
+	beq finish
+	and r4, r9, #0b11111
+	add r2, #1
+	strb r4, [r0, r2]
+	lsr r9, #5
+	b base32
+finish:                    
+	mov r9, r2             // push the string length to the stack
+	cmp r2, #1             // only need to reverse the string if it's longer than 1 char
+	blt next
+	mov r1, #0             // r0 = index
+revloop:                   // Reverse the number buffer for printing
+	ldrb r3, [r0, r1]      // fetch at two indices
+	ldrb r4, [r0, r2]
+
+	cmp r3, #9             // Make digits larger than 9 to map to ascii A
+	addgt r3, #7
+	cmp r4, #9
+	addgt r4, #7
+
+	add r3, #'0'           // Base off of the ascii char for 0
+	add r4, #'0'
+
+	strb r3, [r0, r2]      // swap the chars into different indices
+	strb r4, [r0, r1]
+
+	sub r2, #1             // move indices towards the middle
+	add r1, #1
+
+	cmp r1, r2             // we're done when no more chars to swap
+	blt revloop
 	NEXT
 
 // ----- High-level words ----- 
 
-defword "quit", 4, quit
-	.word xt_halt
+defword ":", 1, colon
+	.int xt_create_colon                           // create the word header
+	.int xt_hidden                                 // make the word hidden
+	.int xt_lit, enter_colon                       // make the code field be enter_colon
+	.int xt_latest, xt_fetch, xt_to_xt, xt_store
+	.int xt_latest, xt_fetch, xt_to_params         // move compilation pointer to the parameter field
+	.int xt_h, xt_store
+	.int xt_rbracket                               // enter compiling mode
+	.int xt_exit
 
-defword "'", 1, tick                  // ( -- xt )
+defword ";", 1+F_IMMEDIATE, semicolon
+	.int xt_shown                                  // make the word shown
+	.int xt_lit, xt_exit, xt_comma                 // compile exit code
+	.int xt_bracket                                // enter immediate mode
+	.int xt_exit
+
+defword "hidden", 6+IMMEDIATE, hidden
+	.int xt_latest, xt_fetch, xt_hide
+	.int xt_exit
+
+defword "shown", 5+IMMEDIATE, shown
+	.int xt_latest, xt_fetch, xt_show
+	.int xt_exit
+
+defword "show", 4, show                            // ( a -- )
+	.int xt_to_name, xt_dup, xt_c_fetch
+	.int xt_lit, F_HIDDEN, xt_not, xt_and
+	.int xt_swap, xt_c_store
+	.int xt_exit
+
+defword "hide", 4, hide                            // ( a -- )
+	.int xt_to_name, xt_dup, xt_c_fetch
+	.int xt_lit, F_HIDDEN, xt_and
+	.int xt_swap, xt_c_store
+	.int xt_exit
+
+defword "create:", 7, create_colon                 // ( -- ) "name", name:( -- a )
+	.int xt_word                                   // ( a u ) get word name input
+	.int xt_align                                  // align compilation pointer
+	.int xt_here                                   // here = link field address
+	.int xt_latest, xt_fetch, xt_comma             // link field points to previous word
+	.int xt_latest, xt_store                       // make this link field address the latest word
+	.int xt_name_comma                             // copy the word's name
+	.int xt_lit, enter_variable, xt_comma          // make this word push it's parameter field
+	.int xt_exit
+
+defword "does>", 5, does
+	.int xt_r_from, xt_latest, xt_to_params, xt_store
+	.int xt_exit
+
+defword "variable", 8, variable
+	.int xt_create, xt_lit, 0, xt_comma
+	.int xt_exit
+
+defword "constant", 8, constant
+	.int xt_create, xt_comma
+	.int xt_lit, enter_constant, xt_latest, xt_to_xt, xt_store
+	.int xt_exit
+
+defword "name,", 5, name_comma                     // ( a c0 -- ) compile name field
+	.int xt_dup, xt_c_comma
+	.int xt_swap, xt_over                          // ( c0 a c )
+copy_loop:
+	.int xt_dup, xt_zero_branch
+	label copy_done
+	.int xt_swap, xt_dup, xt_fetch, xt_c_comma     // copy one char from a and increment a
+	.int xt_lit, 1, xt_plus              
+	.int xt_swap, xt_lit, 1, xt_minus              // decrement c
+	.int xt_branch
+	label copy_loop
+copy_done:
+	.int xt_drop, xt_drop                          // ( c0 )
+	.int xt_lit, 31, xt_minus                      // number of remaining spaces in the name field
+blank_loop:                                        // compile <c0> blank spaces after the name
+	.int xt_dup, xt_zero_branch
+	label blank_done
+	.int xt_lit, ' ', xt_c_comma
+	.int xt_lit, 1, xt_minus
+	.int xt_branch
+	label blank_loop
+blank_done:
+	.int xt_exit
+
+defword "aligned", 7, aligned                      // ( a -- a )
+	.int xt_lit, 3, xt_add, xt_lit, -4, xt_and     // a = (a + (4 - 1)) & -4;
+	.int xt_exit
+
+defword "align", 5, align
+	.int xt_h, xt_fetch, xt_aligned, xt_h, xt_store
+	.int xt_exit
+
+defword "here", 4, here        // value
+	.int xt_h, xt_fetch
+	.int xt_exit
+
+defword "quit", 4, quit
+	.int xt_halt
+
+defword "[", 1+F_IMMEDIATE, bracket
+	.int xt_lit, FALSE, xt_state, xt_store
+	.int xt_exit
+
+defword "]", 1, rbracket
+	.int xt_lit, TRUE, xt_state, xt_store
+	.int xt_exit
+
+defword "'", 1+F_IMMEDIATE, tick      // ( -- xt )
 	.int xt_word, xt_find, xt_to_xt
 	.int xt_exit
+
+defword ">params", 7, to_params       // ( a -- a2 )
+	.int xt_lit, 40, xt_plus
+	.int xt_exit
+
+defword "mod", 3, mod                 // ( n m -- r ) division remainder
+	.int xt_slash_mod, xt_drop
+	.int xt_exit
+
+defword "/", 1, slash                 // ( n m -- q ) division quotient
+	.int xt_slash_mod, xt_nip
+	.int xt_exit
+
+the_last_word:
 
 defword ">xt", 3, to_xt               // ( a -- xt )
 	.int xt_lit, 36, xt_plus
 	.int xt_exit
+
 
