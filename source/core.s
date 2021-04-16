@@ -661,8 +661,8 @@ copy_loop:
 	.int xt_dup, xt_zero_branch
 	label copy_done
 	.int xt_swap, xt_dup, xt_fetch, xt_c_comma     // copy one char from a and increment a
-	.int xt_lit, 1, xt_plus              
-	.int xt_swap, xt_lit, 1, xt_minus              // decrement c
+	.int xt_one_plus
+	.int xt_swap, xt_one_minus                     // decrement c
 	.int xt_branch
 	label copy_loop
 copy_done:
@@ -672,7 +672,7 @@ blank_loop:                                        // compile <c0> blank spaces 
 	.int xt_dup, xt_zero_branch
 	label blank_done
 	.int xt_lit, ' ', xt_c_comma
-	.int xt_lit, 1, xt_minus
+	.int xt_one_minus
 	.int xt_branch
 	label blank_loop
 blank_done:
@@ -690,9 +690,6 @@ defword "here", 4, here        // value
 	.int xt_h, xt_fetch
 	.int xt_exit
 
-defword "quit", 4, quit
-	.int xt_halt
-
 defword "[", 1+F_IMMEDIATE, bracket
 	.int xt_lit, FALSE, xt_state, xt_store
 	.int xt_exit
@@ -709,6 +706,10 @@ defword ">params", 7, to_params       // ( a -- a2 )
 	.int xt_lit, 40, xt_plus
 	.int xt_exit
 
+defword ">xt", 3, to_xt               // ( a -- xt )
+	.int xt_lit, 36, xt_plus
+	.int xt_exit
+
 defword "mod", 3, mod                 // ( n m -- r ) division remainder
 	.int xt_slash_mod, xt_drop
 	.int xt_exit
@@ -717,10 +718,29 @@ defword "/", 1, slash                 // ( n m -- q ) division quotient
 	.int xt_slash_mod, xt_nip
 	.int xt_exit
 
+defword "1+", 2, one_plus
+	.int xt_lit, 1, xt_plus
+	.int xt_exit
+
+defword "1-", 2, one_minus
+	.int xt_lit, 1, xt_minus
+	.int xt_exit
+
+defword "n>str", 5, n_to_str
+	.int xt_lit, 0, xt_less, xt_zero_branch
+	label n_positive                  // n < 0
+	.int xt_negate, xt_u_to_str       // ( a u )
+	.int xt_swap, xt_one_minus        // prepend minus sign to a
+	.int xt_lit, '-', xt_over, xt_store
+	.int xt_swap, xt_one_plus         // increment length u
+	.int xt_exit
+n_positive:                           // n >= 0
+	.int xt_u_to_str
+	.int xt_exit
+
 the_last_word:
 
-defword ">xt", 3, to_xt               // ( a -- xt )
-	.int xt_lit, 36, xt_plus
-	.int xt_exit
+defword "quit", 4, quit
+	.int xt_halt
 
 
