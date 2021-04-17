@@ -1,8 +1,6 @@
 // ----- Constants -----
 
-.set F_LENMASK,   0b00011111
 .set F_IMMEDIATE, 0b10000000
-.set F_HIDDEN,    0b01000000
 .set NAME_LEN, 31
 .set TIB_SIZE, 1024
 .set TRUE, -1
@@ -143,6 +141,26 @@ fn_divmod2:
 
 // ----- Primitive words -----
 
+defcode "entercolon", 10, entercolon
+	push {r9}
+	mov r9, enter_colon
+	NEXT
+
+defcode "entervariable", 13, entervariable
+	push {r9}
+	mov r9, enter_variable
+	NEXT
+
+defcode "enterconstant", 13, enterconstant
+	push {r9}
+	mov r9, enter_constant
+	NEXT
+
+defcode "enterdoes", 9, enterdoes
+	push {r9}
+	mov r9, enter_does
+	NEXT
+
 defcode "exit", 4, exit
 	ldr r10, [r11], #4          // ip = pop return stack
 	NEXT
@@ -220,6 +238,12 @@ defcode "over", 4, over
 	ldr r0, [r13]       // get a copy of the second item on stack
 	push {r9}           // push TOS to the rest of the stack
 	mov r9, r0          // TOS = copy of the second item from earlier
+	NEXT
+
+defcode "tuck", 4, tuck     // ( x1 x2 -- x2 x1 x2 )
+	pop {r0}
+	push {r9}
+	push {r0}
 	NEXT
 
 defcode "rot", 3, rot       // ( x1 x2 x3 -- x2 x3 x1 )
@@ -376,8 +400,8 @@ defcode "0branch", 7, zero_branch    // 0branch ( x -- )
 defcode "execute", 7, execute        // ( xt -- )
 	mov r8, r9                       // r8 = the xt
 	pop {r9}                         // pop the stack
-	ldr r0, [r8]                     // r0 = code address
-	bx r0                            // dangerous branch
+	ldr r0, [r8]                     // (indirect threaded)
+	bx r0
 
 defcode "emit", 4, emit              // ( c -- )
 	// TODO
@@ -598,18 +622,50 @@ defcode "S0", 2, s_zero
 	mov r9, 0x4000
 	NEXT
 
+defcode "max", 3, max                              // ( x1 x2 -- x1|x2 )
+	pop {r0}
+	cmp r9, r0
+	movlt r9, r0
+	NEXT
+
+defcode "min", 3, min                              // ( x1 x2 -- x1|x2 )
+	pop {r0}
+	cmp r9, r0
+	movgt r9, r0
+	NEXT
+
+defcode "fhidden", 7, fhidden
+	push {r9}
+	mov r9, #0b01000000
+	NEXT
+
+defcode "fimmediate", 10, fimmediate
+	push {r9}
+	mov r9, #F_IMMEDIATE
+	NEXT
+
+defcode "flenmask", 8, flenmask
+	push {r9}
+	mov r9, #0b00011111
+	NEXT
+
+defcode "cell", 4, cell
+	push {r9}
+	mov r9, #4
+	NEXT
+
 // ----- High-level words ----- 
 
 defword ":", 1, colon
 	.int xt_word, xt_header                        // create the empty word header
-	.int xt_lit, enter_colon, xt_comma             // make the word run docol
-	.int xt_hidden                                 // hide the word
+	.int xt_entercolon, xt_comma                   // make the word run docol
+	.int xt_latest, xt_fetch, xt_hide              // hide the word
 	.int xt_rbracket                               // enter the compiler
 	// unreachable
 	.int xt_exit
 
 defword ";", 1+F_IMMEDIATE, semicolon
-	.int xt_shown                                  // make the word shown
+	.int xt_latest, xt_fetch, xt_show              // make the word shown
 	.int xt_lit, xt_exit, xt_comma                 // compile exit code
 	.int xt_bracket                                // enter the immediate interpreter
 	// unreachable
@@ -623,15 +679,20 @@ defword "header", 6, header                        // ( a u -- )
 	.int xt_name_comma                             // copy the word's name
 	.int xt_exit
 
-defword "create:", 7, create_colon                 // ( -- ) name ( -- a )
+defword "pass", 4, pass                            // ( -- ) "no-op"
+	.int xt_exit
+
+defword "create:", 7, create_colon                 // ( -- ) name ( -- )
 	.int xt_word, xt_header                        // get word name input
-	.int xt_lit, enter_variable, xt_comma          // make this word push it's parameter field
+	.int xt_enterdoes, xt_comma
+	.int xt_lit, xt_pass, xt_cell, xt_plus
+	.int xt_comma
 	.int xt_exit
 
 defword "does>", 5, does
-	.int xt_r_from
+	.int xt_r_from                                 // get the calling word's next code
 	.int xt_latest
-	.int xt_to_params, xt_store
+	.int xt_to_params, xt_store                    // make the created word use that code
 	.int xt_exit
 
 defword "->variable:", 12, to_variable_colon       // ( x -- ) variable initialized to x
@@ -642,16 +703,17 @@ defword "->variable:", 12, to_variable_colon       // ( x -- ) variable initiali
 
 defword "variable:", 9, variable_colon             // ( -- )
 	.int xt_lit, 0
-	.inxt xt_to_variable_colon
+	.int xt_to_variable_colon
 	.int xt_exit
 
 defword "constant:", 9, constant_colon             // ( x -- ) constant with value x
 	.int xt_word, xt_header                        // get word name input
-	.int xt_lit, enter_variable, xt_comma          // make this word push it's parameter field
+	.int xt_lit, enter_constant, xt_comma          // make this word push it's parameter field
 	.int xt_comma
 	.int xt_exit
 
 defword "name,", 5, name_comma                     // ( a u -- ) compile name field
+	.int xt_lit, NAME_LEN, xt_max
 	.int xt_dup, xt_c_comma
 	.int xt_swap, xt_over                          // ( c a c1 )
 copy_loop:
@@ -676,7 +738,8 @@ blank_done:
 	.int xt_exit
 
 defword "aligned", 7, aligned                      // ( a1 -- a2 )
-	.int xt_lit, 3, xt_add, xt_lit, -4, xt_and     // a2 = (a1 + (4 - 1)) & -4;
+	.int xt_lit, 3, xt_plus
+	.int xt_lit, 3, xt_invert, xt_and              // a2 = (a1+(4-1)) & ~(4-1);
 	.int xt_exit
 
 defword "align", 5, align                          // ( -- ) align here
@@ -691,11 +754,11 @@ defword "[", 1+F_IMMEDIATE, bracket         // ( -- ) interpreter
 	.int xt_lit, FALSE, xt_state, xt_store
 interpret_loop:
 	.int xt_word, xt_two_dup                // ( a u a u )
-	.int xt_find                            // ( a u xt|0 )
+	.int xt_find                            // ( a u link|0 )
 	.int xt_dup, xt_zero_branch
 	label interpret_not_found
-	.int xt_nip, xt_nip                     // ( xt )
-	.int xt_execute
+	.int xt_nip, xt_nip                     // ( link )
+	.int xt_to_xt, xt_execute
 	.int xt_branch
 	label interpret_loop
 interpret_not_found:                        // convert to number
@@ -710,17 +773,18 @@ defword "]", 1, rbracket                    // ( -- ) compiler
 	.int xt_lit, TRUE, xt_state, xt_store
 compile_loop:
 	.int xt_word, xt_two_dup                // ( a u a u )
-	.int xt_find                            // ( a u xt|0 )
-	.int xt_dup, xt_zero_branch             // ( a u xt|0 )
+	.int xt_find                            // ( a u link|0 )
+	.int xt_dup, xt_zero_branch             // ( a u link|0 )
 	label compile_not_found
 	.int xt_nip, xt_nip                     // ( xt )
-	.int xt_dup, xt_to_link, xt_question_immediate
+	.int xt_dup, xt_to_xt, swap             // ( xt link )
+	.int xt_question_immediate              // ( xt )
 	.int xt_zero_branch
-	label compile_not_immediate
-	.int xt_execute
+	label compile_normal
+	.int xt_execute                         // execute immediate word
 	.int xt_branch
 	label compile_loop
-compile_not_immediate:
+compile_normal:                             // ( xt )
 	.int xt_comma
 	.int xt_branch
 	label compile_loop
@@ -728,11 +792,15 @@ compile_not_found:                          // convert to number
 	.int xt_drop                            // ( a u 0 -- a u )
 	.int xt_str_to_n                        // ( a u -- n u2|0 )
 	.int xt_drop                            // ( n ) ignore errors
-	.int xt_lit, xt_lit, xt_comma           // compile "lit"
-	.int xt_comma                           // compile n
+	.int xt_literal
 	.int xt_branch
 	label compile_loop
 	// no exit
+
+defword "literal"                           // ( x -- )
+	.int xt_lit, xt_lit, xt_comma           // compile "lit"
+	.int xt_comma                           // compile x
+	.int xt_exit
 
 defword "[']", 1+F_IMMEDIATE, bracket_tick  // ( -- xt )
 	.int xt_word, xt_find, xt_to_xt
@@ -769,18 +837,18 @@ defword ">params", 7, to_params       // ( link -- a2 )
 
 defword "?hidden", 7, question_hidden  // ( link -- f )
 	.int xt_to_name, xt_c_fetch
-	.int xt_lit, F_HIDDEN, xt_and, xt_bool
+	.int xt_fhidden, xt_and, xt_bool
 	.int xt_exit
 
 defword "?immediate", 10, question_immediate  // ( link -- f )
 	.int xt_to_name, xt_c_fetch
-	.int xt_lit, F_IMMEDIATE, xt_and, xt_bool
+	.int xt_fimmediate, xt_and, xt_bool
 	.int xt_exit
 
 defword "count", 5, count              // ( a -- a u )
 	.int xt_dup
 	.int xt_one_plus, xt_swap
-	.int xt_c_fetch, xt_lit, F_LENMASK, xt_and
+	.int xt_c_fetch, xt_flenmask, xt_and
 	.int xt_exit
 
 defword "mod", 3, mod                 // ( n m -- r ) division remainder
@@ -859,23 +927,15 @@ tell_loop:
 tell_done:
 	.int xt_exit
 
-defword "hidden", 6+IMMEDIATE, hidden              // ( -- )
-	.int xt_latest, xt_fetch, xt_hide
-	.int xt_exit
-
 defword "hide", 4, hide                            // ( a -- )
 	.int xt_to_name, xt_dup, xt_c_fetch
-	.int xt_lit, F_HIDDEN, xt_and
+	.int xt_fhidden, xt_and
 	.int xt_swap, xt_c_store
-	.int xt_exit
-
-defword "shown", 5+IMMEDIATE, shown                // ( -- )
-	.int xt_latest, xt_fetch, xt_show
 	.int xt_exit
 
 defword "show", 4, show                            // ( a -- )
 	.int xt_to_name, xt_dup, xt_c_fetch
-	.int xt_lit, F_HIDDEN, xt_not, xt_and
+	.int xt_fhidden, xt_not, xt_and
 	.int xt_swap, xt_c_store
 	.int xt_exit
 
@@ -1108,6 +1168,37 @@ words_next:
 	.int xt_branch
 	label words_link
 words_end:
+	.int xt_exit
+
+defword "(", 1, paren
+paren_loop:
+	.int xt_key
+	.int xt_lit, ')'
+	.int xt_zero_branch
+	label paren_loop
+	.int xt_exit
+
+defword "\\", 1, backslash
+paren_loop:
+	.int xt_key
+	.int xt_question_newline
+	.int xt_zero_branch
+	label paren_loop
+	.int xt_exit
+
+defword "?interpret", 10, question_interpret
+	.int xt_state, xt_fetch
+	.int xt_zero_equals
+	.int xt_exit
+
+defword "0=", 2, zero_equals
+	.int xt_lit, 0, xt_equals
+	.int xt_exit
+
+defword "immediate", 9, immediate                // ( link -- )
+	.int xt_to_name, xt_dup
+	.int xt_c_fetch, xt_fimmediate, xt_and
+	.int xt_swap, xt_c_store
 	.int xt_exit
 
 defword "quit", 4, quit
