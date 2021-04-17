@@ -7,6 +7,8 @@
 .set NAME_LEN, 31
 .set TIB_SIZE, 1024
 
+.set RSTACK_SIZE, 2048
+
 // ----- Macros -----
 
 // The inner interpreter
@@ -71,9 +73,17 @@ var_base:    .int 10
 var_state:   .int 0
 var_to_in:   .int 0
 var_latest:  .int the_last_word
+var_s_zero:  .int 0 // initialized later
+var_r_zero:  .int rstack_start
 var_num_tib: .int 0
 
+.align 2
 input_buffer: .space NUM_TIB
+
+.align 2
+rstack_end: .space RSTACK_SIZE
+.align 2
+rstack_start:
 
 .align 2
 dictionary:
@@ -84,10 +94,12 @@ dictionary:
 
 .global _start
 _start:
-	ldr sp, =0x4000             // init parameter stack
-	ldr r11, =0x8000            // init return stack
+	ldr r0, =var_s_zero         // stack base
+	str sp, [r0]
+	ldr r0, =var_r_zero         // init return stack
+	ldr r11, [r0]
 
-	mov r9, #0                  // zero the TOS register
+	eor r9, r9                  // zero the TOS register
 
 	ldr r10, =init_code         // set the IP to point to the first forth word to execute
 	NEXT
@@ -407,8 +419,25 @@ defcode "execute", 7, execute        // ( xt -- )
 	ldr r0, [r8]                     // (indirect threaded)
 	bx r0
 
+defcode "key", 3, key                // ( -- c )
+	eor r0, r0                       // create blank space on stack
+	push {r0}
+	mov r7, #3                       // read(fd, buf, len)
+	mov r0, #0                       // stdin
+	mov r1, sp
+	mov r2, #1
+	swi #0
+	pop {r9}
+	NEXT
+
 defcode "emit", 4, emit              // ( c -- )
-	// TODO
+	push {r9}                        // store on the stack
+	mov r7, #4                       // write(fd, buf, len)
+	mov r0, #1                       // stdout
+	mov r1, sp
+	mov r2, #1
+	swi #0
+	ldr r9, [sp], #8                 // get new TOS
 	NEXT
 
 defcode "/mod", 4, slash_mod // ( n m -- r q ) division remainder and quotient
@@ -618,12 +647,14 @@ reverse:
 
 defcode "R0", 2, r_zero
 	push {r9}
-	mov r9, 0x8000
+	ldr r0, =var_r_zero
+	ldr r9, [r0]
 	NEXT
 
 defcode "S0", 2, s_zero
 	push {r9}
-	mov r9, 0x4000
+	ldr r0, =var_s_zero
+	ldr r9, [r0]
 	NEXT
 
 defcode "max", 3, max                              // ( x1 x2 -- x1|x2 )
@@ -1085,13 +1116,6 @@ skip_char:
 	label skip_char
 skip_complete:
 	.int xt_nip                        // ( c a -- a )
-	.int xt_exit
-
-defword "key", 3, key                  // ( -- c )
-	// TODO get char
-	.int xt_lit, 0
-
-	.int xt_dup, xt_emit               // echo
 	.int xt_exit
 
 defword "?newline", 8, question_newline // ( c -- f )
