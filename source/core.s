@@ -4,8 +4,8 @@
 .set F_IMMEDIATE, 0b10000000
 .set F_HIDDEN,    0b01000000
 .set NAME_LEN, 31
-.set NUM_TIB, 1024
-.set NUM_TOB, 1024
+.set TIB_SIZE, 1024
+.set TOB_SIZE, 1024
 .set TRUE, -1
 .set FALSE, 0
 
@@ -69,7 +69,9 @@ params_\label:               // parameter field
 
 .align 2
 var_to_in: .int 0
+var_num_tib: .int 0
 var_to_out: .int 0
+var_num_tob: .int 0
 var_state: .int 0
 var_base: .int 10
 var_latest: .int def_quit      // This should actually be the last word!
@@ -83,6 +85,7 @@ output_buffer: .space NUM_TOB
 // ----- Core assembly code -----
 
 .text
+
 .global _start
 _start:
 	ldr sp, =0x4000             // init parameter stack
@@ -129,18 +132,18 @@ fn_divmod:
 	// No need to push anything because this just uses r0-r3
 	mov r3, r1
 	cmp r3, r0, LSR #1
-1:
+fn_divmod1:
 	movls r3, r3, LSL #1
 	cmp r3, r0, LSR #1
-	bls 1b
+	bls fn_divmod1
 	mov r2, #0
-2:
+fn_divmod2:
 	cmp r0, r3
 	subcs r0, r0, r3
 	adc r2, r2, r2
 	mov r3, r3, LSR #1
 	cmp r3, r1
-	bhs 2b
+	bhs fn_divmod2
 
 	bx lr
 
@@ -187,7 +190,6 @@ defcode "PSP@", 4, psp_fetch
 	mov r9, sp
 	NEXT
 
-// Question: should this pop the stack or too?
 defcode "PSP!", 4, psp_store 
 	mov sp, r9
 	NEXT
@@ -377,13 +379,13 @@ defcode "0branch", 7, zero_branch    // 0branch ( x -- )
 	pop {r9}                         // discard TOS
 	NEXT
 
-defcode "execute", 7, execute
+defcode "execute", 7, execute        // ( xt -- )
 	mov r8, r9                       // r8 = the xt
 	pop {r9}                         // pop the stack
 	ldr r0, [r8]                     // r0 = code address
 	bx r0                            // dangerous branch
 
-defcode "emit", 4, emit
+defcode "emit", 4, emit              // ( c -- )
 	ldr r3, =num_tob                 // Write a char to the output buffer, increment
 	ldr r3, [r3]                     // >out, and reset >out if it goes out of range
 	ldr r0, =output_buffer           // for the output buffer.
@@ -414,7 +416,7 @@ defcode "tib", 3, tib          // constant
 
 defcode "#tib", 4, num_tib     // constant
 	push {r9}
-	mov r9, NUM_TIB
+	ldr r9, =var_num_tib
 	NEXT
 
 defcode ">in", 3, to_in        // variable
@@ -429,7 +431,7 @@ defcode "tob", 3, tob          // constant
 
 defcode "#tob", 4, num_tob     // constant
 	push {r9}
-	mov r9, NUM_TOB
+	ldr r9, =var_num_tob
 	NEXT
 
 defcode ">out", 4, to_out      // variable
@@ -974,6 +976,104 @@ find_found:
 	.int xt_exit
 find_no_find:
 	.int xt_nip, xt_nip                // ( a u 0 -- 0)
+	.int xt_exit
+
+defword "scan-in", 7, scan_in          // ( c -- a ) scan chars in input buffer
+	.int xt_to_in, xt_fetch
+	.int xt_tib, xt_plus               // ( c a )
+scan_char:
+	.int xt_buffer_in
+	.int xt_two_dup                    // ( c a c a )
+	.int xt_fetch                      // ( c a c c2 )
+	.int xt_equals, xt_not
+	.int xt_zero_branch                // ( c a )
+	label scan_complete
+	.int xt_one_plus                   // ( c a+1 )
+	.int xt_branch
+	label scan_char
+scan_complete:
+	.int xt_nip                        // ( c a -- a )
+	.int xt_exit
+
+defword "skip-in", 7, skip_in          // ( c -- a ) skip chars in input buffer
+	.int xt_to_in, xt_fetch
+	.int xt_tib, xt_plus               // ( c a )
+skip_char:
+	.int xt_buffer_in
+	.int xt_two_dup                    // ( c a c a )
+	.int xt_fetch                      // ( c a c c2 )
+	.int xt_equals, xt_zero_branch     // ( c a )
+	label skip_complete
+	.int xt_one_plus                   // ( c a+1 )
+	.int xt_branch
+	label skip_char
+skip_complete:
+	.int xt_nip                        // ( c a -- a )
+	.int xt_exit
+
+defword "key", 3, key                  // ( -- c )
+	// TODO get char
+	.int xt_lit, 0
+	.int xt_dup, xt_emit               // echo
+	.int xt_exit
+
+defword "newline?", 8, newline_question // ( c -- f )
+	.int xt_dup
+	.int xt_lit, 10, xt_equals
+	.int xt_swap
+	.int xt_lit, 13, xt_equals
+	.int xt_or
+	.int xt_exit
+
+defword "accept", 6, accept            // ( a u1 -- u2 )
+	.int xt_dup, xt_to_r               // ( a u1 ) R: ( u1 )
+accept_loop:
+	.int xt_dup, xt_zero_branch
+	label accept_done
+	.int xt_swap                       // ( u a )
+	.int xt_key                        // ( u a c )
+	.int xt_newline_question           
+	.int xt_equals, xt_zero_branch
+	label accept_char                  // [enter] causes end of input
+	.int xt_drop                       // ( u a )
+	.int xt_swap                       // ( a u )
+	.int xt_branch                     
+	label accept_done
+accept_char
+	.int xt_over                       // ( u a c a )
+	.int xt_c_store                    // ( u a )
+	.int xt_one_plus                   // ( u a+1 )
+	.int xt_swap
+	.int xt_one_minus                  // ( a+1 u-1 )
+	.int xt_branch
+	label accept_loop
+accept_done:
+	.int xt_r_from                     // ( a u -- a u u1 ) R: ( u1 -- )
+	.int xt_swap, xt_minus             // ( a u2 )
+	.int xt_nip                        // ( u2 )
+	.int xt_exit
+
+defword "refill", 6, refill            // ( -- ) refill tib
+	.int xt_tib
+	.int xt_lit, TIB_SIZE
+	.int xt_accept   // ( u )
+	.int xt_num_tib, xt_store
+	.int xt_lit, 0, xt_to_in, xt_store
+
+defword "buffer-in", 9, buffer_in      // ( -- ) make sure the input buffer is not exhausted
+	.int xt_to_in, xt_fetch
+	.int xt_num_tib
+	.int xt_more, xt_zero_branch
+	label buffer_in_full
+	.int xt_refill
+buffer_in_full:
+	.int xt_exit
+
+defword "word", 4, word                // ( -- a u )
+	.int xt_bl, xt_skip                // ( a )
+	.int xt_bl, xt_scan                // ( a a2 )
+	.int xt_over, xt_swap              // ( a a a2 )
+	.int xt_minus                      // ( a u ) u is word len
 	.int xt_exit
 
 defword "quit", 4, quit
