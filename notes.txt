@@ -698,3 +698,9 @@ CMP = subtract
 * difference between .balign and .align
 Align to 2^N or align to N.
 
+* PUSH AND POP
+push {r0} <==> str r0, [sp, #-4]!  decrement before  
+pop  {r0} <==> ldr r0, [sp], #4    increment after   
+"STR{type}{cond} Rt, [Rn, #offset]! ; pre-indexed"
+"LDR{type}{cond} Rt, [Rn], #offset  ; post-indexed"
+
