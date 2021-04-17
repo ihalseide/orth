@@ -1,10 +1,11 @@
 // ----- Constants -----
 
 .set F_IMMEDIATE, 0b10000000
+.set F_HIDDEN,    0b01000000
+.set F_LENMASK,   0b00011111
+
 .set NAME_LEN, 31
 .set TIB_SIZE, 1024
-.set TRUE, -1
-.set FALSE, 0
 
 // ----- Macros -----
 
@@ -65,14 +66,17 @@ params_\label:               // parameter field
 .data
 
 .align 2
-var_to_in: .int 0
+var_h:       .int __data_end         // This symbol is assigned by the linker script
+var_base:    .int 10
+var_state:   .int 0
+var_to_in:   .int 0
+var_latest:  .int the_last_word
 var_num_tib: .int 0
-var_state: .int 0
-var_base: .int 10
-var_latest: .int def_quit      // This should actually be the last word!
-var_h: .int __data_end         // This symbol is assigned by the linker script
 
 input_buffer: .space NUM_TIB
+
+.align 2
+dictionary:
 
 // ----- Core assembly code -----
 
@@ -216,50 +220,60 @@ defcode "RSP!", 4, rsp_store
 	pop {r9}
 	NEXT
 
-defcode "dup", 3, dup            // ( x -- x x )
-	push {r9}
-	NEXT
-
-defcode "drop", 4, drop
+defcode ">R", 2, to_r     // ( -- x R: x -- )
+	str r9, [r11, #-4]!
 	pop {r9}
 	NEXT
 
-defcode "nip", 3, nip
+defcode "R>", 2, r_from   // ( x -- R: -- x )
+	push {r9}
+	ldr r9, [r11], #4
+	NEXT
+
+defcode "dup", 3, dup     // ( x -- x x )
+	push {r9}
+	NEXT
+
+defcode "drop", 4, drop   // ( x -- )
+	pop {r9}
+	NEXT
+
+defcode "nip", 3, nip     // ( x1 x2 -- x2 )
 	pop {r0}
 	NEXT
 
-defcode "swap", 4, swap
+defcode "swap", 4, swap   // ( x1 x2 -- x2 x1 )
 	pop {r0}
 	push {r9}
 	mov r9, r0
 	NEXT
 
-defcode "over", 4, over
-	ldr r0, [r13]       // get a copy of the second item on stack
-	push {r9}           // push TOS to the rest of the stack
-	mov r9, r0          // TOS = copy of the second item from earlier
+defcode "over", 4, over   // ( x1 x2 -- x1 x2 x1 )
+	ldr r0, [r13]         // get a copy of the second item on stack
+	push {r9}             // push TOS to the rest of the stack
+	mov r9, r0            // TOS = copy of the second item from earlier
 	NEXT
 
-defcode "tuck", 4, tuck     // ( x1 x2 -- x2 x1 x2 )
+defcode "tuck", 4, tuck   // ( x1 x2 -- x2 x1 x2 )
 	pop {r0}
 	push {r9}
 	push {r0}
 	NEXT
 
-defcode "rot", 3, rot       // ( x1 x2 x3 -- x2 x3 x1 )
-	pop {r0}                // r0 = x2
-	pop {r1}                // r1 = x1
+defcode "rot", 3, rot     // ( x1 x2 x3 -- x2 x3 x1 )
+	pop {r0}              // r0 = x2
+	pop {r1}              // r1 = x1
 	push {r0}
 	push {r9}
-	mov r9, r1              // TOS = x1
+	mov r9, r1            // TOS = x1
 	NEXT
 
-defcode "-rot", 4, minus_rot       // ( x1 x2 x3 -- x3 x1 x2 )
-	pop {r0}                       // r0 = x2
-	pop {r1}                       // r1 = x1
+defcode "-rot", 4, minus_rot   // ( x1 x2 x3 -- x3 x1 x2 )
+	pop {r0}                   // r0 = x2
+	pop {r1}                   // r1 = x1
 	push {r9}
 	push {r1}
-	mov r9, r0                     // TOS = x2
+	mov r9, r0                 // TOS = x2
 	NEXT
 
 defcode "2dup", 4, two_dup  // ( x1 x2 -- x1 x2 x1 x2 )
@@ -269,7 +283,7 @@ defcode "2dup", 4, two_dup  // ( x1 x2 -- x1 x2 x1 x2 )
 	ldr r0, [r13]
 	push {r9}
 	mov r9, r0
-	NEXT	
+	NEXT
 
 defcode "2drop", 5, two_drop // ( x1 x2 -- )
 	pop {r9}
@@ -293,37 +307,27 @@ defcode "2over", 5, two_over // ( x1 x2 x3 x4 -- x1 x2 x3 x4 x1 x2 )
 	push {r0}                     // push x1
 	NEXT
 
-defcode ">R", 2, to_r
-	str r9, [r11, #-4]!
-	pop {r9}
-	NEXT
-
-defcode "R>", 2, r_from
-	push {r9}
-	ldr r9, [r11], #4
-	NEXT
-
-defcode "+", 1, plus
+defcode "+", 1, plus     // ( x1 x2 -- x3 )
 	pop {r0}
 	add r9, r0
 	NEXT
 
-defcode "-", 1, minus
+defcode "-", 1, minus    // ( x1 x2 -- x3 )
 	pop {r0}
-	sub r9, r0, r9    // r9 = r0 - r9
+	sub r9, r0, r9       // r9 = r0 - r9
 	NEXT
 
-defcode "*", 1, star
+defcode "*", 1, star     // ( x1 x2 -- x3 )
 	pop {r0}
-	mov r1, r9        // note that a register can't be a src and a dest in mul op on ARM
+	mov r1, r9           // note that a register can't be a src and a dest in mul op on ARM
 	mul r9, r0, r1
 	NEXT
 
-defcode "=", 1, equals           // ( x1 x2 -- f )
+defcode "=", 1, equals   // ( x1 x2 -- f )
 	pop {r0}
 	cmp r9, r0
-	eor r9, r9                   // 0 for false
-	mvneq r9, r9                 // invert for true
+	eor r9, r9           // 0 for false
+	mvneq r9, r9         // invert for true
 	NEXT
 
 defcode "<", 1, less
@@ -497,16 +501,16 @@ defcode "u>str", 5, u_to_str  // ( u1 -- addr u2 )
 	add r5, #30               // add some arbitrary padding
 	/* Get the number base */
 	ldr r6, =var_base         // r6 = number base
-	ldr	r6, [r6]
+	ldr r6, [r6]
 	/* Only proceed if the number base is valid */
-	cmp	r6, #1
-	bgt	good_base
+	cmp r6, #1
+	bgt good_base
 	mov r9, 0                 // ( 0 0 )
 	push {r9}
 	NEXT
 good_base:
-	cmp	r9, #0
-	bne	u_not_zero
+	cmp r9, #0
+	bne u_not_zero
 	/* Write a 0 to the pad if u is 0 */
 	add r4, #1
 	eor r0, r0
@@ -636,7 +640,7 @@ defcode "min", 3, min                              // ( x1 x2 -- x1|x2 )
 
 defcode "fhidden", 7, fhidden
 	push {r9}
-	mov r9, #0b01000000
+	mov r9, #F_HIDDEN
 	NEXT
 
 defcode "fimmediate", 10, fimmediate
@@ -646,12 +650,28 @@ defcode "fimmediate", 10, fimmediate
 
 defcode "flenmask", 8, flenmask
 	push {r9}
-	mov r9, #0b00011111
+	mov r9, #F_LENMASK
 	NEXT
 
 defcode "cell", 4, cell
 	push {r9}
-	mov r9, #4
+	mov r9, #CELL
+	NEXT
+
+defcode "true", 4, true
+	push {r9}
+	eor r9, r9
+	mvn r9, r9
+	NEXT
+
+defcode "false", 5, false
+	push {r9}
+	eor r9, r9
+	NEXT
+
+defcode "#name", 5, num_name
+	push {r9}
+	mov r9, NAME_LEN
 	NEXT
 
 // ----- High-level words ----- 
@@ -713,7 +733,7 @@ defword "constant:", 9, constant_colon             // ( x -- ) constant with val
 	.int xt_exit
 
 defword "name,", 5, name_comma                     // ( a u -- ) compile name field
-	.int xt_lit, NAME_LEN, xt_max
+	.int xt_num_name, xt_max
 	.int xt_dup, xt_c_comma
 	.int xt_swap, xt_over                          // ( c a c1 )
 copy_loop:
@@ -726,7 +746,7 @@ copy_loop:
 	label copy_loop
 copy_done:
 	.int xt_drop, xt_drop                          // ( c )
-	.int xt_lit, NAME_LEN, xt_minus                // number of remaining spaces in the name field
+	.int xt_num_name, xt_minus                     // number of remaining spaces in the name field
 blank_loop:                                        // compile <c> blank spaces after the name
 	.int xt_dup, xt_zero_branch
 	label blank_done
@@ -751,7 +771,7 @@ defword "here", 4, here                     // value
 	.int xt_exit
 
 defword "[", 1+F_IMMEDIATE, bracket         // ( -- ) interpreter
-	.int xt_lit, FALSE, xt_state, xt_store
+	.int xt_false, xt_state, xt_store
 interpret_loop:
 	.int xt_word, xt_two_dup                // ( a u a u )
 	.int xt_find                            // ( a u link|0 )
@@ -770,7 +790,7 @@ interpret_not_found:                        // convert to number
 	// no exit
 
 defword "]", 1, rbracket                    // ( -- ) compiler
-	.int xt_lit, TRUE, xt_state, xt_store
+	.int xt_true, xt_state, xt_store
 compile_loop:
 	.int xt_word, xt_two_dup                // ( a u a u )
 	.int xt_find                            // ( a u link|0 )
@@ -828,11 +848,11 @@ defword ">name", 5, to_name            // ( link -- a )
 	.int xt_exit
 
 defword ">xt", 3, to_xt               // ( link -- xt )
-	.int xt_lit, 5+NAME_LEN, xt_plus
+	.int xt_lit, 4+1+NAME_LEN, xt_plus
 	.int xt_exit
 
 defword ">params", 7, to_params       // ( link -- a2 )
-	.int xt_lit, 5+NAME_LEN+4, xt_plus
+	.int xt_lit, 4+1+NAME_LEN+4, xt_plus
 	.int xt_exit
 
 defword "?hidden", 7, question_hidden  // ( link -- f )
@@ -992,15 +1012,15 @@ compare_next:
 	label compare_next
 compare_eql:
 	.int xt_drop, xt_drop, xt_drop
-	.int xt_lit, TRUE
+	.int xt_true
 	.int xt_exit
 compare_neq:
 	.int xt_drop, xt_drop, xt_drop
-	.int xt_lit, FALSE
+	.int xt_false
 	.int xt_exit
 compare_len_neq:
 	.int xt_two_drop, xt_two_drop
-	.int xt_lit, FALSE
+	.int xt_false
 	.int xt_exit
 
 defword "find", 4, find                // ( a u -- link | 0 )
@@ -1200,6 +1220,8 @@ defword "immediate", 9, immediate                // ( link -- )
 	.int xt_c_fetch, xt_fimmediate, xt_and
 	.int xt_swap, xt_c_store
 	.int xt_exit
+
+the_last_word:
 
 defword "quit", 4, quit
 	.int xt_r_zero, xt_rsp_store       // clear return stack
