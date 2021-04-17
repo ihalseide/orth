@@ -204,7 +204,7 @@ defcode "RSP!", 4, rsp_store
 	pop {r9}
 	NEXT
 
-defcode "dup", 3, dup
+defcode "dup", 3, dup            // ( x -- x x )
 	push {r9}
 	NEXT
 
@@ -652,24 +652,34 @@ defword "header", 6, header                        // ( a u -- )
 	.int xt_exit
 
 defword "create:", 7, create_colon                 // ( -- ) name ( -- a )
-	.int xt_word, xt_header                        // ( a u ) get word name input
+	.int xt_word, xt_header                        // get word name input
 	.int xt_lit, enter_variable, xt_comma          // make this word push it's parameter field
 	.int xt_exit
 
 defword "does>", 5, does
-	.int xt_r_from, xt_latest, xt_to_params, xt_store
+	.int xt_r_from
+	.int xt_latest
+	.int xt_to_params, xt_store
 	.int xt_exit
 
-defword "variable", 8, variable
-	.int xt_create, xt_lit, 0, xt_comma
+defword "->variable:", 12, to_variable_colon       // ( x -- ) variable initialized to x
+	.int xt_word, xt_header                        // get word name input
+	.int xt_lit, enter_variable, xt_comma          // make this word push it's parameter field
+	.int xt_comma
 	.int xt_exit
 
-defword "constant", 8, constant
-	.int xt_create, xt_comma
-	.int xt_lit, enter_constant, xt_latest, xt_to_xt, xt_store
+defword "variable:", 9, variable_colon             // ( -- )
+	.int xt_lit, 0
+	.inxt xt_to_variable_colon
 	.int xt_exit
 
-defword "name,", 5, name_comma                     // ( a c -- ) compile name field
+defword "constant:", 9, constant_colon             // ( x -- ) constant with value x
+	.int xt_word, xt_header                        // get word name input
+	.int xt_lit, enter_variable, xt_comma          // make this word push it's parameter field
+	.int xt_comma
+	.int xt_exit
+
+defword "name,", 5, name_comma                     // ( a u -- ) compile name field
 	.int xt_dup, xt_c_comma
 	.int xt_swap, xt_over                          // ( c a c1 )
 copy_loop:
@@ -682,7 +692,7 @@ copy_loop:
 	label copy_loop
 copy_done:
 	.int xt_drop, xt_drop                          // ( c )
-	.int xt_lit, NAME_LEN, xt_minus                      // number of remaining spaces in the name field
+	.int xt_lit, NAME_LEN, xt_minus                // number of remaining spaces in the name field
 blank_loop:                                        // compile <c> blank spaces after the name
 	.int xt_dup, xt_zero_branch
 	label blank_done
@@ -777,12 +787,12 @@ defword ">name", 5, to_name            // ( link -- a )
 	.int xt_lit, 4, xt_plus
 	.int xt_exit
 
-defword ">xt", 3, to_xt               // ( a -- xt )
-	.int xt_lit, 1+4+NAME_LEN, xt_plus
+defword ">xt", 3, to_xt               // ( link -- xt )
+	.int xt_lit, 5+NAME_LEN, xt_plus
 	.int xt_exit
 
-defword ">params", 7, to_params       // ( a -- a2 )
-	.int xt_lit, 40, xt_plus
+defword ">params", 7, to_params       // ( link -- a2 )
+	.int xt_lit, 5+NAME_LEN+4, xt_plus
 	.int xt_exit
 
 defword "?hidden", 7, question_hidden  // ( link -- f )
@@ -897,12 +907,26 @@ defword "show", 4, show                            // ( a -- )
 	.int xt_swap, xt_c_store
 	.int xt_exit
 
+defword "recurse", 7+F_IMMEDIATE, recurse          // ( -- )
+	.int xt_latest, xt_fetch
+	.int xt_to_xt, xt_comma
+	.int xt_exit
+
 defword "id.", 3, id_dot                           // ( link -- )
 	.int xt_to_name, xt_count, xt_tell
 	.int xt_exit
 
 defword "BL", 2, bl
 	.int xt_lit, ' '
+	.int xt_exit
+
+defword "space", 4, space
+	.int xt_bl, xt_emit
+	.int xt_exit
+
+defword "line", 2, cr
+	.int xt_lit, 13 xt_emit
+	.int xt_lit, 10 xt_emit
 	.int xt_exit
 
 defword "bool", 4, bool                // ( x -- f )
@@ -1014,10 +1038,11 @@ skip_complete:
 defword "key", 3, key                  // ( -- c )
 	// TODO get char
 	.int xt_lit, 0
+
 	.int xt_dup, xt_emit               // echo
 	.int xt_exit
 
-defword "newline?", 8, newline_question // ( c -- f )
+defword "?newline", 8, question_newline // ( c -- f )
 	.int xt_dup
 	.int xt_lit, 10, xt_equals
 	.int xt_swap
@@ -1032,7 +1057,7 @@ accept_loop:
 	label accept_done
 	.int xt_swap                       // ( u a )
 	.int xt_key                        // ( u a c )
-	.int xt_newline_question           
+	.int xt_question_newline
 	.int xt_equals, xt_zero_branch
 	label accept_char                  // [enter] causes end of input
 	.int xt_drop                       // ( u a )
@@ -1074,6 +1099,22 @@ defword "word", 4, word                // ( -- a u )
 	.int xt_bl, xt_scan                // ( a a2 )
 	.int xt_over, xt_swap              // ( a a a2 )
 	.int xt_minus                      // ( a u ) u is word len
+	.int xt_exit
+
+defword "words", 5, words              // ( -- )
+	.int xt_latest                     // ( link )
+words_link:
+	.int xt_dup, xt_zero_branch
+	label words_end
+	.int xt_dup, xt_question_hidden    // ( link f )
+	.int xt_not, xt_zero_branch
+	label words_next
+	.int xt_dup, xt_id_dot
+words_next:
+	.int xt_fetch                      // ( *link )
+	.int xt_branch
+	label words_link
+words_end:
 	.int xt_exit
 
 defword "quit", 4, quit
