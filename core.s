@@ -68,7 +68,7 @@ params_\label:               // parameter field
 .data
 
 .align 2
-var_h:       .int __data_end         // This symbol is assigned by the linker script
+var_h:       .int data_end
 var_base:    .int 10
 var_state:   .int 0
 var_to_in:   .int 0
@@ -78,7 +78,7 @@ var_r_zero:  .int rstack_start
 var_num_tib: .int 0
 
 .align 2
-input_buffer: .space NUM_TIB
+input_buffer: .space TIB_SIZE
 
 .align 2
 rstack_end: .space RSTACK_SIZE
@@ -159,22 +159,22 @@ fn_divmod2:
 
 defcode "entercolon", 10, entercolon
 	push {r9}
-	mov r9, enter_colon
+	mov r9, #enter_colon
 	NEXT
 
 defcode "entervariable", 13, entervariable
 	push {r9}
-	mov r9, enter_variable
+	mov r9, #enter_variable
 	NEXT
 
 defcode "enterconstant", 13, enterconstant
 	push {r9}
-	mov r9, enter_constant
+	mov r9, #enter_constant
 	NEXT
 
 defcode "enterdoes", 9, enterdoes
 	push {r9}
-	mov r9, enter_does
+	mov r9, #enter_does
 	NEXT
 
 defcode "exit", 4, exit
@@ -349,7 +349,7 @@ defcode "<", 1, less
 	mvnlt r9, r9
 	NEXT
 
-defcode ">", 1, more:
+defcode ">", 1, more
 	pop {r0}
 	cmp r0, r9      // r9 > r0
 	eor r9, r9
@@ -534,7 +534,7 @@ defcode "u>str", 5, u_to_str  // ( u1 -- addr u2 )
 	/* Only proceed if the number base is valid */
 	cmp r6, #1
 	bgt good_base
-	mov r9, 0                 // ( 0 0 )
+	eor r9, r9                // ( 0 0 )
 	push {r9}
 	NEXT
 good_base:
@@ -614,7 +614,7 @@ base_other_body:
 	add r4, #1
 base_other:
 	cmp r9, #0
-	bne base_body
+	bne base_other_body
 base_done:
 	/* Reverse the pad array */
 	mov r9, r4          // TOS = pad length
@@ -686,7 +686,7 @@ defcode "flenmask", 8, flenmask
 
 defcode "cell", 4, cell
 	push {r9}
-	mov r9, #CELL
+	mov r9, #4
 	NEXT
 
 defcode "true", 4, true
@@ -702,7 +702,7 @@ defcode "false", 5, false
 
 defcode "#name", 5, num_name
 	push {r9}
-	mov r9, NAME_LEN
+	mov r9, #NAME_LEN
 	NEXT
 
 // ----- High-level words ----- 
@@ -790,7 +790,7 @@ blank_done:
 
 defword "aligned", 7, aligned                      // ( a1 -- a2 )
 	.int xt_lit, 3, xt_plus
-	.int xt_lit, 3, xt_invert, xt_and              // a2 = (a1+(4-1)) & ~(4-1);
+	.int xt_lit, 3, xt_not, xt_and                 // a2 = (a1+(4-1)) & ~(4-1);
 	.int xt_exit
 
 defword "align", 5, align                          // ( -- ) align here
@@ -828,7 +828,7 @@ compile_loop:
 	.int xt_dup, xt_zero_branch             // ( a u link|0 )
 	label compile_not_found
 	.int xt_nip, xt_nip                     // ( xt )
-	.int xt_dup, xt_to_xt, swap             // ( xt link )
+	.int xt_dup, xt_to_xt, xt_swap          // ( xt link )
 	.int xt_question_immediate              // ( xt )
 	.int xt_zero_branch
 	label compile_normal
@@ -848,7 +848,7 @@ compile_not_found:                          // convert to number
 	label compile_loop
 	// no exit
 
-defword "literal"                           // ( x -- )
+defword "literal", 7, literal               // ( x -- )
 	.int xt_lit, xt_lit, xt_comma           // compile "lit"
 	.int xt_comma                           // compile x
 	.int xt_exit
@@ -1008,8 +1008,8 @@ defword "space", 4, space
 	.int xt_exit
 
 defword "line", 2, cr
-	.int xt_lit, 13 xt_emit
-	.int xt_lit, 10 xt_emit
+	.int xt_lit, 13, xt_emit
+	.int xt_lit, 10, xt_emit
 	.int xt_exit
 
 defword "bool", 4, bool                // ( x -- f )
@@ -1023,7 +1023,7 @@ bool_done:
 
 defword "compare", 7, compare          // ( a1 u1 a2 u2 -- f ) compare counted strings
 	.int xt_rot, xt_swap
-	.int xt_two_dup, xt_equal, xt_zero_branch
+	.int xt_two_dup, xt_equals, xt_zero_branch
 	label compare_len_neq
 	.int xt_drop                       // ( a1 a2 u2 )
 compare_next:
@@ -1065,13 +1065,13 @@ find_link:
 	.int xt_two_dup                    // ( a u link u link )
 	.int xt_to_name, xt_count, xt_nip, xt_equals
 	.int xt_zero_branch
-	label find_link_loop               // ( a u link )
+	label find_link                    // ( a u link )
 	.int xt_dup, xt_two_swap           // ( link link a u )
 	.int xt_rot                        // ( link a u link )
 	.int xt_count                      // ( link a u a2 u2 )
 	.int xt_two_over                   // ( link a u a2 u2 a u )
 	.int xt_compare                    // ( link a u f )
-	.int xt_invert, xt_zero_branch
+	.int xt_not, xt_zero_branch
 	label find_found
 	.int xt_rot                        // ( a u link )
 find_next:
@@ -1161,7 +1161,7 @@ accept_backspace:
 	.int xt_one_plus                   // ( a-1 u+1 )
 	.int xt_branch
 	label accept_loop
-accept_char
+accept_char:
 	.int xt_over                       // ( u a c a )
 	.int xt_c_store                    // ( u a )
 	.int xt_one_plus                   // ( u a+1 )
@@ -1192,8 +1192,8 @@ buffer_in_full:
 	.int xt_exit
 
 defword "word", 4, word                // ( -- a u )
-	.int xt_bl, xt_skip                // ( a )
-	.int xt_bl, xt_scan                // ( a a2 )
+	.int xt_bl, xt_skip_in             // ( a )
+	.int xt_bl, xt_scan_in             // ( a a2 )
 	.int xt_over, xt_swap              // ( a a a2 )
 	.int xt_minus                      // ( a u ) u is word len
 	.int xt_exit
@@ -1223,11 +1223,11 @@ paren_loop:
 	.int xt_exit
 
 defword "\\", 1, backslash
-paren_loop:
+backslash_loop:
 	.int xt_key
 	.int xt_question_newline
 	.int xt_zero_branch
-	label paren_loop
+	label backslash_loop
 	.int xt_exit
 
 defword "?interpret", 10, question_interpret
@@ -1251,4 +1251,6 @@ defword "quit", 4, quit
 	.int xt_r_zero, xt_rsp_store       // clear return stack
 	.int xt_bracket                    // interpret
 	// no exit
+
+data_end:
 
