@@ -19,6 +19,7 @@
 	mov r0, #1
 	sub r1, r8, #32     // name field
 	ldrb r2, [r1]       // name length
+	and r2, #F_LENMASK
 	add r1, #1
 	swi #0
 	mov r4, #' '
@@ -133,7 +134,17 @@ init_code:
 	.int xt_quit
 
 enter_colon:
+	// DEBUG
+	mov r4, #'{'
+	push {r4}
+	mov r7, #4
+	mov r0, #1
+	mov r1, sp
+	mov r2, #1
+	swi #0
+	pop {r0}
 	PRINTME
+	// END DEBUG
 	str r10, [r11, #-4]!        // Save the return address to the return stack
 	add r10, r8, #4             // Get the next instruction
 	NEXT
@@ -202,6 +213,15 @@ defcode "enterdoes", 9, enterdoes
 
 defcode "exit", 4, exit
 	ldr r10, [r11], #4          // ip = pop return stack
+	// DEBUG
+	mov r4, #'}'
+	push {r4}
+	mov r7, #4
+	mov r0, #1
+	mov r1, sp
+	mov r2, #1
+	swi #0
+	pop {r0}
 	NEXT
 
 defcode "halt", 4, halt         // infinite loop
@@ -1114,7 +1134,7 @@ defword "scan-in", 7, scan_in          // ( c -- a ) scan chars in input buffer
 scan_char:
 	.int xt_buffer_in
 	.int xt_two_dup                    // ( c a c a )
-	.int xt_fetch                      // ( c a c c2 )
+	.int xt_c_fetch                    // ( c a c c2 )
 	.int xt_equals, xt_not
 	.int xt_zero_branch                // ( c a )
 	label scan_complete
@@ -1131,7 +1151,7 @@ defword "skip-in", 7, skip_in          // ( c -- a ) skip chars in input buffer
 skip_char:
 	.int xt_buffer_in
 	.int xt_two_dup                    // ( c a c a )
-	.int xt_fetch                      // ( c a c c2 )
+	.int xt_c_fetch                    // ( c a c c2 )
 	.int xt_equals, xt_zero_branch     // ( c a )
 	label skip_complete
 	.int xt_one_plus                   // ( c a+1 )
@@ -1200,15 +1220,17 @@ accept_done:
 
 defword "refill", 6, refill            // ( -- ) refill tib
 	.int xt_tib
-	.int xt_lit, TIB_SIZE
-	.int xt_accept   // ( u )
+	.int xt_tib_size
+	.int xt_accept                     // ( a u1 -- u2 )
 	.int xt_num_tib, xt_store
 	.int xt_lit, 0, xt_to_in, xt_store
+	.int xt_exit
 
 defword "buffer-in", 9, buffer_in      // ( -- ) make sure the input buffer is not exhausted
-	.int xt_num_tib
-	.int xt_to_in, xt_fetch
-	.int xt_less, xt_not, xt_zero_branch
+	.int xt_num_tib, xt_fetch          // ( u1 )
+	.int xt_to_in, xt_fetch            // ( u1 u2 )
+	.int xt_less, xt_not
+	.int xt_zero_branch                // ( )
 	label buffer_in_full
 	.int xt_refill
 buffer_in_full:
