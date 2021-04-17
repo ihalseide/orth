@@ -11,6 +11,26 @@
 
 // ----- Macros -----
 
+// DEBUG NAME PRINT MACRO
+
+.macro PRINTME
+	// DEBUG
+	mov r7, #4          // WRITE THE WORD'S NAME
+	mov r0, #1
+	sub r1, r8, #32     // name field
+	ldrb r2, [r1]       // name length
+	add r1, #1
+	swi #0
+	mov r4, #' '
+	push {r4}
+	mov r7, #4          // WRITE A SPACE
+	mov r0, #1
+	mov r1, sp
+	mov r2, #1
+	swi #0
+	pop {r0}
+.endm
+
 // The inner interpreter
 .macro NEXT
 	ldr r8, [r10], #4       // r10 = the virtual instruction pointer
@@ -38,6 +58,7 @@ xt_\label:                   // code field
 	.align 2
 	.global code_\label
 code_\label:
+	bl DO_PRINTME
 .endm
 
 // Define an indirect threaded word
@@ -92,6 +113,10 @@ dictionary:
 
 .text
 
+DO_PRINTME:
+	PRINTME
+	bx lr
+
 .global _start
 _start:
 	ldr r0, =var_s_zero         // stack base
@@ -107,10 +132,8 @@ _start:
 init_code:
 	.int xt_quit
 
-next:                           // Inner interpreter
-	NEXT
-
 enter_colon:
+	PRINTME
 	str r10, [r11, #-4]!        // Save the return address to the return stack
 	add r10, r8, #4             // Get the next instruction
 	NEXT
@@ -1183,9 +1206,9 @@ defword "refill", 6, refill            // ( -- ) refill tib
 	.int xt_lit, 0, xt_to_in, xt_store
 
 defword "buffer-in", 9, buffer_in      // ( -- ) make sure the input buffer is not exhausted
-	.int xt_to_in, xt_fetch
 	.int xt_num_tib
-	.int xt_more, xt_zero_branch
+	.int xt_to_in, xt_fetch
+	.int xt_less, xt_not, xt_zero_branch
 	label buffer_in_full
 	.int xt_refill
 buffer_in_full:
