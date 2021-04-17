@@ -844,7 +844,7 @@ defword "?", 1, question              // ( a -- )
 	.int xt_exit
 
 defword "c?", 2, c_question           // ( a -- )
-	.int xt_c_fetch, xt_dot
+	.int xt_c_fetch, xt_u_dot
 	.int xt_exit
 	
 defword "tell", 4, tell               // ( a u -- )
@@ -1022,20 +1022,41 @@ defword "?newline", 8, question_newline // ( c -- f )
 	.int xt_or
 	.int xt_exit
 
-defword "accept", 6, accept            // ( a u1 -- u2 )
-	.int xt_dup, xt_to_r               // ( a u1 ) R: ( u1 )
+defword "accept", 6, accept            // ( a u1 -- u2 ) "accept at most u1 characters into address a"
+	.int xt_dup, xt_to_r               // ( a u1 R: u1 )
 accept_loop:
 	.int xt_dup, xt_zero_branch
 	label accept_done
 	.int xt_swap                       // ( u a )
 	.int xt_key                        // ( u a c )
+	.int xt_dup                        // ( u a c c )
 	.int xt_question_newline
 	.int xt_equals, xt_zero_branch
-	label accept_char                  // [enter] causes end of input
+	label accept_not_line              // [enter] causes end of input
 	.int xt_drop                       // ( u a )
 	.int xt_swap                       // ( a u )
 	.int xt_branch                     
 	label accept_done
+accept_not_line:
+	.int xt_dup                        // ( u a c c )
+	.int xt_lit, 8                     // handle backspace
+	.int xt_equals, xt_zero_branch     // ( u a c )
+	label accept_char                  
+	.int xt_drop, xt_over              // ( u a u )
+	.int xt_r_from                     // ( u a u u1 R: )
+	.int xt_tuck                       // ( u a u1 u u1 )
+	.int xt_equals, xt_zero_branch
+	label accept_backspace
+	.int xt_to_r                       // ( u a R: u1 )
+	.int xt_swap
+	.int xt_branch
+	label accept_loop
+accept_backspace:
+	.int xt_to_r                       // ( u a R: u1 )
+	.int xt_one_minus, xt_swap         // ( a-1 u )
+	.int xt_one_plus                   // ( a-1 u+1 )
+	.int xt_branch
+	label accept_loop
 accept_char
 	.int xt_over                       // ( u a c a )
 	.int xt_c_store                    // ( u a )
@@ -1045,7 +1066,7 @@ accept_char
 	.int xt_branch
 	label accept_loop
 accept_done:
-	.int xt_r_from                     // ( a u -- a u u1 ) R: ( u1 -- )
+	.int xt_r_from                     // ( a u -- a u u1 R: u1 -- )
 	.int xt_swap, xt_minus             // ( a u2 )
 	.int xt_nip                        // ( u2 )
 	.int xt_exit
