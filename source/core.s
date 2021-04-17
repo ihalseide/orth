@@ -5,7 +5,6 @@
 .set F_HIDDEN,    0b01000000
 .set NAME_LEN, 31
 .set TIB_SIZE, 1024
-.set TOB_SIZE, 1024
 .set TRUE, -1
 .set FALSE, 0
 
@@ -70,17 +69,12 @@ params_\label:               // parameter field
 .align 2
 var_to_in: .int 0
 var_num_tib: .int 0
-var_to_out: .int 0
-var_num_tob: .int 0
 var_state: .int 0
 var_base: .int 10
 var_latest: .int def_quit      // This should actually be the last word!
 var_h: .int __data_end         // This symbol is assigned by the linker script
 
 input_buffer: .space NUM_TIB
-
-.align 2
-output_buffer: .space NUM_TOB
 
 // ----- Core assembly code -----
 
@@ -386,19 +380,7 @@ defcode "execute", 7, execute        // ( xt -- )
 	bx r0                            // dangerous branch
 
 defcode "emit", 4, emit              // ( c -- )
-	ldr r3, =num_tob                 // Write a char to the output buffer, increment
-	ldr r3, [r3]                     // >out, and reset >out if it goes out of range
-	ldr r0, =output_buffer           // for the output buffer.
-	ldr r0, [r0]
-	ldr r1, =to_tob
-	cpy r2, r1
-	ldr r1, [r1]
-	cmp r1, r3
-	movge r1, #0
-	strb r9, [r0, r1]
-	add r1, #1
-	str r1, [r2]
-	pop {r9}
+	// TODO
 	NEXT
 
 defcode "/mod", 4, slash_mod // ( n m -- r q ) division remainder and quotient
@@ -407,6 +389,11 @@ defcode "/mod", 4, slash_mod // ( n m -- r q ) division remainder and quotient
 	bl fn_divmod
 	push {r0}
 	mov r9, r2
+	NEXT
+
+defcode "tib-size", 8, tib_size // constant
+	push {r9}
+	mov r9, #TIB_SIZE
 	NEXT
 
 defcode "tib", 3, tib          // constant
@@ -422,21 +409,6 @@ defcode "#tib", 4, num_tib     // constant
 defcode ">in", 3, to_in        // variable
 	push {r9}
 	ldr r9, =var_to_in
-	NEXT
-
-defcode "tob", 3, tob          // constant
-	push {r9}
-	ldr r9, =output_buffer
-	NEXT
-
-defcode "#tob", 4, num_tob     // constant
-	push {r9}
-	ldr r9, =var_num_tob
-	NEXT
-
-defcode ">out", 4, to_out      // variable
-	push {r9}
-	ldr r9, =var_to_out
 	NEXT
 
 defcode "state", 5, state      // variable
