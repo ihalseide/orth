@@ -96,7 +96,7 @@ var_state:   .int 0
 var_to_in:   .int 0
 var_latest:  .int the_last_word
 var_s_zero:  .int 0 // initialized later
-var_r_zero:  .int rstack_start
+var_r_zero:  .int 0 // initialized later
 var_num_tib: .int 0
 
 .align 2
@@ -120,14 +120,15 @@ DO_PRINTME:
 
 .global _start
 _start:
-	ldr r0, =var_s_zero         // stack base
+	/* Save parameter stack base */
+	ldr r0, =var_s_zero
 	str sp, [r0]
-	ldr r0, =var_r_zero         // init return stack
-	ldr r11, [r0]
-
-	eor r9, r9                  // zero the TOS register
-
-	ldr r10, =init_code         // set the IP to point to the first forth word to execute
+	/* Init return stack */
+	ldr r11, =rstack_start
+	ldr r1, =var_r_zero
+	str r11, [r1]
+	/* Start up Forth */
+	ldr r10, =init_code
 	NEXT
 
 init_code:
@@ -224,8 +225,11 @@ defcode "exit", 4, exit
 	pop {r0}
 	NEXT
 
-defcode "halt", 4, halt         // infinite loop
-	b code_halt
+defcode "halt", 4, halt
+	// b code_halt
+	eor r0, r0
+	mov r7, #1
+	swi #0
 
 defcode "lit", 3, lit
 	push {r9}                   // Push the next instruction value to the stack.
