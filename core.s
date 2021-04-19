@@ -59,7 +59,7 @@ xt_\label:                   // code field
 	.align 2
 	.global code_\label
 code_\label:
-	//bl DO_PRINTME
+	bl DO_PRINTME
 .endm
 
 // Define an indirect threaded word
@@ -138,15 +138,15 @@ init_code:
 
 enter_colon:
 	// DEBUG
-	//mov r4, #'{'
-	//push {r4}
-	//mov r7, #4
-	//mov r0, #1
-	//mov r1, sp
-	//mov r2, #1
-	//swi #0
-	//pop {r0}
-	//bl DO_PRINTME
+	mov r4, #'{'
+	push {r4}
+	mov r7, #4
+	mov r0, #1
+	mov r1, sp
+	mov r2, #1
+	swi #0
+	pop {r0}
+	bl DO_PRINTME
 	// END DEBUG
 	str r10, [r11, #-4]!        // Save the return address to the return stack
 	add r10, r8, #4             // Get the next instruction
@@ -217,14 +217,14 @@ defcode "enterdoes", 9, enterdoes
 defcode "exit", 4, exit
 	ldr r10, [r11], #4          // ip = pop return stack
 	// DEBUG
-	//mov r4, #'}'
-	//push {r4}
-	//mov r7, #4
-	//mov r0, #1
-	//mov r1, sp
-	//mov r2, #1
-	//swi #0
-	//pop {r0}
+	mov r4, #'}'
+	push {r4}
+	mov r7, #4
+	mov r0, #1
+	mov r1, sp
+	mov r2, #1
+	swi #0
+	pop {r0}
 	// END DEBUG
 	NEXT
 
@@ -310,8 +310,8 @@ defcode "swap", 4, swap   // ( x1 x2 -- x2 x1 )
 	mov r9, r0
 	NEXT
 
-defcode "over", 4, over   // ( x1 x2 -- x1 x2 x1 )
-	ldr r0, [r13]         // get a copy of the second item on stack
+defcode "over", 4, over   // ( x1 .x2 -- x1 x2 .x1 )
+	ldr r0, [sp]          // get a copy of the second item on stack
 	push {r9}             // push TOS to the rest of the stack
 	mov r9, r0            // TOS = copy of the second item from earlier
 	NEXT
@@ -339,16 +339,13 @@ defcode "-rot", 4, minus_rot   // ( x1 x2 x3 -- x3 x1 x2 )
 	NEXT
 
 defcode "2dup", 4, two_dup  // ( x1 x2 -- x1 x2 x1 x2 )
-	ldr r0, [r13]
+	ldr r1, [sp]            // r1 = x1
 	push {r9}
-	mov r9, r0
-	ldr r0, [r13]
-	push {r9}
-	mov r9, r0
+	push {r1}
 	NEXT
 
 defcode "2drop", 5, two_drop // ( x1 x2 -- )
-	pop {r9}
+	pop {r0}
 	pop {r9}
 	NEXT
 
@@ -493,17 +490,17 @@ defcode "accept", 6, accept          // ( a u1 -- u2 )
 	pop {r1}            // buf = a
 	mov r2, r9          // u1 char(s)
 	swi #0
-	mov r0, r9
+	mov r9, r0
 	NEXT
 
 defcode "emit", 4, emit              // ( c -- )
-	push {r9}                        // store on the stack
 	mov r7, #4                       // write(fd, buf, len)
 	mov r0, #1                       // stdout
-	mov r1, sp
-	mov r2, #1
+	strb r9, [sp, #-1]               // use stack as the write buffer
+	sub r1, sp, #1                  // buf = sp-1
+	cpy r2, r0
 	swi #0
-	ldr r9, [sp], #8                 // get new TOS
+	pop {r9}
 	NEXT
 
 defcode "type", 4, type              // ( a u -- )
@@ -563,7 +560,7 @@ defcode "tib", 3, tib          // constant
 	ldr r9, =input_buffer
 	NEXT
 
-defcode "#tib", 4, num_tib     // constant
+defcode "#tib", 4, num_tib     // variable
 	push {r9}
 	ldr r9, =var_num_tib
 	NEXT
@@ -896,8 +893,9 @@ defword "here", 4, here                     // value
 	.int xt_exit
 
 defword "interpret", 9, interpret           // ( x*i -- x*j )
-	.int xt_bl, xt_word
-	.int xt_count, xt_two_dup               // ( a u a u )
+	.int xt_lit, xt_question_separator
+	.int xt_word
+	.int xt_ccount, xt_two_dup              // ( a u a u )
 	.int xt_find                            // ( a u link|0 )
 	.int xt_dup, xt_zero_branch             // ( a u link|0 )
 	label interpret_not_found               // ( a u link )
@@ -947,7 +945,7 @@ defword "[']", 1+F_IMMEDIATE, bracket_tick  // ( -- xt )
 	.int xt_exit
 
 defword "'", 1, tick                        // ( -- xt )
-	.int xt_bl, xt_word, xt_count
+	.int xt_bl, xt_word, xt_ccount
 	.int xt_find, xt_to_xt
 	.int xt_exit
 
@@ -986,10 +984,31 @@ defword "?immediate", 10, question_immediate  // ( link -- f )
 	.int xt_fimmediate, xt_and, xt_bool
 	.int xt_exit
 
-defword "count", 5, count              // ( a1 -- a2 u )
-	.int xt_dup
-	.int xt_one_plus, xt_swap
-	.int xt_c_fetch
+defword "count", 5, count       // ( a1 -- a2 u )
+	.int xt_dup                 // ( a1 a1 )
+	.int xt_lit, 4
+	.int xt_plus, xt_swap       // ( a2 a1 )
+	.int xt_fetch               // ( a2 c )
+	.int xt_exit
+
+defword "ccount", 6, ccount     // ( a1 -- a2 c )
+	.int xt_dup                 // ( a1 a1 )
+	.int xt_one_plus, xt_swap   // ( a2 a1 )
+	.int xt_c_fetch             // ( a2 c )
+	.int xt_exit
+
+defword "str-lit", 7, str_lit   // ( R: a2 -- a1 u1 R: a3 ) load an embedded string
+	.int xt_r_from              // ( a2 R: )
+	.int xt_count               // ( a1 u1 )
+	.int xt_two_dup, xt_plus    // ( a1 u1 a3 )
+	.int xt_to_r                // ( a1 u1 R: a3 )
+	.int xt_exit
+
+defword "cstr-lit", 8, cstr_lit // ( R: a2 -- a1 c1 R: a3 ) load a short embedded string
+	.int xt_r_from              // ( a2 R: )
+	.int xt_ccount              // ( a1 c1 )
+	.int xt_two_dup, xt_plus    // ( a1 c1 a3 )
+	.int xt_to_r                // ( a1 c1 R: a3 )
 	.int xt_exit
 
 defword "mod", 3, mod                 // ( n m -- r ) division remainder
@@ -1081,7 +1100,7 @@ defword "recurse", 7+F_IMMEDIATE, recurse          // ( -- )
 	.int xt_exit
 
 defword "id.", 3, id_dot                           // ( link -- )
-	.int xt_to_name, xt_count
+	.int xt_to_name, xt_ccount
 	.int xt_flenmask, xt_and
 	.int xt_type
 	.int xt_exit
@@ -1146,29 +1165,30 @@ defword "find", 4, find                // ( a u -- link | 0 )
 find_link:
 	.int xt_dup, xt_zero_branch
 	label find_no_find
-	.int xt_dup, xt_question_hidden
+	.int xt_dup, xt_question_hidden    // ( a u link f )
 	.int xt_not, xt_zero_branch
 	label find_next
 	.int xt_two_dup                    // ( a u link u link )
-	.int xt_to_name, xt_count
-	.int xt_flenmask, xt_and
-	.int xt_nip, xt_equals
+	.int xt_to_name, xt_ccount         // ( a u link u a c )
+	.int xt_nip                        // ( a u link u c
+	.int xt_flenmask, xt_and           // ( a u link u c )
+	.int xt_equals                     // ( a u link f )
 	.int xt_zero_branch
 	label find_link                    // ( a u link )
 	.int xt_dup, xt_two_swap           // ( link link a u )
 	.int xt_rot                        // ( link a u link )
-	.int xt_count                      // ( link a u a2 u2 )
+	.int xt_ccount                     // ( link a u a2 u2 )
 	.int xt_flenmask, xt_and
 	.int xt_two_over                   // ( link a u a2 u2 a u )
 	.int xt_compare                    // ( link a u f )
 	.int xt_not, xt_zero_branch
-	label find_found
+	label find_found                   // ( link a u )
 	.int xt_rot                        // ( a u link )
 find_next:
 	.int xt_fetch                      // ( a u *link )
 	.int xt_branch
 	label find_link
-find_found:
+find_found:                            // ( link a u )
 	.int xt_drop, xt_drop
 	.int xt_exit
 find_no_find:
@@ -1215,30 +1235,29 @@ defword "source", 6, source       // ( -- a u )
 	.int xt_minus
 	.int xt_exit
 
-defword "skip", 4, skip       // ( a1 c1 -- a2 ) find address, a2, of the next non-c1 char starting from a1
+defword "skip", 4, skip       // ( a1 p -- a2 ) from char address a1, find 1st char that doesn't match p
 skip_loop:
-	.int xt_over, xt_c_fetch  // ( a c1 c )
-	.int xt_over, xt_equals   // ( a c1 f )
-	.int xt_zero_branch
+	.int xt_over, xt_c_fetch  // ( a p -- a p c )
+	.int xt_over              // ( a p c p )
+	.int xt_execute           // ( a p f )
+	.int xt_zero_branch       // ( a p )
 	label skip_done
 	.int xt_swap              // a+1 -> a
 	.int xt_one_plus
-	.int xt_swap              // ( a c1 )
+	.int xt_swap              // ( a p )
 	.int xt_branch
 	label skip_loop
 skip_done:
-	.int xt_drop              // ( a2 c1 -- a2 )
+	.int xt_drop              // ( a2 p -- a2 )
 	.int xt_exit
 
-defword "scan", 4, scan       // ( a1 c1 -- a2 ) find first occurance, a2, of char c1 starting from a1
+defword "scan", 4, scan       // ( a1 p -- a2 ) start at char address a1, find 1st char that matches p
 scan_loop:
-	.int xt_over, xt_c_fetch  // ( a c1 c )
-	.int xt_dup
-	.int xt_zero_branch
-	label scan_done
-	.int xt_over, xt_equals   // ( a c1 f )
-	.int xt_not
-	.int xt_zero_branch
+	.int xt_over, xt_c_fetch  // ( a p -- a p c )
+	.int xt_over              // ( a p c p )
+	.int xt_execute           // ( a p f )
+	.int xt_zero_equals       
+	.int xt_zero_branch       // ( a p )
 	label scan_done
 	.int xt_swap              // a+1 -> a
 	.int xt_one_plus
@@ -1246,38 +1265,29 @@ scan_loop:
 	.int xt_branch
 	label scan_loop
 scan_done:
-	.int xt_drop              // ( a2 c1 -- a2 )
+	.int xt_drop              // ( a2 p -- a2 )
 	.int xt_exit
 
-defword "word", 4, word           // ( c1 -- a1 )
+defword "?separator", 10, question_separator    // ( c -- f )
+	.int xt_dup, xt_lit, 0, xt_equals, xt_swap  // ( f c )
+	.int xt_dup, xt_lit, 9, xt_equals, xt_swap  // ( f f c )
+	.int xt_dup, xt_lit, 10, xt_equals, xt_swap // ( f f f c )
+	.int xt_dup, xt_lit, 13, xt_equals, xt_swap // ( f f f c )
+	.int xt_lit, 32, xt_equals                  // ( f f f f )
+	.int xt_or, xt_or, xt_or, xt_or             // ( f )
+	.int xt_exit
+
+defword "word", 4, word           // ( p -- a1 )
 word_input:
-	.int xt_source                // ( c1 a u )
+	.int xt_source                // ( p a u )
 	.int xt_dup, xt_zero_equals
-	.int xt_zero_branch           // ( c1 a u )
+	.int xt_zero_branch           // ( p a u )
 	label word_copy
-	.int xt_two_drop              // ( c1 )
-	.int xt_refill, xt_drop       // ( c1 )
+	.int xt_two_drop              // ( p )
+	.int xt_refill, xt_drop       // ( p )
 	.int xt_branch
 	label word_input
-word_copy:                        // ( c1 a u )
-	.int xt_to_r                  // ( c1 a R: u )   >R
-	.int xt_over                  // ( c1 a c1 )
-	.int xt_skip                  // ( c1 a3 )
-	.int xt_swap, xt_two_dup      // ( a3 c1 a3 c1 )
-	.int xt_scan                  // ( a3 c1 a4 )
-	.int xt_nip                   // ( a3 a4 )
-	.int xt_dup, xt_tib, xt_minus // update >in
-	.int xt_to_in, xt_store
-	.int xt_over, xt_minus        // ( a3 u )
-	.int xt_r_from, xt_max        // ( a3 u R: )      R>
-	.int xt_dup, xt_to_r          // ( a3 u R: u )   >R
-	.int xt_here                  // ( a3 u a1 )
-	.int xt_one_plus              // ( a3 u a1+1 )
-	.int xt_swap                  // ( a3 a1+1 u )
-	.int xt_cmove                 // ( )
-	.int xt_r_from                // ( u R: )         R>
-	.int xt_here, xt_c_store      // ( )
-	.int xt_here                  // ( a1 )
+word_copy:                        // ( p a u )
 	.int xt_exit
 
 defword "words", 5, words
@@ -1298,14 +1308,24 @@ words_done:
 the_last_word:
 
 defword "quit", 4, quit
+	// minus test
+//	.int xt_lit, 20, xt_lit, 19, xt_minus, xt_dot
+
+	// literal string test
+//	.int xt_cstr_lit
+//	.byte 14
+//	.ascii "Hello, world!\n"
+//	.int xt_type
+//	.int xt_halt
+
 	// max test
 //	.int xt_lit, -200, xt_lit, 400, xt_max, xt_dot
 //	.int xt_lit, 400, xt_lit, -200, xt_max, xt_dot
 //	.int xt_lit, 400, xt_lit, 200, xt_max, xt_dot
 //	.int xt_lit, 200, xt_lit, 400, xt_max, xt_dot
 //	.int xt_halt
-//
-//	// cmove test
+
+	// cmove test
 //	.int xt_lit, cmove_a, xt_lit, 6, xt_type, xt_lit, '\n', xt_emit
 //	.int xt_lit, cmove_b, xt_lit, 8, xt_type, xt_lit, '\n', xt_emit
 //	.int xt_lit, cmove_a, xt_lit, cmove_b+1, xt_lit, 6, xt_cmove
@@ -1313,13 +1333,76 @@ defword "quit", 4, quit
 //	.int xt_lit, cmove_b, xt_lit, 8, xt_type, xt_lit, '\n', xt_emit
 //	.int xt_halt
 
-	.int xt_source, xt_dot, xt_dot
+	// echo raw test
+//	.int xt_refill
+//	.int xt_dot
+//	.int xt_tib
+//	.int xt_num_tib, xt_fetch
+//	.int xt_type
+//	.int xt_halt
 
-	// word echo test
-	.int xt_bl, xt_word
-	.int xt_here, xt_lit, 5, xt_type
-	.int xt_halt
-	.int xt_count, xt_type
+//	// word echo test
+//	.int xt_bl, xt_word, xt_ccount, xt_type
+//	.int xt_halt
+
+//	// execute test
+//	.int xt_lit, 'X'
+//	.int xt_lit, xt_emit, xt_execute
+//	.int xt_str_lit, 4
+//	.ascii "good"
+//	.int xt_type
+//	.int xt_halt
+
+//	// TEST "?separator"
+//	.int xt_rsp_fetch, xt_dot
+//	.int xt_lit, 0, xt_question_separator, xt_dot
+//	.int xt_lit, 1, xt_question_separator, xt_dot
+//	.int xt_lit, 10, xt_question_separator, xt_dot
+//	.int xt_lit, 40, xt_question_separator, xt_dot
+//	.int xt_rsp_fetch, xt_dot
+//	.int xt_halt
+
+//	// TEST over
+//	.int xt_lit, 'A'
+//	.int xt_lit, 'B'
+//	.int xt_over
+//	.int xt_emit
+//	.int xt_emit
+//	.int xt_emit
+//	.int xt_halt
+
+//	// TEST skip
+//	// str1
+//	.int xt_lit, str_1, xt_dup, xt_dot
+//	.int xt_lit, xt_question_separator
+//	.int xt_skip
+//	.int xt_dot
+//	// str2
+//	.int xt_lit, str_2, xt_dup, xt_dot
+//	.int xt_lit, xt_question_separator
+//	.int xt_skip
+//	.int xt_dot
+//	.int xt_halt
+	
+//	// TEST scan
+//	// str1
+//	.int xt_lit, str_1, xt_dup, xt_dot
+//	.int xt_lit, xt_question_separator
+//	.int xt_scan
+//	.int xt_dot
+//	// str2
+//	.int xt_lit, str_2, xt_dup, xt_dot
+//	.int xt_lit, xt_question_separator
+//	.int xt_scan
+//	.int xt_dot
+//	.int xt_halt
+
+	// TEST word
+	.int xt_question_separator
+	.int xt_word
+	.int xt_here
+	.int xt_ccount
+	.int xt_type
 	.int xt_halt
 
 	.int xt_r_zero, xt_rsp_store  // clear return stack
@@ -1329,8 +1412,11 @@ quit_loop:
 	label quit_loop
 	// no exit
 
+// TEST
 cmove_a: .ascii "cheese"
 cmove_b: .ascii "________"
+str_1: .ascii "  two leading spaces"
+str_2: .ascii "no leading spaces"
 
 .align 2
 
