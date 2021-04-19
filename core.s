@@ -59,7 +59,7 @@ xt_\label:                   // code field
 	.align 2
 	.global code_\label
 code_\label:
-	bl DO_PRINTME
+	//bl DO_PRINTME
 .endm
 
 // Define an indirect threaded word
@@ -136,15 +136,15 @@ init_code:
 
 enter_colon:
 	// DEBUG
-	mov r4, #'{'
-	push {r4}
-	mov r7, #4
-	mov r0, #1
-	mov r1, sp
-	mov r2, #1
-	swi #0
-	pop {r0}
-	PRINTME
+	//mov r4, #'{'
+	//push {r4}
+	//mov r7, #4
+	//mov r0, #1
+	//mov r1, sp
+	//mov r2, #1
+	//swi #0
+	//pop {r0}
+	//bl DO_PRINTME
 	// END DEBUG
 	str r10, [r11, #-4]!        // Save the return address to the return stack
 	add r10, r8, #4             // Get the next instruction
@@ -215,14 +215,15 @@ defcode "enterdoes", 9, enterdoes
 defcode "exit", 4, exit
 	ldr r10, [r11], #4          // ip = pop return stack
 	// DEBUG
-	mov r4, #'}'
-	push {r4}
-	mov r7, #4
-	mov r0, #1
-	mov r1, sp
-	mov r2, #1
-	swi #0
-	pop {r0}
+	//mov r4, #'}'
+	//push {r4}
+	//mov r7, #4
+	//mov r0, #1
+	//mov r1, sp
+	//mov r2, #1
+	//swi #0
+	//pop {r0}
+	// END DEBUG
 	NEXT
 
 defcode "halt", 4, halt
@@ -512,7 +513,7 @@ defcode "type", 4, type              // ( a u -- )
 	pop {r9}                         // get TOS
 	NEXT
 
-defcode "cmove", 5, cmove            // ( a1 a2 u -- )
+defcode "cmove", 5, cmove            // ( a1 a2 u -- ) move u chars from a1 to a2
 	eor r2, r2                       // r2 = index
 	pop {r1}                         // r1 = a2
 	pop {r0}                         // r0 = a1
@@ -837,7 +838,7 @@ defword "link", 4, link                 // ( -- ) create link field
 
 defword "header", 6, header   // ( -- )
 	.int xt_link
-	.int xt_word
+	.int xt_bl, xt_word
 	.int xt_here, xt_c_fetch  // ( c )
 	.int xt_num_name, xt_max
 	.int xt_here, xt_c_store
@@ -892,52 +893,47 @@ defword "here", 4, here                     // value
 	.int xt_h, xt_fetch
 	.int xt_exit
 
-defword "[", 1+F_IMMEDIATE, bracket         // ( -- ) interpreter
-	.int xt_false, xt_state, xt_store
-interpret_loop:
-	.int xt_word, xt_count, xt_two_dup      // ( a u a u )
+defword "interpret", 9, interpret           // ( x*i -- x*j )
+	.int xt_bl, xt_word
+	.int xt_count, xt_two_dup               // ( a u a u )
 	.int xt_find                            // ( a u link|0 )
-	.int xt_dup, xt_zero_branch
-	label interpret_not_found
+	.int xt_dup, xt_zero_branch             // ( a u link|0 )
+	label interpret_not_found               // ( a u link )
 	.int xt_nip, xt_nip                     // ( link )
-	.int xt_to_xt, xt_execute
-	.int xt_branch
-	label interpret_loop
+	.int xt_dup, xt_to_xt, xt_swap          // ( xt link )
+	.int xt_question_immediate              // ( xt f )
+	.int xt_zero_branch
+	label interpret_normal
+	.int xt_execute                         // ( xt -- )
+	.int xt_exit
+interpret_normal:
+	.int xt_question_interpret
+	.int xt_zero_branch
+	label interpret_compile_xt
+	.int xt_execute                         // ( xt -- )
+	.int xt_exit
+interpret_compile_xt:
+	.int xt_comma                           // ( xt -- )
+	.int xt_exit
 interpret_not_found:                        // convert to number
 	.int xt_drop                            // ( a u 0 -- a u )
 	.int xt_str_to_n                        // ( a u -- n u2|0 )
 	.int xt_drop                            // ( n ) ignore errors
-	.int xt_branch
-	label interpret_loop
-	// no exit
+	.int xt_question_interpret
+	.int xt_zero_branch
+	label interpret_compile_number
+	.int xt_exit                            // ( n )
+interpret_compile_number:
+	.int xt_literal                         // ( )
+	.int xt_exit
+
+defword "[", 1+F_IMMEDIATE, bracket         // ( -- ) interpreter
+	.int xt_false, xt_state, xt_store
+	.int xt_exit
 
 defword "]", 1, rbracket                    // ( -- ) compiler
 	.int xt_true, xt_state, xt_store
-compile_loop:
-	.int xt_word, xt_count, xt_two_dup      // ( a u a u )
-	.int xt_find                            // ( a u link|0 )
-	.int xt_dup, xt_zero_branch             // ( a u link|0 )
-	label compile_not_found
-	.int xt_nip, xt_nip                     // ( xt )
-	.int xt_dup, xt_to_xt, xt_swap          // ( xt link )
-	.int xt_question_immediate              // ( xt )
-	.int xt_zero_branch
-	label compile_normal
-	.int xt_execute                         // execute immediate word
-	.int xt_branch
-	label compile_loop
-compile_normal:                             // ( xt )
-	.int xt_comma
-	.int xt_branch
-	label compile_loop
-compile_not_found:                          // convert to number
-	.int xt_drop                            // ( a u 0 -- a u )
-	.int xt_str_to_n                        // ( a u -- n u2|0 )
-	.int xt_drop                            // ( n ) ignore errors
-	.int xt_literal
-	.int xt_branch
-	label compile_loop
-	// no exit
+	.int xt_exit
 
 defword "literal", 7, literal               // ( x -- )
 	.int xt_lit, xt_lit, xt_comma           // compile "lit"
@@ -949,7 +945,7 @@ defword "[']", 1+F_IMMEDIATE, bracket_tick  // ( -- xt )
 	.int xt_exit
 
 defword "'", 1, tick                        // ( -- xt )
-	.int xt_word, xt_count
+	.int xt_bl, xt_word, xt_count
 	.int xt_find, xt_to_xt
 	.int xt_exit
 
@@ -1194,7 +1190,7 @@ defword "immediate", 9, immediate                // ( link -- )
 
 // TODO: other input sources
 defword "refill", 6, refill       // ( -- f )
-	.int xt_tib, xt_fetch         // ( a )
+	.int xt_tib                   // ( a )
 	.int xt_tib_size              // ( a u1 )
 	.int xt_accept                // ( u2 )
 	.int xt_num_tib, xt_store     // ( )
@@ -1217,69 +1213,67 @@ defword "source", 6, source       // ( -- a u )
 	.int xt_minus
 	.int xt_exit
 
+defword "skip", 4, skip       // ( a1 c1 -- a2 ) find address, a2, of the next non-c1 char starting from a1
+skip_loop:
+	.int xt_over, xt_c_fetch  // ( a c1 c )
+	.int xt_over, xt_equals   // ( a c1 f )
+	.int xt_zero_branch
+	label skip_done
+	.int xt_swap              // a+1 -> a
+	.int xt_one_plus
+	.int xt_swap              // ( a c1 )
+	.int xt_branch
+	label skip_loop
+skip_done:
+	.int xt_drop              // ( a2 c1 -- a2 )
+	.int xt_exit
+
+defword "scan", 4, scan       // ( a1 c1 -- a2 ) find first occurance, a2, of char c1 starting from a1
+scan_loop:
+	.int xt_over, xt_c_fetch  // ( a c1 c )
+	.int xt_dup
+	.int xt_zero_branch
+	label scan_done
+	.int xt_over, xt_equals   // ( a c1 f )
+	.int xt_not
+	.int xt_zero_branch
+	label scan_done
+	.int xt_swap              // a+1 -> a
+	.int xt_one_plus
+	.int xt_swap              // ( a c1 )
+	.int xt_branch
+	label scan_loop
+scan_done:
+	.int xt_drop              // ( a2 c1 -- a2 )
+	.int xt_exit
+
 defword "word", 4, word           // ( c1 -- a1 )
 word_input:
 	.int xt_source                // ( c1 a u )
 	.int xt_dup, xt_zero_equals
-	.int xt_zero_branch
-	label word_skip
-	.int xt_two_drop
-	.int xt_refill, xt_drop
+	.int xt_zero_branch           // ( c1 a u )
+	label word_copy
+	.int xt_two_drop              // ( c1 )
+	.int xt_refill, xt_drop       // ( c1 )
 	.int xt_branch
 	label word_input
-word_skip:
-	.int xt_dup, xt_lit, 0
-	.int xt_more, xt_zero_branch
-	label word_scan1
-	.int xt_to_r                  // ( c1 a R: u )
-	.int xt_two_dup               // ( c1 a c1 a R: u )
-	.int xt_c_fetch               // ( c1 a c1 c R: u )
-	.int xt_equals                // ( c1 a f R: u )
-	.int xt_zero_branch           // ( c1 a R: u )
-	label word_scan2
-	.int xt_one_plus              // ( c1 a R: u )
-	.int xt_r_from                // ( c1 a u R: )
-	.int xt_one_minus
-	.int xt_branch
-	label word_skip
-word_scan2:                       // ( c1 a R: u )
-	.int xt_r_from
-word_scan1:                       // ( c1 a u )
-	.int xt_over, xt_to_r         // ( c1 a u R: a2 )
-word_scan:
-	.int xt_dup, xt_lit, 0
-	.int xt_more, xt_zero_branch
-	label word_result1            // ( c1 a u R: a2 )
-	.int xt_to_r                  // ( c1 a R: a2 u )
-	.int xt_two_dup               // ( c1 a c1 a R: a2 u )
-	.int xt_fetch
-	.int xt_equals, xt_not
-    .int xt_zero_branch           // ( c1 a R: a2 u )
-	label word_result2            // ( c1 a R: a2 u )
-	.int xt_one_plus
-	.int xt_r_from, xt_one_minus  // ( c1 a u R: a2 )
-	.int xt_dup, xt_not           // ( c1 a u u R: a2 )
-	.int xt_zero_branch           // ( c1 a u R: a2 )
-	label word_scan
-	.int xt_branch
-	label word_result1            // ( c1 a u R: a2 )
-word_result2:
-	.int xt_r_from                // ( c1 a u R: a2 )
-word_result1:
-	.int xt_drop, xt_nip          // ( a R: a2 )
-	.int xt_r_from                // ( a a2 )
-	.int xt_tuck                  // ( a2 a a2 )
-	.int xt_swap                  // ( a2 a2 a )
-	.int xt_minus                 // ( a2 u )
-	.int xt_dup, xt_to_r          // ( a2 u R: u )
-	.int xt_here                  // ( a2 u a1 R: u )
-	.int xt_one_plus              // ( a2 u h+1 R: u )
-	.int xt_swap                  // ( a2 h+1 u R: u )
-	.int xt_cmove                 // ( R: u ) copy name over to here
-	.int xt_r_from                // ( u ) write length byte
-	.int xt_here                  // ( u h )
-	.int xt_store                 // ( )
-	.int xt_here                  // ( a1 ) return here
+word_copy:                        // ( c1 a u )
+	.int xt_to_r                  // ( c1 a R: u )   >R
+	.int xt_over                  // ( c1 a c1 )
+	.int xt_skip                  // ( c1 a3 )
+	.int xt_swap, xt_two_dup      // ( a3 c1 a3 c1 )
+	.int xt_scan                  // ( a3 c1 a4 )
+	.int xt_nip                   // ( a3 a4 )
+	.int xt_over, xt_minus        // ( a3 u )
+	.int xt_r_from, xt_max        // ( a3 u R: )      R>
+	.int xt_dup, xt_to_r          // ( a3 u R: u )   >R
+	.int xt_here                  // ( a3 u a1 )
+	.int xt_one_plus              // ( a3 u a1+1 )
+	.int xt_swap                  // ( a3 a1+1 u )
+	.int xt_cmove                 // ( )
+	.int xt_r_from                // ( u R: )         R>
+	.int xt_here, xt_c_store      // ( )
+	.int xt_here                  // ( a1 )
 	.int xt_exit
 
 defword "words", 5, words
@@ -1300,14 +1294,31 @@ words_done:
 the_last_word:
 
 defword "quit", 4, quit
-	.int xt_lit, 36, xt_base, xt_store
-	.int xt_lit, -15, xt_dot, xt_lit, '\n', xt_emit
+
+	// cmove test
+	.int xt_lit, cmove_a, xt_lit, 6, xt_type, xt_lit, '\n', xt_emit
+	.int xt_lit, cmove_b, xt_lit, 8, xt_type, xt_lit, '\n', xt_emit
+	.int xt_lit, cmove_a, xt_lit, cmove_b+1, xt_lit, 6, xt_cmove
+	.int xt_lit, cmove_a, xt_lit, 6, xt_type, xt_lit, '\n', xt_emit
+	.int xt_lit, cmove_b, xt_lit, 8, xt_type, xt_lit, '\n', xt_emit
 	.int xt_halt
-	.int xt_words
+
+	// word echo test
+	.int xt_bl, xt_word
+	.int xt_count, xt_type
 	.int xt_halt
+
 	.int xt_r_zero, xt_rsp_store  // clear return stack
-	.int xt_bracket               // interpret
+quit_loop:
+	.int xt_interpret
+	.int xt_branch
+	label quit_loop
 	// no exit
+
+cmove_a: .ascii "cheese"
+cmove_b: .ascii "________"
+
+.align 2
 
 data_end:
 
