@@ -265,7 +265,7 @@ defcode "PSP@", 4, psp_fetch
 	mov r9, sp
 	NEXT
 
-defcode "PSP!", 4, psp_store 
+defcode "PSP!", 4, psp_store
 	mov sp, r9
 	NEXT
 
@@ -528,7 +528,7 @@ cmove_check:
 	NEXT
 
 defcode "cmove>", 6, cmove_from      // ( a1 a2 u -- )
-	mov r2, r9                       // r2 = index          
+	mov r2, r9                       // r2 = index
 	pop {r1}                         // r1 = a2
 	pop {r0}                         // r0 = a1
 	b cmove_from_check
@@ -632,7 +632,7 @@ to_num_done:                  // number conversion done
 defcode "u>str", 5, u_to_str  // ( u1 -- a u2 )
 	/* Get the pad address and make an index into it */
 	mov r4, #0                // r4 = index
-	ldr r5, =var_h          
+	ldr r5, =var_h
 	ldr r5, [r5]              // r5 = here (temporary space to write the digits)
 	add r5, #1                // leave a space for prefix minus sign
 	/* Get the number base */
@@ -814,36 +814,43 @@ defcode "#name", 5, num_name
 	mov r9, #NAME_LEN
 	NEXT
 
-// ----- High-level words ----- 
+// ----- High-level words -----
 
 defword ":", 1, colon
-	.int xt_word, xt_header                        // create the empty word header
-	.int xt_entercolon, xt_comma                   // make the word run docol
-	.int xt_latest, xt_fetch, xt_hide              // hide the word
-	.int xt_rbracket                               // enter the compiler
-	// unreachable
+	.int xt_header
+	.int xt_entercolon, xt_comma        // make the word run docol
+	.int xt_latest, xt_fetch, xt_hide   // hide the word
+	.int xt_rbracket                    // enter the compiler
 	.int xt_exit
 
 defword ";", 1+F_IMMEDIATE, semicolon
-	.int xt_latest, xt_fetch, xt_show              // make the word shown
-	.int xt_lit, xt_exit, xt_comma                 // compile exit code
-	.int xt_bracket                                // enter the immediate interpreter
-	// unreachable
-	.int xt_exit                                   
+	.int xt_lit, xt_exit, xt_comma      // compile exit code
+	.int xt_latest, xt_fetch, xt_show   // make the word shown
+	.int xt_bracket                     // enter the immediate interpreter
+	.int xt_exit
 
-defword "header", 6, header                        // ( a u -- )
-	.int xt_align                                  // align compilation pointer
-	.int xt_here                                   // here = link field address
-	.int xt_latest, xt_fetch, xt_comma             // link field points to previous word
-	.int xt_latest, xt_store                       // make this link field address the latest word
-	.int xt_name_comma                             // copy the word's name
+defword "link", 4, link                 // ( -- ) create link field
+	.int xt_align                       // align compilation pointer
+	.int xt_here                        // here = link field address
+	.int xt_latest, xt_fetch, xt_comma  // link field points to previous word
+	.int xt_latest, xt_store            // make this link field address the latest word
+
+defword "header", 6, header   // ( -- )
+	.int xt_link
+	.int xt_word
+	.int xt_here, xt_c_fetch  // ( c )
+	.int xt_num_name, xt_max
+	.int xt_here, xt_c_store
+	.int xt_num_name          // h += name length
+	.int xt_here, xt_plus
+	.int xt_h, xt_store
 	.int xt_exit
 
 defword "pass", 4, pass                            // ( -- ) "no-op"
 	.int xt_exit
 
 defword "create:", 7, create_colon                 // ( -- ) name ( -- )
-	.int xt_word, xt_header                        // get word name input
+	.int xt_header
 	.int xt_enterdoes, xt_comma
 	.int xt_lit, xt_pass, xt_cell, xt_plus
 	.int xt_comma
@@ -856,7 +863,7 @@ defword "does>", 5, does
 	.int xt_exit
 
 defword "->variable:", 12, to_variable_colon       // ( x -- ) variable initialized to x
-	.int xt_word, xt_header                        // get word name input
+	.int xt_header                                 // get word name input
 	.int xt_lit, enter_variable, xt_comma          // make this word push it's parameter field
 	.int xt_comma
 	.int xt_exit
@@ -867,34 +874,9 @@ defword "variable:", 9, variable_colon             // ( -- )
 	.int xt_exit
 
 defword "constant:", 9, constant_colon             // ( x -- ) constant with value x
-	.int xt_word, xt_header                        // get word name input
+	.int xt_header                                 // get word name input
 	.int xt_lit, enter_constant, xt_comma          // make this word push it's parameter field
 	.int xt_comma
-	.int xt_exit
-
-defword "name,", 5, name_comma                     // ( a u -- ) compile name field
-	.int xt_num_name, xt_max
-	.int xt_dup, xt_c_comma
-	.int xt_swap, xt_over                          // ( c a c1 )
-copy_loop:
-	.int xt_dup, xt_zero_branch
-	label copy_done
-	.int xt_swap, xt_dup, xt_fetch, xt_c_comma     // copy one char from a and increment a
-	.int xt_one_plus
-	.int xt_swap, xt_one_minus                     // decrement c1
-	.int xt_branch
-	label copy_loop
-copy_done:
-	.int xt_drop, xt_drop                          // ( c )
-	.int xt_num_name, xt_minus                     // number of remaining spaces in the name field
-blank_loop:                                        // compile <c> blank spaces after the name
-	.int xt_dup, xt_zero_branch
-	label blank_done
-	.int xt_lit, ' ', xt_c_comma
-	.int xt_one_minus
-	.int xt_branch
-	label blank_loop
-blank_done:
 	.int xt_exit
 
 defword "aligned", 7, aligned                      // ( a1 -- a2 )
@@ -913,7 +895,7 @@ defword "here", 4, here                     // value
 defword "[", 1+F_IMMEDIATE, bracket         // ( -- ) interpreter
 	.int xt_false, xt_state, xt_store
 interpret_loop:
-	.int xt_word, xt_two_dup                // ( a u a u )
+	.int xt_word, xt_count, xt_two_dup      // ( a u a u )
 	.int xt_find                            // ( a u link|0 )
 	.int xt_dup, xt_zero_branch
 	label interpret_not_found
@@ -932,7 +914,7 @@ interpret_not_found:                        // convert to number
 defword "]", 1, rbracket                    // ( -- ) compiler
 	.int xt_true, xt_state, xt_store
 compile_loop:
-	.int xt_word, xt_two_dup                // ( a u a u )
+	.int xt_word, xt_count, xt_two_dup      // ( a u a u )
 	.int xt_find                            // ( a u link|0 )
 	.int xt_dup, xt_zero_branch             // ( a u link|0 )
 	label compile_not_found
@@ -963,11 +945,12 @@ defword "literal", 7, literal               // ( x -- )
 	.int xt_exit
 
 defword "[']", 1+F_IMMEDIATE, bracket_tick  // ( -- xt )
-	.int xt_word, xt_find, xt_to_xt
+	.int xt_tick
 	.int xt_exit
 
 defword "'", 1, tick                        // ( -- xt )
-	.int xt_bracket_tick
+	.int xt_word, xt_count
+	.int xt_find, xt_to_xt
 	.int xt_exit
 
 defword "postpone", 8+F_IMMEDIATE, postpone // ( -- )
@@ -1032,7 +1015,7 @@ defword "str>n", 5, str_to_n          // ( a u1 -- n u2 ), assume u1 > 0
 	.int xt_lit, '-', xt_equals
 	.int xt_zero_branch
 	label n_unsigned
-	.int xt_one_minus 
+	.int xt_one_minus
 	.int xt_swap
 	.int xt_one_plus
 	.int xt_swap                      // ( a+1 u1-1 )
@@ -1161,7 +1144,7 @@ compare_len_neq:
 	.int xt_exit
 
 defword "find", 4, find                // ( a u -- link | 0 )
-	.int xt_latest                     // ( a u link )
+	.int xt_latest, xt_fetch           // ( a u link )
 find_link:
 	.int xt_dup, xt_zero_branch
 	label find_no_find
@@ -1169,12 +1152,15 @@ find_link:
 	.int xt_not, xt_zero_branch
 	label find_next
 	.int xt_two_dup                    // ( a u link u link )
-	.int xt_to_name, xt_count, xt_nip, xt_equals
+	.int xt_to_name, xt_count
+	.int xt_flenmask, xt_and
+	.int xt_nip, xt_equals
 	.int xt_zero_branch
 	label find_link                    // ( a u link )
 	.int xt_dup, xt_two_swap           // ( link link a u )
 	.int xt_rot                        // ( link a u link )
 	.int xt_count                      // ( link a u a2 u2 )
+	.int xt_flenmask, xt_and
 	.int xt_two_over                   // ( link a u a2 u2 a u )
 	.int xt_compare                    // ( link a u f )
 	.int xt_not, xt_zero_branch
@@ -1191,153 +1177,6 @@ find_no_find:
 	.int xt_nip, xt_nip                // ( a u 0 -- 0)
 	.int xt_exit
 
-defword "scan-in", 7, scan_in          // ( c -- a ) scan chars in input buffer
-	.int xt_to_in, xt_fetch
-	.int xt_tib, xt_plus               // ( c a )
-scan_char:
-	.int xt_buffer_in
-	.int xt_two_dup                    // ( c a c a )
-	.int xt_c_fetch                    // ( c a c c2 )
-	.int xt_equals, xt_not
-	.int xt_zero_branch                // ( c a )
-	label scan_complete
-	.int xt_one_plus                   // ( c a+1 )
-	.int xt_branch
-	label scan_char
-scan_complete:
-	.int xt_nip                        // ( c a -- a )
-	.int xt_exit
-
-defword "skip-in", 7, skip_in          // ( c -- a ) skip chars in input buffer
-	.int xt_to_in, xt_fetch
-	.int xt_tib, xt_plus               // ( c a )
-skip_char:
-	.int xt_buffer_in
-	.int xt_two_dup                    // ( c a c a )
-	.int xt_c_fetch                    // ( c a c c2 )
-	.int xt_equals, xt_zero_branch     // ( c a )
-	label skip_complete
-	.int xt_one_plus                   // ( c a+1 )
-	.int xt_branch
-	label skip_char
-skip_complete:
-	.int xt_nip                        // ( c a -- a )
-	.int xt_exit
-
-defword "?newline", 8, question_newline // ( c -- f )
-	.int xt_dup
-	.int xt_lit, 10, xt_equals
-	.int xt_swap
-	.int xt_lit, 13, xt_equals
-	.int xt_or
-	.int xt_exit
-
-defword "accept", 6, accept            // ( a u1 -- u2 ) "accept at most u1 characters into address a"
-	.int xt_dup, xt_to_r               // ( a u1 R: u1 )
-accept_loop:
-	.int xt_dup, xt_zero_branch
-	label accept_done
-	.int xt_swap                       // ( u a )
-	.int xt_key                        // ( u a c )
-	.int xt_dup                        // ( u a c c )
-	.int xt_question_newline
-	.int xt_equals, xt_zero_branch
-	label accept_not_line              // [enter] causes end of input
-	.int xt_drop                       // ( u a )
-	.int xt_swap                       // ( a u )
-	.int xt_branch                     
-	label accept_done
-accept_not_line:
-	.int xt_dup                        // ( u a c c )
-	.int xt_lit, 8                     // handle backspace
-	.int xt_equals, xt_zero_branch     // ( u a c )
-	label accept_char                  
-	.int xt_drop, xt_over              // ( u a u )
-	.int xt_r_from                     // ( u a u u1 R: )
-	.int xt_tuck                       // ( u a u1 u u1 )
-	.int xt_equals, xt_zero_branch
-	label accept_backspace
-	.int xt_to_r                       // ( u a R: u1 )
-	.int xt_swap
-	.int xt_branch
-	label accept_loop
-accept_backspace:
-	.int xt_to_r                       // ( u a R: u1 )
-	.int xt_one_minus, xt_swap         // ( a-1 u )
-	.int xt_one_plus                   // ( a-1 u+1 )
-	.int xt_branch
-	label accept_loop
-accept_char:
-	.int xt_over                       // ( u a c a )
-	.int xt_c_store                    // ( u a )
-	.int xt_one_plus                   // ( u a+1 )
-	.int xt_swap
-	.int xt_one_minus                  // ( a+1 u-1 )
-	.int xt_branch
-	label accept_loop
-accept_done:
-	.int xt_r_from                     // ( a u -- a u u1 R: u1 -- )
-	.int xt_swap, xt_minus             // ( a u2 )
-	.int xt_nip                        // ( u2 )
-	.int xt_exit
-
-defword "refill", 6, refill            // ( -- ) refill tib
-	.int xt_tib
-	.int xt_tib_size
-	.int xt_accept                     // ( a u1 -- u2 )
-	.int xt_num_tib, xt_store
-	.int xt_lit, 0, xt_to_in, xt_store
-	.int xt_exit
-
-defword "buffer-in", 9, buffer_in      // ( -- ) make sure the input buffer is not exhausted
-	.int xt_num_tib, xt_fetch          // ( u1 )
-	.int xt_to_in, xt_fetch            // ( u1 u2 )
-	.int xt_less, xt_not
-	.int xt_zero_branch                // ( )
-	label buffer_in_full
-	.int xt_refill
-buffer_in_full:
-	.int xt_exit
-
-defword "word", 4, word                // ( -- a u )
-	.int xt_bl, xt_skip_in             // ( a )
-	.int xt_bl, xt_scan_in             // ( a a2 )
-	.int xt_over, xt_swap              // ( a a a2 )
-	.int xt_minus                      // ( a u ) u is word len
-	.int xt_exit
-
-defword "words", 5, words              // ( -- )
-	.int xt_latest                     // ( link )
-words_link:
-	.int xt_dup, xt_zero_branch
-	label words_end
-	.int xt_dup, xt_question_hidden    // ( link f )
-	.int xt_not, xt_zero_branch
-	label words_next
-	.int xt_dup, xt_id_dot
-words_next:
-	.int xt_fetch                      // ( *link )
-	.int xt_branch
-	label words_link
-words_end:
-	.int xt_exit
-
-defword "(", 1, paren
-paren_loop:
-	.int xt_key
-	.int xt_lit, ')'
-	.int xt_zero_branch
-	label paren_loop
-	.int xt_exit
-
-defword "\\", 1, backslash
-backslash_loop:
-	.int xt_key
-	.int xt_question_newline
-	.int xt_zero_branch
-	label backslash_loop
-	.int xt_exit
-
 defword "?interpret", 10, question_interpret
 	.int xt_state, xt_fetch
 	.int xt_zero_equals
@@ -1351,6 +1190,111 @@ defword "immediate", 9, immediate                // ( link -- )
 	.int xt_to_name, xt_dup
 	.int xt_c_fetch, xt_fimmediate, xt_and
 	.int xt_swap, xt_c_store
+	.int xt_exit
+
+// TODO: other input sources
+defword "refill", 6, refill       // ( -- f )
+	.int xt_tib, xt_fetch         // ( a )
+	.int xt_tib_size              // ( a u1 )
+	.int xt_accept                // ( u2 )
+	.int xt_num_tib, xt_store     // ( )
+	.int xt_lit, 0
+	.int xt_to_in, xt_store
+	.int xt_true
+	.int xt_exit
+
+// TODO: other input sources
+defword "source-id", 9, source_id // ( -- 0|-1|id )
+	.int xt_lit, 0
+	.int xt_exit
+
+// TODO: other input sources
+defword "source", 6, source       // ( -- a u )
+	.int xt_to_in, xt_fetch
+	.int xt_tib, xt_plus
+	.int xt_num_tib, xt_fetch
+	.int xt_to_in, xt_fetch
+	.int xt_minus
+	.int xt_exit
+
+defword "word", 4, word           // ( c1 -- a1 )
+word_input:
+	.int xt_source                // ( c1 a u )
+	.int xt_dup, xt_zero_equals
+	.int xt_zero_branch
+	label word_skip
+	.int xt_two_drop
+	.int xt_refill, xt_drop
+	.int xt_branch
+	label word_input
+word_skip:
+	.int xt_dup, xt_lit, 0
+	.int xt_more, xt_zero_branch
+	label word_scan1
+	.int xt_to_r                  // ( c1 a R: u )
+	.int xt_two_dup               // ( c1 a c1 a R: u )
+	.int xt_c_fetch               // ( c1 a c1 c R: u )
+	.int xt_equals                // ( c1 a f R: u )
+	.int xt_zero_branch           // ( c1 a R: u )
+	label word_scan2
+	.int xt_one_plus              // ( c1 a R: u )
+	.int xt_r_from                // ( c1 a u R: )
+	.int xt_one_minus
+	.int xt_branch
+	label word_skip
+word_scan2:                       // ( c1 a R: u )
+	.int xt_r_from
+word_scan1:                       // ( c1 a u )
+	.int xt_over, xt_to_r         // ( c1 a u R: a2 )
+word_scan:
+	.int xt_dup, xt_lit, 0
+	.int xt_more, xt_zero_branch
+	label word_result1            // ( c1 a u R: a2 )
+	.int xt_to_r                  // ( c1 a R: a2 u )
+	.int xt_two_dup               // ( c1 a c1 a R: a2 u )
+	.int xt_fetch
+	.int xt_equals, xt_not
+    .int xt_zero_branch           // ( c1 a R: a2 u )
+	label word_result2            // ( c1 a R: a2 u )
+	.int xt_one_plus
+	.int xt_r_from, xt_one_minus  // ( c1 a u R: a2 )
+	.int xt_dup, xt_not           // ( c1 a u u R: a2 )
+	.int xt_zero_branch           // ( c1 a u R: a2 )
+	label word_scan
+	.int xt_branch
+	label word_result1            // ( c1 a u R: a2 )
+word_result2:
+	.int xt_r_from                // ( c1 a u R: a2 )
+word_result1:
+	.int xt_drop, xt_nip          // ( a R: a2 )
+	.int xt_r_from                // ( a a2 )
+	.int xt_tuck                  // ( a2 a a2 )
+	.int xt_swap                  // ( a2 a2 a )
+	.int xt_minus                 // ( a2 u )
+	.int xt_dup, xt_to_r          // ( a2 u R: u )
+	.int xt_here                  // ( a2 u a1 R: u )
+	.int xt_one_plus              // ( a2 u h+1 R: u )
+	.int xt_swap                  // ( a2 h+1 u R: u )
+	.int xt_cmove                 // ( R: u ) copy name over to here
+	.int xt_r_from                // ( u ) write length byte
+	.int xt_here                  // ( u h )
+	.int xt_store                 // ( )
+	.int xt_here                  // ( a1 ) return here
+	.int xt_exit
+
+defword "words", 5, words
+	.int xt_latest, xt_fetch
+words_next:
+	.int xt_dup, xt_zero_branch
+	label words_done
+	.int xt_space
+	.int xt_dup
+	.int xt_id_dot
+	.int xt_fetch
+	.int xt_branch
+	label words_next
+words_done:
+	.int xt_drop
 	.int xt_exit
 
 the_last_word:
