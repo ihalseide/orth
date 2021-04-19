@@ -585,6 +585,11 @@ defcode "h", 1, h              // variable
 	ldr r9, =var_h
 	NEXT
 
+defcode "base", 4, base        // variable
+	push {r9}
+	ldr r9, =var_base
+	NEXT
+
 defcode "str>d", 5, str_to_d  // ( a u1 -- d u2 )
 	pop {r0}                  // r0 = addr
 	eor r1, r1                // r1 = d.hi
@@ -624,28 +629,30 @@ to_num_done:                  // number conversion done
 	push {r1}                 // push the high word
 	NEXT
 
-defcode "u>str", 5, u_to_str  // ( u1 -- addr u2 )
+defcode "u>str", 5, u_to_str  // ( u1 -- a u2 )
 	/* Get the pad address and make an index into it */
 	mov r4, #0                // r4 = index
 	ldr r5, =var_h          
-	ldr r5, [r5]              // r5 = pad
-	add r5, #30               // add some arbitrary padding
+	ldr r5, [r5]              // r5 = here (temporary space to write the digits)
+	add r5, #1                // leave a space for prefix minus sign
 	/* Get the number base */
 	ldr r6, =var_base         // r6 = number base
 	ldr r6, [r6]
 	/* Only proceed if the number base is valid */
 	cmp r6, #1
 	bgt good_base
-	eor r9, r9                // ( 0 0 )
-	push {r9}
+	push {r6}
+	eor r9, r9                // ( a 0 )
 	NEXT
 good_base:
 	cmp r9, #0
 	bne u_not_zero
 	/* Write a 0 to the pad if u is 0 */
-	add r4, #1
-	eor r0, r0
+	mov r0, #'0'
 	str r0, [r5]
+	push {r5}
+	mov r9, #1
+	NEXT
 u_not_zero:
 	/* Switch on the number base */
 	tst r6, #1     // the base can't be a power of 2 if it's odd
@@ -666,8 +673,8 @@ base2_body:
 	strb r0, [r5, r4]
 	add r4, #1
 	lsr r9, r9, #1
-	cmp r9, #0
 base2:
+	cmp r9, #0
 	bne base2_body
 	b base_done
 base4_body:
@@ -675,8 +682,8 @@ base4_body:
 	strb r0, [r5, r4]
 	add r4, #1
 	lsr r9, r9, #2
-	cmp r9, #0
 base4:
+	cmp r9, #0
 	bne base4_body
 	b base_done
 base8_body:
@@ -684,8 +691,8 @@ base8_body:
 	strb r0, [r5, r4]
 	add r4, #1
 	lsr r9, r9, #3
-	cmp r9, #0
 base8:
+	cmp r9, #0
 	bne base8_body
 	b base_done
 base16_body:
@@ -721,7 +728,7 @@ base_done:
 	/* Reverse the pad array */
 	mov r9, r4          // TOS = pad length
 	eor r0, r0          // r0 = pad index #1
-	mov r1, r1          // r1 = pad index #2
+	sub r1, r4, #1      // r1 = pad index #2
 	b reverse
 reverse_body:
 	/* Get the characters on the opposite sides of the array */
@@ -735,14 +742,14 @@ reverse_body:
 	add r2, #'0'
 	add r3, #'0'
 	/* Swap characters */
-	str r2, [r5, r1]
-	str r3, [r5, r0]
+	strb r2, [r5, r1]
+	strb r3, [r5, r0]
 	/* Move indices towards each other */
 	add r0, #1
 	sub r1, #1
 reverse:
-	cmp r1, r2
-	bls reverse_body
+	cmp r0, r1
+	ble reverse_body
 	/* done, return */
 	push {r5}       // second item on stack is the pad start address
 	NEXT
@@ -1040,24 +1047,31 @@ n_unsigned:
 	.int xt_nip                       // ( n u2 )
 	.int xt_exit
 
-defword "n>str", 5, n_to_str
-	.int xt_lit, 0, xt_less, xt_zero_branch
-	label n_positive                  // n < 0
-	.int xt_negate, xt_u_to_str       // ( a u )
-	.int xt_swap, xt_one_minus        // prepend minus sign to a
-	.int xt_lit, '-', xt_over, xt_store
-	.int xt_swap, xt_one_plus         // increment length u
+defword "n>str", 5, n_to_str          // ( n -- a u )
+	.int xt_dup                       // ( n n )
+	.int xt_lit, 0, xt_less           // ( n f )
+	.int xt_zero_branch
+	label n_positive                  // ( n )
+	.int xt_negate                    // ( u )
+	.int xt_u_to_str                  // ( a u )
+	.int xt_one_plus                  // length+1
+	.int xt_swap, xt_one_minus        // ( u a )
+	.int xt_lit, '-'                  // ( u a '-' )
+	.int xt_over, xt_c_store          // ( u a )
+	.int xt_swap                      // ( a u )
 	.int xt_exit
-n_positive:                           // n >= 0
-	.int xt_u_to_str
+n_positive:                           // ( n )
+	.int xt_u_to_str                  // ( a u )
 	.int xt_exit
 
 defword "u.", 2, u_dot                // ( u -- )
-	.int xt_u_to_str, xt_tell
+	.int xt_u_to_str
+	.int xt_type
 	.int xt_exit
 
 defword ".", 1, dot                   // ( n -- )
-	.int xt_n_to_str, xt_tell
+	.int xt_n_to_str
+	.int xt_type
 	.int xt_exit
 
 defword "?", 1, question              // ( a -- )
@@ -1342,9 +1356,16 @@ defword "immediate", 9, immediate                // ( link -- )
 the_last_word:
 
 defword "quit", 4, quit
-	.int xt_r_zero, xt_rsp_store       // clear return stack
-	.int xt_bracket                    // interpret
+	.int xt_lit, 36, xt_base, xt_store
+	.int xt_lit, -15, xt_dot, xt_lit, '\n', xt_emit
+	.int xt_halt
+	.int xt_words
+	.int xt_halt
+	.int xt_r_zero, xt_rsp_store  // clear return stack
+	.int xt_bracket               // interpret
 	// no exit
 
 data_end:
+
+	.space 2048
 
