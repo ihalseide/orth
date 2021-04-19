@@ -389,6 +389,13 @@ defcode "=", 1, equals   // ( x1 x2 -- f )
 	mvneq r9, r9         // invert for true
 	NEXT
 
+defcode "<>", 1, not_equals   // ( x1 x2 -- f )
+	pop {r0}
+	cmp r9, r0
+	eor r9, r9           // 0 for false
+	mvnne r9, r9         // invert for true
+	NEXT
+
 defcode "<", 1, less
 	pop {r0}
 	cmp r0, r9      // r9 < r0
@@ -466,15 +473,24 @@ defcode "execute", 7, execute        // ( xt -- )
 	ldr r0, [r8]                     // (indirect threaded)
 	bx r0
 
-defcode "key", 3, key                // ( -- c )
-	eor r0, r0                       // create blank space on stack
-	push {r0}
-	mov r7, #3                       // read(fd, buf, len)
-	mov r0, #0                       // stdin
+defcode "key", 3, key   // ( -- c )
+	push {r9}           // push down TOS
+	mov r7, #3          // read(fd, buf, len)
+	eor r0, r0          // stdin
+	push {r0}           // make buffer room
 	mov r1, sp
-	mov r2, #1
+	mov r2, #1          // 1 char
 	swi #0
-	pop {r9}
+	pop {r9}            // move it to the TOS
+	NEXT
+
+defcode "accept", 6, accept          // ( a u1 -- u2 )
+	mov r7, #3          // read(fd, buf, len)
+	eor r0, r0          // stdin
+	pop {r1}            // buf = a
+	mov r2, r9          // u1 char(s)
+	swi #0
+	mov r0, r9
 	NEXT
 
 defcode "emit", 4, emit              // ( c -- )
@@ -485,6 +501,45 @@ defcode "emit", 4, emit              // ( c -- )
 	mov r2, #1
 	swi #0
 	ldr r9, [sp], #8                 // get new TOS
+	NEXT
+
+defcode "type", 4, type              // ( a u -- )
+	mov r7, #4                       // write(...)
+	mov r0, #1                       // fd = stdout
+	pop {r1}                         // buf = a
+	mov r2, r9                       // count = u
+	swi #0
+	pop {r9}                         // get TOS
+	NEXT
+
+defcode "cmove", 5, cmove            // ( a1 a2 u -- )
+	eor r2, r2                       // r2 = index
+	pop {r1}                         // r1 = a2
+	pop {r0}                         // r0 = a1
+	b cmove_check
+cmove_body:
+	ldrb r3, [r0, r2]
+	strb r3, [r1, r2]
+	add r2, #1
+cmove_check:
+	cmp r2, r9
+	blt cmove_body
+	pop {r9}
+	NEXT
+
+defcode "cmove>", 6, cmove_from      // ( a1 a2 u -- )
+	mov r2, r9                       // r2 = index          
+	pop {r1}                         // r1 = a2
+	pop {r0}                         // r0 = a1
+	b cmove_from_check
+cmove_from_body:
+	ldrb r3, [r0, r2]
+	strb r3, [r1, r2]
+	sub r2, #1
+cmove_from_check:
+	cmp r2, #0
+	bge cmove_from_body
+	pop {r9}
 	NEXT
 
 defcode "/mod", 4, slash_mod // ( n m -- r q ) division remainder and quotient
@@ -943,10 +998,10 @@ defword "?immediate", 10, question_immediate  // ( link -- f )
 	.int xt_fimmediate, xt_and, xt_bool
 	.int xt_exit
 
-defword "count", 5, count              // ( a -- a u )
+defword "count", 5, count              // ( a1 -- a2 u )
 	.int xt_dup
 	.int xt_one_plus, xt_swap
-	.int xt_c_fetch, xt_flenmask, xt_and
+	.int xt_c_fetch
 	.int xt_exit
 
 defword "mod", 3, mod                 // ( n m -- r ) division remainder
@@ -1012,18 +1067,6 @@ defword "?", 1, question              // ( a -- )
 defword "c?", 2, c_question           // ( a -- )
 	.int xt_c_fetch, xt_u_dot
 	.int xt_exit
-	
-defword "tell", 4, tell               // ( a u -- )
-tell_loop:
-	.int xt_dup, xt_zero_branch
-	label tell_done
-	.int xt_one_minus
-	.int xt_swap, xt_dup
-	.int xt_c_fetch, xt_emit, xt_one_plus
-	.int xt_swap, xt_branch
-	label tell_loop
-tell_done:
-	.int xt_exit
 
 defword "hide", 4, hide                            // ( a -- )
 	.int xt_to_name, xt_dup, xt_c_fetch
@@ -1043,7 +1086,9 @@ defword "recurse", 7+F_IMMEDIATE, recurse          // ( -- )
 	.int xt_exit
 
 defword "id.", 3, id_dot                           // ( link -- )
-	.int xt_to_name, xt_count, xt_tell
+	.int xt_to_name, xt_count
+	.int xt_flenmask, xt_and
+	.int xt_type
 	.int xt_exit
 
 defword "BL", 2, bl
