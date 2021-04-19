@@ -7,7 +7,7 @@ run: core
 	./core
 
 core: core.o
-	ld -g -o core core.o
+	ld -o core core.o
 
 core.o: core.s
 	as -g -o core.o core.s
