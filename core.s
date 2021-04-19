@@ -90,20 +90,22 @@ params_\label:               // parameter field
 .data
 
 .align 2
-var_h:       .int data_end
 var_base:    .int 10
+
+var_h:       .int data_end
 var_state:   .int 0
-var_to_in:   .int 0
 var_latest:  .int the_last_word
+
 var_s_zero:  .int 0 // initialized later
 var_r_zero:  .int 0 // initialized later
+
+var_to_in:   .int 0
 var_num_tib: .int 0
 
 .align 2
 input_buffer: .space TIB_SIZE
 
-.align 2
-rstack_end: .space RSTACK_SIZE
+.space RSTACK_SIZE
 .align 2
 rstack_start:
 
@@ -362,25 +364,25 @@ defcode "2swap", 5, two_swap // ( x1 x2 x3 x4 -- x3 x4 x1 x2 )
 
 defcode "2over", 5, two_over // ( x1 x2 x3 x4 -- x1 x2 x3 x4 x1 x2 )
 	push {r9}
-	ldr r0, [sp, #16]             // r0 = x1
-	ldr r9, [sp, #12]             // TOS = x2
-	push {r0}                     // push x1
+	ldr r0, [sp, #16]        // r0 = x1
+	ldr r9, [sp, #12]        // TOS = x2
+	push {r0}                // push x1
 	NEXT
 
 defcode "+", 1, plus     // ( x1 x2 -- x3 )
-	pop {r0}
-	add r9, r0
+	pop {r1}             // r1 = x1
+	add r9, r1
 	NEXT
 
 defcode "-", 1, minus    // ( x1 x2 -- x3 )
-	pop {r0}
-	sub r9, r0, r9       // r9 = r0 - r9
+	pop {r1}             // r1 = x1
+	sub r9, r1, r9       // x3 = x1 - x2
 	NEXT
 
 defcode "*", 1, star     // ( x1 x2 -- x3 )
-	pop {r0}
-	mov r1, r9           // note that a register can't be a src and a dest in mul op on ARM
-	mul r9, r0, r1
+	pop {r1}             // r1 = x1
+	mov r2, r9           // r2 = x2
+	mul r9, r1, r2       // x3 = x1 * x2
 	NEXT
 
 defcode "=", 1, equals   // ( x1 x2 -- f )
@@ -514,16 +516,16 @@ defcode "type", 4, type              // ( a u -- )
 	NEXT
 
 defcode "cmove", 5, cmove            // ( a1 a2 u -- ) move u chars from a1 to a2
-	eor r2, r2                       // r2 = index
-	pop {r1}                         // r1 = a2
-	pop {r0}                         // r0 = a1
+	eor r0, r0                       // r0 = index
+	pop {r2}                         // r2 = a2
+	pop {r1}                         // r1 = a1
 	b cmove_check
 cmove_body:
-	ldrb r3, [r0, r2]
-	strb r3, [r1, r2]
-	add r2, #1
+	ldrb r3, [r1, r0]
+	strb r3, [r2, r0]
+	add r0, #1
 cmove_check:
-	cmp r2, r9
+	cmp r0, r9
 	blt cmove_body
 	pop {r9}
 	NEXT
@@ -1044,13 +1046,13 @@ n_positive:                           // ( n )
 	.int xt_exit
 
 defword "u.", 2, u_dot                // ( u -- )
-	.int xt_u_to_str
-	.int xt_type
+	.int xt_u_to_str, xt_type
+	.int xt_bl, xt_emit
 	.int xt_exit
 
 defword ".", 1, dot                   // ( n -- )
-	.int xt_n_to_str
-	.int xt_type
+	.int xt_n_to_str, xt_type
+	.int xt_bl, xt_emit
 	.int xt_exit
 
 defword "?", 1, question              // ( a -- )
@@ -1264,6 +1266,8 @@ word_copy:                        // ( c1 a u )
 	.int xt_swap, xt_two_dup      // ( a3 c1 a3 c1 )
 	.int xt_scan                  // ( a3 c1 a4 )
 	.int xt_nip                   // ( a3 a4 )
+	.int xt_dup, xt_tib, xt_minus // update >in
+	.int xt_to_in, xt_store
 	.int xt_over, xt_minus        // ( a3 u )
 	.int xt_r_from, xt_max        // ( a3 u R: )      R>
 	.int xt_dup, xt_to_r          // ( a3 u R: u )   >R
@@ -1294,17 +1298,27 @@ words_done:
 the_last_word:
 
 defword "quit", 4, quit
+	// max test
+//	.int xt_lit, -200, xt_lit, 400, xt_max, xt_dot
+//	.int xt_lit, 400, xt_lit, -200, xt_max, xt_dot
+//	.int xt_lit, 400, xt_lit, 200, xt_max, xt_dot
+//	.int xt_lit, 200, xt_lit, 400, xt_max, xt_dot
+//	.int xt_halt
+//
+//	// cmove test
+//	.int xt_lit, cmove_a, xt_lit, 6, xt_type, xt_lit, '\n', xt_emit
+//	.int xt_lit, cmove_b, xt_lit, 8, xt_type, xt_lit, '\n', xt_emit
+//	.int xt_lit, cmove_a, xt_lit, cmove_b+1, xt_lit, 6, xt_cmove
+//	.int xt_lit, cmove_a, xt_lit, 6, xt_type, xt_lit, '\n', xt_emit
+//	.int xt_lit, cmove_b, xt_lit, 8, xt_type, xt_lit, '\n', xt_emit
+//	.int xt_halt
 
-	// cmove test
-	.int xt_lit, cmove_a, xt_lit, 6, xt_type, xt_lit, '\n', xt_emit
-	.int xt_lit, cmove_b, xt_lit, 8, xt_type, xt_lit, '\n', xt_emit
-	.int xt_lit, cmove_a, xt_lit, cmove_b+1, xt_lit, 6, xt_cmove
-	.int xt_lit, cmove_a, xt_lit, 6, xt_type, xt_lit, '\n', xt_emit
-	.int xt_lit, cmove_b, xt_lit, 8, xt_type, xt_lit, '\n', xt_emit
-	.int xt_halt
+	.int xt_source, xt_dot, xt_dot
 
 	// word echo test
 	.int xt_bl, xt_word
+	.int xt_here, xt_lit, 5, xt_type
+	.int xt_halt
 	.int xt_count, xt_type
 	.int xt_halt
 
