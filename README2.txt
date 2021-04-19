@@ -42,3 +42,21 @@ register R13. The parameter stack grows downwards. The return stack pointer
 virtual instruction pointer (IP) is stored in register R10. The address of the
 current execution token (XT) is stored in register R8.
 
+== Stack Comments ==
+
+Enclosed in parantheses. E.G: "( x1 x2 -- a )". Rightmost text is topmost item on the stack.
+
+The "--" means after the word is executed.
+
+A "R:" means the return stack effects
+
+Stack item types:
+* `x` any cell
+* `n` signed number
+* `u` unsigned number
+* `d` double number (takes up two cells on stack)
+* `p` stands for "predicate", and is like `xt`, but the expected stack effect of the xt is ( i*x -- f )
+* `xt` execution token, which is an executable address
+* `a` address
+* `i*x` items of type x, i number total
+
