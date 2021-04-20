@@ -55,6 +55,7 @@ Stack item types:
 * `n` signed number
 * `u` unsigned number
 * `d` double number (takes up two cells on stack)
+breaks down into single cells of ( low-u high-n )
 * `p` stands for "predicate", and is like `xt`, but the expected stack effect of the xt is ( i*x -- f )
 * `xt` execution token, which is an executable address
 * `a` address
