@@ -11,27 +11,6 @@
 
 // ----- Macros -----
 
-// DEBUG NAME PRINT MACRO
-
-.macro PRINTME
-	// DEBUG
-	mov r7, #4          // WRITE THE WORD'S NAME
-	mov r0, #1
-	sub r1, r8, #32     // name field
-	ldrb r2, [r1]       // name length
-	and r2, #F_LENMASK
-	add r1, #1
-	swi #0
-	mov r4, #' '
-	push {r4}
-	mov r7, #4          // WRITE A SPACE
-	mov r0, #1
-	mov r1, sp
-	mov r2, #1
-	swi #0
-	pop {r0}
-.endm
-
 // The inner interpreter
 .macro NEXT
 	ldr r8, [r10], #4       // r10 = the virtual instruction pointer
@@ -59,8 +38,6 @@ xt_\label:                   // code field
 	.align 2
 	.global code_\label
 code_\label:
-	// DEBUG
-	//bl DO_PRINTME
 .endm
 
 // Define an indirect threaded word
@@ -121,10 +98,6 @@ dictionary:
 
 .text
 
-DO_PRINTME:
-	PRINTME
-	bx lr
-
 .global _start
 _start:
 	/* Save parameter stack base */
@@ -140,20 +113,8 @@ _start:
 
 init_code:
 	.int xt_test
-	//.int xt_quit
 
 enter_colon:
-	// DEBUG
-	//mov r4, #'{'
-	//push {r4}
-	//mov r7, #4
-	//mov r0, #1
-	//mov r1, sp
-	//mov r2, #1
-	//swi #0
-	//pop {r0}
-	//bl DO_PRINTME
-	// END DEBUG
 	str r10, [r11, #-4]!        // Save the return address to the return stack
 	add r10, r8, #4             // Get the next instruction
 	NEXT
@@ -222,16 +183,6 @@ defcode "enterdoes", 9, enterdoes
 
 defcode "exit", 4, exit
 	ldr r10, [r11], #4          // ip = pop return stack
-	// DEBUG
-	//mov r4, #'}'
-	//push {r4}
-	//mov r7, #4
-	//mov r0, #1
-	//mov r1, sp
-	//mov r2, #1
-	//swi #0
-	//pop {r0}
-	// END DEBUG
 	NEXT
 
 defcode "halt", 4, halt
@@ -366,10 +317,15 @@ defcode "2swap", 5, two_swap // ( x1 x2 x3 x4 -- x3 x4 x1 x2 )
 	NEXT
 
 defcode "2over", 5, two_over // ( x1 x2 x3 x4 -- x1 x2 x3 x4 x1 x2 )
+	pop {r3}
+	pop {r2}
+	pop {r1}
+	push {r1}
+	push {r2}
+	push {r3}
 	push {r9}
-	ldr r0, [sp, #16]        // r0 = x1
-	ldr r9, [sp, #12]        // TOS = x2
-	push {r0}                // push x1
+	push {r1}
+	mov r9, r2
 	NEXT
 
 defcode "+", 1, plus     // ( x1 x2 -- x3 )
@@ -595,15 +551,14 @@ defcode "base", 4, base        // variable
 	ldr r9, =var_base
 	NEXT
 
-defcode "str>d", 5, str_to_d  // ( a u1 -- d u2 )
+defcode "str>ud", 5, str_to_ud // ( a u1 -- ud u2 )
 	pop {r0}                  // r0 = addr
-	eor r1, r1                // r1 = d.hi
-	eor r2, r2                // r2 = d.lo
+	eor r1, r1                // r1 = d.high
+	eor r2, r2                // r2 = d.low
 	ldr r4, =var_base         // get the current number base
 	ldr r4, [r4]
+	b to_num_test
 to_num1:
-	cmp r9, #0                // if length=0 then it's done converting
-	beq to_num_done
 	ldrb r3, [r0], #1         // get next char in the string
 	cmp r3, #'a'              // if it's less than 'a', it's not lower case
 	blt to_num2
@@ -617,7 +572,7 @@ to_num2:
 	blt to_num_done
 	sub r3, #7                // a valid char for a base>10, so convert it so that 'A' signifies 10
 to_num3:
-	sub r3, #48               // convert char digit to value
+	sub r3, #'0'              // convert char digit to value
 	cmp r3, r4                // if digit >= base then it's an error
 	bge to_num_done
 	mul r5, r1, r4            // multiply the high-word by the base
@@ -627,8 +582,9 @@ to_num3:
 	add r1, r6
 	add r2, r5, r3            // add the digit value to the low word (no need to carry)
 	sub r9, #1                // decrement length remaining
-	add r0, #1                // a(ddr)++
-	b to_num1
+to_num_test:
+	cmp r9, #0                // if length=0 then it's done converting
+	bgt to_num1
 to_num_done:                  // number conversion done
 	push {r2}                 // push the low word
 	push {r1}                 // push the high word
@@ -945,7 +901,7 @@ compile_no_find:
 	.int xt_branch
 	label compile_loop
 compile_num:                              // ( a u d )
-	.int xt_drop                          // ( a u n )
+	.int xt_d_to_n                        // ( a u n )
 	.int xt_nip, xt_nip
 	.int xt_literal
 	.int xt_branch
@@ -1019,6 +975,7 @@ defword "str-lit", 7, str_lit   // ( R: a2 -- a1 u1 R: a3 ) load an embedded str
 	.int xt_r_from              // ( a2 R: )
 	.int xt_count               // ( a1 u1 )
 	.int xt_two_dup, xt_plus    // ( a1 u1 a3 )
+	.int xt_aligned             // round up to the next cell
 	.int xt_to_r                // ( a1 u1 R: a3 )
 	.int xt_exit
 
@@ -1026,6 +983,7 @@ defword "cstr-lit", 8, cstr_lit // ( R: a2 -- a1 c1 R: a3 ) load a short embedde
 	.int xt_r_from              // ( a2 R: )
 	.int xt_ccount              // ( a1 c1 )
 	.int xt_two_dup, xt_plus    // ( a1 c1 a3 )
+	.int xt_aligned             // round up to the next cell
 	.int xt_to_r                // ( a1 c1 R: a3 )
 	.int xt_exit
 
@@ -1045,29 +1003,38 @@ defword "1-", 2, one_minus
 	.int xt_lit, 1, xt_minus
 	.int xt_exit
 
-defword "str>n", 5, str_to_n          // ( a u1 -- n u2 ), assume u1 > 0
-	.int xt_over, xt_fetch
+defword "str>d", 5, str_to_d          // ( a u1 -- d u2 ), assume u1 > 0
+	.int xt_over, xt_c_fetch
 	.int xt_lit, '-', xt_equals
-	.int xt_zero_branch
-	label n_unsigned
-	.int xt_one_minus
+	.int xt_zero_branch               // ( a u1 )
+	label str_to_d_positive
+	.int xt_one_minus                 // len--
 	.int xt_swap
-	.int xt_one_plus
-	.int xt_swap                      // ( a+1 u1-1 )
-	.int xt_str_to_d                  // ( d u2 )
-	.int xt_nip
-	.int xt_swap                      // ( u2 u3 )
-	.int xt_negate                    // ( u2 n )
-	.int xt_swap                      // ( n u2 )
+	.int xt_one_plus                  // addr++
+	.int xt_swap
+	.int xt_str_to_ud                 // ( ud u2 )
+	.int xt_swap, xt_negate, xt_swap  // ( d u2 )
+	.int xt_over, xt_zero_equals
+	.int xt_zero_branch
+	label str_to_d_not_zero
+	.int xt_rot, xt_negate, xt_minus_rot
+str_to_d_not_zero:
 	.int xt_exit
-n_unsigned:
-	.int xt_str_to_d                  // ( d u2 )
-	.int xt_nip                       // ( n u2 )
+str_to_d_positive:
+	.int xt_str_to_ud                 // ( a u1 -- d u2 )
+	.int xt_exit
+
+defword "d>n", 3, d_to_n              // ( d -- n )
+	.int xt_lit, 0, xt_less
+	.int xt_zero_branch
+	label d_to_n_positive
+	.int xt_negate
+d_to_n_positive:
 	.int xt_exit
 
 defword "n>str", 5, n_to_str          // ( n -- a u )
 	.int xt_dup                       // ( n n )
-	.int xt_lit, 0, xt_less           // ( n f )
+	.int xt_lit, 0, xt_less
 	.int xt_zero_branch
 	label n_positive                  // ( n )
 	.int xt_negate                    // ( u )
@@ -1191,10 +1158,9 @@ find_link:
 	label find_skip_hidden
 	.int xt_dup, xt_two_swap, xt_rot   // ( link a1 len1 link )
 	.int xt_to_name, xt_ccount         // ( link a1 len1 a2 len2 )
+	.int xt_flenmask, xt_and
 	.int xt_two_over                   // ( link a1 len1 a2 len2 a1 len1 )
-	.int xt_two_dup, xt_type
 	.int xt_compare, xt_not
-	.int xt_dup, xt_dot
 	.int xt_zero_branch
 	label find_found
 	.int xt_rot                        // ( a1 len1 link )
@@ -1304,11 +1270,13 @@ word_input:
 	label word_input
 word_copy:                        // ( p a2 u )
 	.int xt_minus_rot             // ( u p a2 )
+	.int xt_dup, xt_to_r          // ( R: a2 )
 	.int xt_over                  // ( u p a2 p )
 	.int xt_skip                  // ( u p a3 )
 	.int xt_tuck                  // ( u a3 p a3 )
 	.int xt_swap                  // ( u a3 a3 p )
 	.int xt_scan                  // ( u a3 a4 )
+	.int xt_dup, xt_to_r          // ( R: a2 a4 )
 	.int xt_over                  // ( u a3 a4 a3 )
 	.int xt_swap, xt_minus        // ( u a3 u )
 	.int xt_rot, xt_max           // ( a3 u )
@@ -1317,6 +1285,11 @@ word_copy:                        // ( p a2 u )
 	.int xt_swap                  // ( u a3 h+1 u )
 	.int xt_cmove                 // ( u )
 	.int xt_here, xt_c_store      // ( )
+	.int xt_r_from, xt_r_from     // ( a4 a2 R: )
+	.int xt_minus                 // ( u ) save scanned input to variable >in
+	.int xt_to_in, xt_fetch
+	.int xt_plus
+	.int xt_to_in, xt_store
 	.int xt_here                  // ( a1 )
 	.int xt_exit
 
@@ -1361,38 +1334,21 @@ defword "rdepth", 6, rdepth
 	.int xt_one_minus
 	.int xt_exit
 
-defword "test", 0, test
-//	.int xt_words
-//	.int xt_halt
-
-	// echo raw test
-//	.int xt_refill, xt_drop
-//	.int xt_tib
-//	.int xt_num_tib, xt_fetch
-//	.int xt_type
-
-	.int xt_cstr_lit
-	.byte 11
-	.ascii "Testing...\n"
-	.int xt_type
-	.int xt_line
-
-//	.int xt_words
-//	.int xt_line
-
-	.int xt_cstr_lit
-	.byte 4
-	.ascii "dup "
-	.int xt_two_drop
-	
+defword "test", 4+F_HIDDEN, test
 	.int xt_cstr_lit
 	.byte 3
-	.ascii "dup"
-
-	.int xt_find
+	.ascii "-12"
+	.align 2
+test1:
+	.int xt_str_to_d
+	.int xt_dot
+	.int xt_d_to_n
 	.int xt_dot
 
+	.int xt_quit
+
 	.int xt_halt
+	// no exit
 
 defword "type?", 5, type_question
 	.int xt_type
@@ -1430,7 +1386,8 @@ quit_interpret:
 	.int xt_to_xt
 	.int xt_nip, xt_nip
 	.int xt_execute
-	.int xt_exit
+	.int xt_branch
+	label quit_interpret
 interpret_no_find:
 	.int xt_drop
 	.int xt_two_dup
@@ -1439,10 +1396,11 @@ interpret_no_find:
 	label interpret_valid_number
 	.int xt_two_drop
 	.int xt_eundef, xt_fetch, xt_execute   // ( a u -- )
-	.int xt_exit
-interpret_valid_number:                     // ( a u1 d )
-	.int xt_nip, xt_nip, xt_nip
-	.int xt_exit
+	.int xt_branch
+	label quit_interpret
+interpret_valid_number:                     // ( a u1 )
+	.int xt_d_to_n, xt_nip
+	.int xt_branch
 	label quit_interpret
 	// no exit
 
