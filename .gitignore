@@ -1,4 +1,4 @@
-# Temporary and output files
+# Temporary and output files based on extension
 *.o
 *.x
 *.swp
@@ -6,14 +6,12 @@
 *.lst
 *.list
 
-# Kernel output
-kernel.img
-kernel.list
-kernel.map
-
 # Output directories
 bin/
 build/
+
+# Other temporary/output files
+core
 
 # Secrets
 rpi_2b_secret.txt
