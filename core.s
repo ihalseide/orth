@@ -112,8 +112,9 @@ _start:
 	ldr r10, =init_code
 	NEXT
 init_code:
-	.int xt_zstr_lit
-	.asciz "orth v0.0.1 2021-04-21"
+	.int xt_cstr_lit
+	.byte 22
+	.ascii "orth v0.0.1 2021-04-21"
 	.align 2
 	.int xt_type
 	.int xt_line
@@ -409,8 +410,8 @@ defcode "0branch", 7, zero_branch    // 0branch ( x -- )
 
 defcode "execute", 7, execute        // ( xt -- )
 	mov r8, r9                       // r8 = the xt
-	pop {r9}                         // pop the stack
 	ldr r0, [r8]                     // (indirect threaded)
+	pop {r9}                         // pop the stack
 	bx r0
 	// no next
 
@@ -811,17 +812,17 @@ type_done:
 	.int xt_drop, xt_drop
 	.int xt_exit
 
+defword ";", 1+F_IMMEDIATE, izak_semicolon
+	.int xt_lit, xt_exit, xt_comma      // compile exit code
+	.int xt_latest, xt_fetch, xt_show   // make the word shown
+	.int xt_bracket                     // enter the immediate interpreter
+	.int xt_exit
+
 defword ":", 1, colon
 	.int xt_header
 	.int xt_entercolon, xt_comma        // make the word run docol
 	.int xt_latest, xt_fetch, xt_hide   // hide the word
 	.int xt_rbracket                    // enter the compiler
-	.int xt_exit
-
-defword ";", 1+F_IMMEDIATE, semicolon
-	.int xt_lit, xt_exit, xt_comma      // compile exit code
-	.int xt_latest, xt_fetch, xt_show   // make the word shown
-	.int xt_bracket                     // enter the immediate interpreter
 	.int xt_exit
 
 defword "link", 4, link                 // ( -- ) create link field
@@ -913,7 +914,7 @@ defword "'", 1, tick                        // ( -- xt )
 	.int xt_exit
 
 defword "postpone", 8+F_IMMEDIATE, postpone // ( -- )
-	.int xt_bracket_tick, xt_comma
+	.int xt_tick, xt_comma
 	.int xt_exit
 
 defword "allot", 5, allot                   // ( u -- a )
@@ -922,7 +923,7 @@ defword "allot", 5, allot                   // ( u -- a )
 	.int xt_exit
 
 defword ">link", 5, to_link           // ( xt -- link )
-	.int xt_lit, 36, xt_minus
+	.int xt_lit, 4+1+NAME_LEN, xt_minus
 	.int xt_exit
 
 defword ">name", 5, to_name            // ( link -- a )
@@ -930,7 +931,8 @@ defword ">name", 5, to_name            // ( link -- a )
 	.int xt_exit
 
 defword ">xt", 3, to_xt               // ( link -- xt )
-	.int xt_lit, 4+1+NAME_LEN, xt_plus
+	.int xt_lit, 4+1+NAME_LEN
+	.int xt_plus
 	.int xt_exit
 
 defword ">params", 7, to_params       // ( link -- a2 )
@@ -1428,7 +1430,7 @@ defword "type?", 5, type_question
 	.int xt_exit
 
 defword "undefined-comp", 14, undefined_comp // ( a u -- )
-	.int xt_latest, xt_forget
+	.int xt_latest, xt_fetch, xt_forget
 	.int xt_type_question
 	.int xt_refill, xt_drop         // discard the rest of input
 	.int xt_quit
@@ -1478,6 +1480,33 @@ paren_done:
 	.int xt_exit
 
 defword "compile", 7, compile      // ( a u -- )
+	.int xt_two_dup
+	.int xt_find, xt_dup
+	.int xt_zero_branch            // ( a u link|0 )
+	label compile_no_find
+	.int xt_nip, xt_nip            // ( link )
+	.int xt_dup, xt_question_immediate
+	.int xt_zero_branch
+	label compile_normal
+	.int xt_to_xt
+	.int xt_dup, xt_dot
+	.int xt_execute      // immediate
+	.int xt_exit
+compile_normal:
+	.int xt_to_xt, xt_comma
+	.int xt_exit
+compile_no_find:
+	.int xt_drop
+	.int xt_two_dup                // ( a u a u )
+	.int xt_str_to_d               // ( a u d e|0 )
+	.int xt_zero_branch
+	label compile_number
+	.int xt_two_drop               // ( a u d -- a u )
+	.int xt_eundefc, xt_fetch, xt_execute
+	.int xt_exit
+compile_number:
+	.int xt_d_to_n
+	.int xt_literal
 	.int xt_two_drop
 	.int xt_exit
 
@@ -1505,13 +1534,13 @@ interpret_number:
 
 the_last_word:
 
-defword "quit", 4, quit
-	.int xt_r_zero, xt_rp_store      // clear return stack
-	.int xt_false, xt_state, xt_store // interpret mode
+defword "quit", 4, quit                 // ( -- R: i*x -- )
+	.int xt_r_zero, xt_rp_store         // clear return stack
+	.int xt_bracket
 quit_interpret:
 	.int xt_lit, xt_question_separator
 	.int xt_word
-	.int xt_ccount                          // ( a u )
+	.int xt_ccount                      // ( a u )
 	.int xt_question_interpret
 	.int xt_zero_branch
 	label quit_compile
