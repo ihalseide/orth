@@ -110,9 +110,14 @@ _start:
 	/* Start up Forth */
 	ldr r10, =init_code
 	NEXT
-
 init_code:
-	.int xt_test
+	.int xt_cstr_lit
+	.byte 23
+	.ascii "orth v0.0.0 2021-04-21\n"
+	.align 2
+	.int xt_type
+	.int xt_depth, xt_dot
+	.int xt_quit
 
 enter_colon:
 	str r10, [r11, #-4]!        // Save the return address to the return stack
@@ -185,7 +190,7 @@ defcode "exit", 4, exit
 	ldr r10, [r11], #4          // ip = pop return stack
 	NEXT
 
-defcode "halt", 4, halt
+defcode "bye", 3, bye
 	// b code_halt
 	eor r0, r0
 	mov r7, #1
@@ -220,21 +225,21 @@ defcode "c,", 1, c_comma
 	pop {r9}
 	NEXT
 
-defcode "PSP@", 4, psp_fetch
+defcode "SP@", 3, sp_fetch
 	push {r9}
 	mov r9, sp
 	NEXT
 
-defcode "PSP!", 4, psp_store
+defcode "SP!", 3, sp_store
 	mov sp, r9
 	NEXT
 
-defcode "RSP@", 4, rsp_fetch
+defcode "RP@", 3, rp_fetch
 	push {r9}
 	mov r9, r11
 	NEXT
 
-defcode "RSP!", 4, rsp_store
+defcode "RP!", 43 rp_store
 	mov r11, r9
 	pop {r9}
 	NEXT
@@ -445,15 +450,6 @@ defcode "key", 3, key   // ( -- c )
 	pop {r9}            // move it to the TOS
 	NEXT
 
-defcode "accept", 6, accept          // ( a u1 -- u2 )
-	mov r7, #3          // read(fd, buf, len)
-	eor r0, r0          // stdin
-	pop {r1}            // buf = a
-	mov r2, r9          // u1 char(s)
-	swi #0
-	mov r9, r0
-	NEXT
-
 defcode "emit", 4, emit              // ( c -- )
 	mov r7, #4                       // write(fd, buf, len)
 	mov r0, #1                       // stdout
@@ -595,7 +591,7 @@ defcode "u>str", 5, u_to_str  // ( u1 -- a u2 )
 	mov r4, #0                // r4 = index
 	ldr r5, =var_h
 	ldr r5, [r5]              // r5 = here (temporary space to write the digits)
-	add r5, #1                // leave a space for prefix minus sign
+	add r5, #NAME_LEN+1       // leave a space for prefix minus sign
 	/* Get the number base */
 	ldr r6, =var_base         // r6 = number base
 	ldr r6, [r6]
@@ -787,6 +783,30 @@ defcode "eundefc", 7, eundefc
 
 // ----- High-level words -----
 
+defword "accept", 6, accept          // ( a u1 -- u2 )
+	.int xt_dup, xt_to_r             // ( a u1 R: u1 )
+accept_char:
+	.int xt_dup, xt_zero_branch
+	label accept_done
+	.int xt_swap
+	.int xt_key                      // ( u a c R: u1 )
+	.int xt_dup, xt_lit, 10, xt_equals
+	.int xt_not, xt_zero_branch
+	label accept_break
+	.int xt_over, xt_store           // ( u a R: u1 )
+	.int xt_one_plus
+	.int xt_swap
+	.int xt_one_minus
+	.int xt_branch
+	label accept_char
+accept_break:
+	.int xt_drop
+accept_done:
+	.int xt_drop                     // ( u R: u1 )
+	.int xt_r_from
+	.int xt_swap, xt_minus
+	.int xt_exit
+
 defword ":", 1, colon
 	.int xt_header
 	.int xt_entercolon, xt_comma        // make the word run docol
@@ -873,6 +893,8 @@ defword "[", 1+F_IMMEDIATE, bracket         // ( -- ) interpreter
 defword "]", 1, rbracket                    // ( -- ) compiler
 	.int xt_true, xt_state, xt_store
 compile_loop:
+	.int xt_question_interpret, xt_zero_branch
+	label compile_done
 	.int xt_lit, xt_question_separator
 	.int xt_word, xt_ccount                 // ( a u )
 	.int xt_two_dup, xt_find                // ( a u link|0 )
@@ -906,7 +928,8 @@ compile_num:                              // ( a u d )
 	.int xt_literal
 	.int xt_branch
 	label compile_loop
-	// no exit	
+compile_done:
+	.int xt_quit
 
 defword "literal", 7, literal               // ( x -- )
 	.int xt_lit, xt_lit, xt_comma           // compile "lit"
@@ -1334,24 +1357,18 @@ defword "bin", 3, bin
 	.int xt_exit
 
 defword "depth", 5, depth
-	.int xt_s_zero, xt_psp_fetch
-	.int xt_minus
-	.int xt_lit, 4, xt_slash
-	.int xt_one_minus, xt_one_minus
-	.int xt_exit
-
-defword "rdepth", 6, rdepth
-	.int xt_r_zero, xt_rsp_fetch
+	.int xt_s_zero, xt_sp_fetch
 	.int xt_minus
 	.int xt_lit, 4, xt_slash
 	.int xt_one_minus
 	.int xt_exit
 
-defword "test", 4+F_HIDDEN, test
-	.int xt_lit, xt_question_separator
-	.int xt_word
-	.int xt_ccount, xt_type
-	.int xt_halt
+defword "rdepth", 6, rdepth
+	.int xt_r_zero, xt_rp_fetch
+	.int xt_minus
+	.int xt_lit, 4, xt_slash
+	.int xt_one_minus
+	.int xt_exit
 
 defword "type?", 5, type_question
 	.int xt_type
@@ -1363,7 +1380,7 @@ defword "undefined-comp", 14, undefined_comp // ( a u -- )
 	.int xt_type_question
 	.int xt_quit
 
-defword "undefined", 9, undefined
+defword "undefined", 9, undefined            // ( a u -- )
 	.int xt_type_question
 	.int xt_quit
 
@@ -1376,18 +1393,20 @@ defword "forget", 6, forget           // ( link -- )
 the_last_word:
 
 defword "quit", 4, quit
-	.int xt_r_zero, xt_rsp_store      // clear return stack
+	.int xt_r_zero, xt_rp_store      // clear return stack
 	.int xt_false, xt_state, xt_store // interpret mode
 quit_interpret:
 	.int xt_lit, xt_question_separator
 	.int xt_word
 	.int xt_ccount                          // ( a u )
+	.int xt_dup, xt_zero_branch
+	label quit_empty
 	.int xt_two_dup
 	.int xt_find
-	.int xt_dup, xt_zero_branch
+	.int xt_dup, xt_zero_branch             // ( a u link|0 )
 	label interpret_no_find
-	.int xt_to_xt
 	.int xt_nip, xt_nip
+	.int xt_to_xt
 	.int xt_execute
 	.int xt_branch
 	label quit_interpret
@@ -1395,14 +1414,19 @@ interpret_no_find:
 	.int xt_drop
 	.int xt_two_dup
 	.int xt_str_to_d                        // ( a u1 d u2 )
-	.int xt_zero_branch
+	.int xt_zero_branch                     // ( a u d )
 	label interpret_valid_number
 	.int xt_two_drop
 	.int xt_eundef, xt_fetch, xt_execute   // ( a u -- )
 	.int xt_branch
 	label quit_interpret
 interpret_valid_number:                     // ( a u1 )
-	.int xt_d_to_n, xt_nip
+	.int xt_d_to_n
+	.int xt_nip, xt_nip
+	.int xt_branch
+	label quit_interpret
+quit_empty:
+	.int xt_two_drop
 	.int xt_branch
 	label quit_interpret
 	// no exit
