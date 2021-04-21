@@ -1007,6 +1007,7 @@ defword "ccount", 6, ccount     // ( a1 -- a2 c )
 	.int xt_c_fetch             // ( a2 c )
 	.int xt_exit
 
+// compile-only
 defword "str-lit", 7, str_lit   // ( R: a2 -- a1 u1 R: a3 ) load an embedded string
 	.int xt_r_from              // ( a2 R: )
 	.int xt_count               // ( a1 u1 )
@@ -1015,6 +1016,7 @@ defword "str-lit", 7, str_lit   // ( R: a2 -- a1 u1 R: a3 ) load an embedded str
 	.int xt_to_r                // ( a1 u1 R: a3 )
 	.int xt_exit
 
+// compile-only
 defword "cstr-lit", 8, cstr_lit // ( R: a2 -- a1 c1 R: a3 ) load a short embedded string
 	.int xt_r_from              // ( a2 R: )
 	.int xt_ccount              // ( a1 c1 )
@@ -1023,7 +1025,8 @@ defword "cstr-lit", 8, cstr_lit // ( R: a2 -- a1 c1 R: a3 ) load a short embedde
 	.int xt_to_r                // ( a1 c1 R: a3 )
 	.int xt_exit
 
-defword "zstr-lit", 8, zstr_lit     // ( -- a1 u ) messes with return adress
+// compile-only
+defword "zstr-lit", 8, zstr_lit     // ( -- a1 u ) literal zero-terminated character string, messes with return adress
 	.int xt_r_from, xt_dup, xt_dup  // ( a1 a1 a1 R: _ )
 	.int xt_lit, xt_zero_equals
 	.int xt_scan, xt_dup            // ( a1 a1 a )
@@ -1370,6 +1373,12 @@ nscan_done1:
 	.int xt_two_drop          // ( a2 p -- a2 )
 	.int xt_exit
 
+defword "3dup", 4, three_dup  // ( x1 x2 x3 -- x1 x2 x3 x1 x2 x3 )
+	.int xt_dup
+	.int xt_two_over
+	.int xt_rot
+	.int xt_exit
+
 defword "word", 4, word           // ( p -- a1 )
 word_input:
 	.int xt_source                // ( p a u )
@@ -1380,20 +1389,23 @@ word_input:
 	.int xt_refill, xt_drop       // ( p )
 	.int xt_branch
 	label word_input
-word_copy:                        // ( p a2 u )
-	.int xt_minus_rot             // ( u p a2 )
-	.int xt_over                  // ( u p a2 p )
-	.int xt_skip                  // ( u p a3 )
-	.int xt_tuck                  // ( u a3 p a3 )
-	.int xt_swap                  // ( u a3 a3 p )
-	.int xt_scan                  // ( u a3 a4 )
+word_copy:                        // ( p a u )
+	.int xt_rot                   // use nskip and nscan to extract the word
+	.int xt_three_dup
+	.int xt_nskip                 // ( a u p a2 )
+	.int xt_swap, xt_to_r         // ( a u a2 R: p )
+	.int xt_rot, xt_two_dup       // ( u a2 a a2 a R: p )
+	.int xt_minus, xt_nip         // ( u a2 u R: p )
+	.int xt_rot
+	.int xt_swap, xt_minus        // ( a2 u R: p )
+	.int xt_over, xt_swap         // ( a2 a2 u R: p )
+	.int xt_r_from
+	.int xt_nscan                 // ( a2 a3 )
 	.int xt_dup, xt_source_store
-	.int xt_over                  // ( u a3 a4 a3 )
-	.int xt_minus                 // ( u a3 u )
-	.int xt_rot, xt_min           // ( a3 u )
-	.int xt_tuck                  // ( u a3 u )
-	.int xt_here, xt_one_plus     // ( u a3 u h+1 )
-	.int xt_swap                  // ( u a3 h+1 u )
+	.int xt_over, xt_minus        // ( a2 u )
+	.int xt_tuck
+	.int xt_here, xt_one_plus
+	.int xt_swap
 	.int xt_cmove                 // ( u )
 	.int xt_here, xt_c_store      // ( )
 	.int xt_here                  // ( a1 )
@@ -1464,25 +1476,28 @@ defword "forget", 6, forget           // ( link -- )
 	.int xt_h, xt_store
 	.int xt_exit	
 
-defword "?)", 2, question_paren
+defword "?)", 2+F_HIDDEN, question_paren
 	.int xt_lit, ')', xt_equals
 	.int xt_exit
 
+defword ")", 1, rparen // do nothing
+	.int xt_exit
+
 defword "(", 1, paren
+paren_scan:
 	.int xt_source
 	.int xt_lit, xt_question_paren
-	.int xt_nscan
-	.int xt_tib
-	.int xt_num_tib, xt_fetch
-	.int xt_plus
-	.int xt_equals, xt_not, xt_zero_branch
-	.int xt_exit
-	label paren_raw_loop
-paren_raw_loop:
-	.int xt_key
-	.int xt_lit, ')', xt_equals
-	.int xt_zero_branch
-	label paren_raw_loop
+	.int xt_nscan                  // ( a )
+	.int xt_dup
+	.int xt_source, xt_plus        // ( a a src-end-a )
+	.int xt_less, xt_not, xt_zero_branch
+	label paren_done
+	.int xt_drop                   // ( a -- )
+	.int xt_refill
+	.int xt_branch
+	label paren_scan
+paren_done:
+	.int xt_source_store           // ( a -- )
 	.int xt_exit
 
 the_last_word:
