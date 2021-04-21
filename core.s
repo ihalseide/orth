@@ -1106,12 +1106,11 @@ defword "BL", 2, bl
 	.int xt_lit, 32
 	.int xt_exit
 
-defword "space", 4, space
+defword "space", 5, space
 	.int xt_bl, xt_emit
 	.int xt_exit
 
 defword "line", 4, line
-	//.int xt_lit, 13, xt_emit
 	.int xt_lit, 10, xt_emit
 	.int xt_exit
 
