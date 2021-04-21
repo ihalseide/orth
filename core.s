@@ -111,12 +111,11 @@ _start:
 	ldr r10, =init_code
 	NEXT
 init_code:
-	.int xt_cstr_lit
-	.byte 23
-	.ascii "orth v0.0.0 2021-04-21\n"
+	.int xt_zstr_lit
+	.asciz "orth v0.0.1 2021-04-21\n"
 	.align 2
 	.int xt_type
-	.int xt_depth, xt_dot
+	.int xt_line
 	.int xt_quit
 
 enter_colon:
@@ -191,12 +190,12 @@ defcode "exit", 4, exit
 	NEXT
 
 defcode "bye", 3, bye
-	// b code_halt
 	eor r0, r0
 	mov r7, #1
 	swi #0
+	// unreachable
 
-defcode "lit", 3, lit
+defcode "lit", 3+F_HIDDEN, lit
 	push {r9}                   // Push the next instruction value to the stack.
 	ldr r9, [r10], #4
 	NEXT
@@ -239,7 +238,7 @@ defcode "RP@", 3, rp_fetch
 	mov r9, r11
 	NEXT
 
-defcode "RP!", 43 rp_store
+defcode "RP!", 3, rp_store
 	mov r11, r9
 	pop {r9}
 	NEXT
@@ -438,6 +437,7 @@ defcode "execute", 7, execute        // ( xt -- )
 	pop {r9}                         // pop the stack
 	ldr r0, [r8]                     // (indirect threaded)
 	bx r0
+	// no next
 
 defcode "key", 3, key   // ( -- c )
 	push {r9}           // push down TOS
@@ -458,15 +458,6 @@ defcode "emit", 4, emit              // ( c -- )
 	cpy r2, r0
 	swi #0
 	pop {r9}
-	NEXT
-
-defcode "type", 4, type              // ( a u -- )
-	mov r7, #4                       // write(...)
-	mov r0, #1                       // fd = stdout
-	pop {r1}                         // buf = a
-	mov r2, r9                       // count = u
-	swi #0
-	pop {r9}                         // get TOS
 	NEXT
 
 defcode "cmove", 5, cmove            // ( a1 a2 u -- ) move u chars from a1 to a2
@@ -571,6 +562,8 @@ to_num3:
 	sub r3, #'0'              // convert char digit to value
 	cmp r3, r4                // if digit >= base then it's an error
 	bge to_num_done
+	cmp r3, #0
+	blt to_num_done
 	mul r5, r1, r4            // multiply the high-word by the base
 	mov r1, r5
 	/* UMULL{S}{cond} RdLo, RdHi, Rn, Rm */
@@ -781,6 +774,10 @@ defcode "eundefc", 7, eundefc
 	ldr r9, =var_eundefc
 	NEXT
 
+defcode "break", 5, break
+	mov r0, r0
+	NEXT
+
 // ----- High-level words -----
 
 defword "accept", 6, accept          // ( a u1 -- u2 )
@@ -807,6 +804,21 @@ accept_done:
 	.int xt_swap, xt_minus
 	.int xt_exit
 
+defword "type", 4, type              // ( a u -- )
+type_char:
+	.int xt_dup, xt_zero_branch
+	label type_done
+	.int xt_swap
+	.int xt_dup, xt_c_fetch, xt_emit
+	.int xt_one_plus
+	.int xt_swap
+	.int xt_one_minus
+	.int xt_branch
+	label type_char
+type_done:
+	.int xt_drop, xt_drop
+	.int xt_exit
+
 defword ":", 1, colon
 	.int xt_header
 	.int xt_entercolon, xt_comma        // make the word run docol
@@ -825,16 +837,18 @@ defword "link", 4, link                 // ( -- ) create link field
 	.int xt_here                        // here = link field address
 	.int xt_latest, xt_fetch, xt_comma  // link field points to previous word
 	.int xt_latest, xt_store            // make this link field address the latest word
+	.int xt_exit
 
-defword "header", 6, header   // ( -- )
-	.int xt_link
+defword "header:", 7, header      // ( -- )
+	.int xt_link                  // link field
 	.int xt_lit, xt_question_separator
-	.int xt_word
-	.int xt_here, xt_c_fetch  // ( c )
-	.int xt_num_name, xt_max
+	.int xt_word                  // use word to create the name field
+	.int xt_ccount, xt_nip        // ( c )
+	.int xt_num_name, xt_min      // trim to max name length
 	.int xt_here, xt_c_store
-	.int xt_num_name          // h += name length
-	.int xt_here, xt_plus
+	.int xt_here
+	.int xt_num_name, xt_one_plus // h += name length
+	.int xt_plus
 	.int xt_h, xt_store
 	.int xt_exit
 
@@ -854,9 +868,9 @@ defword "does>", 5, does
 	.int xt_to_params, xt_store                    // make the created word use that code
 	.int xt_exit
 
-defword "->variable:", 12, to_variable_colon       // ( x -- ) variable initialized to x
+defword "->variable:", 11, to_variable_colon       // ( x -- ) variable initialized to x
 	.int xt_header                                 // get word name input
-	.int xt_lit, enter_variable, xt_comma          // make this word push it's parameter field
+	.int xt_entervariable, xt_comma                // make this word push it's parameter field
 	.int xt_comma
 	.int xt_exit
 
@@ -883,8 +897,6 @@ defword "align", 5, align                          // ( -- ) align here
 defword "here", 4, here                     // value
 	.int xt_h, xt_fetch
 	.int xt_exit
-
-defword "interpret", 9, interpret           // outer interpreter
 
 defword "[", 1+F_IMMEDIATE, bracket         // ( -- ) interpreter
 	.int xt_false, xt_state, xt_store
@@ -930,6 +942,7 @@ compile_num:                              // ( a u d )
 	label compile_loop
 compile_done:
 	.int xt_quit
+	// no exit
 
 defword "literal", 7, literal               // ( x -- )
 	.int xt_lit, xt_lit, xt_comma           // compile "lit"
@@ -1008,6 +1021,14 @@ defword "cstr-lit", 8, cstr_lit // ( R: a2 -- a1 c1 R: a3 ) load a short embedde
 	.int xt_two_dup, xt_plus    // ( a1 c1 a3 )
 	.int xt_aligned             // round up to the next cell
 	.int xt_to_r                // ( a1 c1 R: a3 )
+	.int xt_exit
+
+defword "zstr-lit", 8, zstr_lit     // ( -- a1 u ) messes with return adress
+	.int xt_r_from, xt_dup, xt_dup  // ( a1 a1 a1 R: _ )
+	.int xt_lit, xt_zero_equals
+	.int xt_scan, xt_dup            // ( a1 a1 a )
+	.int xt_aligned, xt_to_r        // ( a1 a1 a R: )
+	.int xt_swap, xt_minus          // ( a1 u )
 	.int xt_exit
 
 defword "mod", 3, mod                 // ( n m -- r ) division remainder
@@ -1123,8 +1144,8 @@ defword "space", 4, space
 	.int xt_bl, xt_emit
 	.int xt_exit
 
-defword "line", 2, line
-	.int xt_lit, 13, xt_emit
+defword "line", 4, line
+	//.int xt_lit, 13, xt_emit
 	.int xt_lit, 10, xt_emit
 	.int xt_exit
 
@@ -1300,6 +1321,55 @@ scan_done:
 	.int xt_drop              // ( a2 p -- a2 )
 	.int xt_exit
 
+defword "nskip", 5, nskip     // ( a1 u p -- a2 ) starting at address a1, skip at most u chars until char  matches p
+nskip_loop:
+	.int xt_over, xt_zero_branch
+	label nskip_done1
+	.int xt_rot
+	.int xt_two_dup           // ( u p a p a )
+	.int xt_c_fetch
+	.int xt_swap              // ( u p a c p )
+	.int xt_execute           // ( u p a f )
+	.int xt_zero_branch
+	label nskip_done2
+	.int xt_one_plus          // ( u p a )
+	.int xt_minus_rot         // ( a u p )
+	.int xt_swap, xt_one_minus
+	.int xt_swap
+	.int xt_branch
+	label nskip_loop
+nskip_done2:                  // ( u p a )
+	.int xt_nip, xt_nip
+	.int xt_exit
+nskip_done1:
+	.int xt_two_drop          // ( a2 p -- a2 )
+	.int xt_exit
+
+
+defword "nscan", 5, nscan     // ( a1 u p -- a2 ) starting at address a1, scan at most u chars for a char that matches p
+nscan_loop:
+	.int xt_over, xt_zero_branch
+	label nscan_done1
+	.int xt_rot
+	.int xt_two_dup           // ( u p a p a )
+	.int xt_c_fetch
+	.int xt_swap              // ( u p a c p )
+	.int xt_execute           // ( u p a f )
+	.int xt_not, xt_zero_branch
+	label nscan_done2
+	.int xt_one_plus          // ( u p a )
+	.int xt_minus_rot         // ( a u p )
+	.int xt_swap, xt_one_minus
+	.int xt_swap
+	.int xt_branch
+	label nscan_loop
+nscan_done2:                  // ( u p a )
+	.int xt_nip, xt_nip
+	.int xt_exit
+nscan_done1:
+	.int xt_two_drop          // ( a2 p -- a2 )
+	.int xt_exit
+
 defword "word", 4, word           // ( p -- a1 )
 word_input:
 	.int xt_source                // ( p a u )
@@ -1373,16 +1443,20 @@ defword "rdepth", 6, rdepth
 defword "type?", 5, type_question
 	.int xt_type
 	.int xt_lit, '?', xt_emit
+	.int xt_lit, ' ', xt_emit
 	.int xt_exit
 
 defword "undefined-comp", 14, undefined_comp // ( a u -- )
 	.int xt_latest, xt_forget
 	.int xt_type_question
 	.int xt_quit
+	// no exit
 
 defword "undefined", 9, undefined            // ( a u -- )
 	.int xt_type_question
+	.int xt_refill, xt_drop                  // discard the rest of input
 	.int xt_quit
+	// no exit
 
 defword "forget", 6, forget           // ( link -- )
 	.int xt_dup
@@ -1390,9 +1464,31 @@ defword "forget", 6, forget           // ( link -- )
 	.int xt_h, xt_store
 	.int xt_exit	
 
+defword "?)", 2, question_paren
+	.int xt_lit, ')', xt_equals
+	.int xt_exit
+
+defword "(", 1, paren
+	.int xt_source
+	.int xt_lit, xt_question_paren
+	.int xt_nscan
+	.int xt_tib
+	.int xt_num_tib, xt_fetch
+	.int xt_plus
+	.int xt_equals, xt_not, xt_zero_branch
+	.int xt_exit
+	label paren_raw_loop
+paren_raw_loop:
+	.int xt_key
+	.int xt_lit, ')', xt_equals
+	.int xt_zero_branch
+	label paren_raw_loop
+	.int xt_exit
+
 the_last_word:
 
 defword "quit", 4, quit
+	.int xt_break
 	.int xt_r_zero, xt_rp_store      // clear return stack
 	.int xt_false, xt_state, xt_store // interpret mode
 quit_interpret:
