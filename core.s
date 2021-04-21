@@ -112,7 +112,7 @@ _start:
 	NEXT
 init_code:
 	.int xt_zstr_lit
-	.asciz "orth v0.0.1 2021-04-21\n"
+	.asciz "orth v0.0.1 2021-04-21"
 	.align 2
 	.int xt_type
 	.int xt_line
@@ -165,26 +165,6 @@ fn_divmod2:
 
 // ----- Primitive words -----
 
-defcode "entercolon", 10, entercolon
-	push {r9}
-	mov r9, #enter_colon
-	NEXT
-
-defcode "entervariable", 13, entervariable
-	push {r9}
-	mov r9, #enter_variable
-	NEXT
-
-defcode "enterconstant", 13, enterconstant
-	push {r9}
-	mov r9, #enter_constant
-	NEXT
-
-defcode "enterdoes", 9, enterdoes
-	push {r9}
-	mov r9, #enter_does
-	NEXT
-
 defcode "exit", 4, exit
 	ldr r10, [r11], #4          // ip = pop return stack
 	NEXT
@@ -195,32 +175,26 @@ defcode "bye", 3, bye
 	swi #0
 	// unreachable
 
-defcode "lit", 3+F_HIDDEN, lit
+defcode "lit", 3+F_HIDDEN, lit  // ( -- x )
 	push {r9}                   // Push the next instruction value to the stack.
 	ldr r9, [r10], #4
 	NEXT
 
-defcode ",", 1, comma
+defcode ",", 1, comma   // ( x -- )
 	ldr r0, =var_h
 	cpy r1, r0
-	
-	ldr r0, [r0]
-	str r9, [r0, #4]!    // *H = TOS
-
-	str r0, [r1]         // H += 4
-
+	ldr r0, [r0]        // r0 = here
+	str r9, [r0], #4    // *here = TOS
+	str r0, [r1]        // H += 4
 	pop {r9}
 	NEXT
 
 defcode "c,", 1, c_comma
 	ldr r0, =var_h
 	cpy r1, r0
-
 	ldr r0, [r0]
-	strb r9, [r0, #1]!   // *H = TOS
-
-	str r0, [r1]         // H += 1
-
+	strb r9, [r0], #1     // *H = TOS
+	str r0, [r1]          // H += 1
 	pop {r9}
 	NEXT
 
@@ -528,7 +502,7 @@ defcode "latest", 6, latest    // variable
 	ldr r9, =var_latest
 	NEXT
 
-defcode "h", 1, h              // variable
+defcode "h", 1, h              // variable that holds the current compilation address
 	push {r9}
 	ldr r9, =var_h
 	NEXT
@@ -780,6 +754,22 @@ defcode "break", 5, break
 
 // ----- High-level words -----
 
+defword "entercolon", 10, entercolon
+	.int xt_lit, enter_colon
+	.int xt_exit
+
+defword "entervariable", 13, entervariable
+	.int xt_lit, enter_variable
+	.int xt_exit
+
+defword "enterconstant", 13, enterconstant
+	.int xt_lit, enter_constant
+	.int xt_exit
+
+defword "enterdoes", 9, enterdoes
+	.int xt_lit, enter_does
+	.int xt_exit
+
 defword "accept", 6, accept          // ( a u1 -- u2 )
 	.int xt_dup, xt_to_r             // ( a u1 R: u1 )
 accept_char:
@@ -833,22 +823,21 @@ defword ";", 1+F_IMMEDIATE, semicolon
 	.int xt_exit
 
 defword "link", 4, link                 // ( -- ) create link field
-	.int xt_align                       // align compilation pointer
-	.int xt_here                        // here = link field address
+	.int xt_align
+	.int xt_here                        // here = this new link address
 	.int xt_latest, xt_fetch, xt_comma  // link field points to previous word
 	.int xt_latest, xt_store            // make this link field address the latest word
 	.int xt_exit
 
-defword "header:", 7, header      // ( -- )
-	.int xt_link                  // link field
+defword "header:", 7, header      // ( -- ) create link and name field in dictionary
+	.int xt_link
 	.int xt_lit, xt_question_separator
-	.int xt_word                  // use word to create the name field
-	.int xt_ccount, xt_nip        // ( c )
-	.int xt_num_name, xt_min      // trim to max name length
-	.int xt_here, xt_c_store
-	.int xt_here
-	.int xt_num_name, xt_one_plus // h += name length
-	.int xt_plus
+	.int xt_word                  // ( a )
+	.int xt_dup, xt_dup
+	.int xt_c_fetch               // ( a a len )
+	.int xt_num_name, xt_min
+	.int xt_swap, xt_c_store      // ( a )
+	.int xt_num_name, xt_one_plus, xt_plus
 	.int xt_h, xt_store
 	.int xt_exit
 
@@ -874,14 +863,14 @@ defword "->variable:", 11, to_variable_colon       // ( x -- ) variable initiali
 	.int xt_comma
 	.int xt_exit
 
-defword "variable:", 9, variable_colon             // ( -- )
+defword "variable:", 9, variable_colon   // ( -- )
 	.int xt_lit, 0
 	.int xt_to_variable_colon
 	.int xt_exit
 
-defword "constant:", 9, constant_colon             // ( x -- ) constant with value x
-	.int xt_header                                 // get word name input
-	.int xt_lit, enter_constant, xt_comma          // make this word push it's parameter field
+defword "constant:", 9, constant_colon   // ( x -- ) constant with value x
+	.int xt_header                       // get word name input
+	.int xt_enterconstant, xt_comma      // make this word push it's parameter field
 	.int xt_comma
 	.int xt_exit
 
@@ -894,7 +883,7 @@ defword "align", 5, align                          // ( -- ) align here
 	.int xt_here, xt_aligned, xt_h, xt_store
 	.int xt_exit
 
-defword "here", 4, here                     // value
+defword "here", 4, here // current compilation address
 	.int xt_h, xt_fetch
 	.int xt_exit
 
@@ -1029,8 +1018,8 @@ defword "cstr-lit", 8, cstr_lit // ( R: a2 -- a1 c1 R: a3 ) load a short embedde
 defword "zstr-lit", 8, zstr_lit     // ( -- a1 u ) literal zero-terminated character string, messes with return adress
 	.int xt_r_from, xt_dup, xt_dup  // ( a1 a1 a1 R: _ )
 	.int xt_lit, xt_zero_equals
-	.int xt_scan, xt_dup            // ( a1 a1 a )
-	.int xt_aligned, xt_to_r        // ( a1 a1 a R: )
+	.int xt_scan                    // ( a1 a1 a )
+	.int xt_dup, xt_one_plus, xt_aligned, xt_to_r
 	.int xt_swap, xt_minus          // ( a1 u )
 	.int xt_exit
 
@@ -1111,7 +1100,7 @@ defword "?", 1, question              // ( a -- )
 	.int xt_exit
 
 defword "c?", 2, c_question           // ( a -- )
-	.int xt_c_fetch, xt_emit
+	.int xt_c_fetch, xt_u_dot
 	.int xt_exit
 
 defword "hide", 4, hide               // ( a -- )
@@ -1137,6 +1126,7 @@ defword "id.", 3, id_dot                     // ( link -- )
 	.int xt_to_name, xt_ccount
 	.int xt_flenmask, xt_and
 	.int xt_type
+	.int xt_space
 	.int xt_exit
 
 defword "BL", 2, bl
@@ -1416,9 +1406,16 @@ defword "words", 5, words
 words_next:
 	.int xt_dup, xt_zero_branch
 	label words_done
-	.int xt_space
 	.int xt_dup
+	.int xt_dup, xt_question_hidden
+	.int xt_not, xt_zero_branch
+	label words_skip_hidden
 	.int xt_id_dot
+	.int xt_fetch
+	.int xt_branch
+	label words_next
+words_skip_hidden:
+	.int xt_drop
 	.int xt_fetch
 	.int xt_branch
 	label words_next
