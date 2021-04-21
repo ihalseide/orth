@@ -83,6 +83,7 @@ var_num_tib: .int 0
 // Errors vectored execution
 var_eundefc: .int xt_undefined_comp
 var_eundef: .int xt_undefined
+var_edivzero: .int xt_div_zero
 
 .align 2
 input_buffer: .space TIB_SIZE
@@ -464,7 +465,7 @@ cmove_from_check:
 	pop {r9}
 	NEXT
 
-defcode "/mod", 4, slash_mod // ( n m -- r q ) division remainder and quotient
+defcode "(/mod)", 6, paren_slash_mod // ( n m -- r q ) division remainder and quotient
 	mov r1, r9
 	pop {r0}
 	bl fn_divmod
@@ -748,8 +749,9 @@ defcode "eundefc", 7, eundefc
 	ldr r9, =var_eundefc
 	NEXT
 
-defcode "break", 5, break
-	mov r0, r0
+defcode "ediv0", 5, edivzero
+	push {r9}
+	ldr r9, =var_edivzero
 	NEXT
 
 // ----- High-level words -----
@@ -1021,6 +1023,15 @@ defword "zstr-lit", 8, zstr_lit     // ( -- a1 u ) literal zero-terminated chara
 	.int xt_scan                    // ( a1 a1 a )
 	.int xt_dup, xt_one_plus, xt_aligned, xt_to_r
 	.int xt_swap, xt_minus          // ( a1 u )
+	.int xt_exit
+
+defword "/mod", 4, slash_mod          // ( n m -- r q )
+	.int xt_dup, xt_zero_branch
+	label div0
+	.int xt_paren_slash_mod
+	.int xt_exit
+div0:
+	.int xt_edivzero, xt_fetch, xt_execute
 	.int xt_exit
 
 defword "mod", 3, mod                 // ( n m -- r ) division remainder
@@ -1464,6 +1475,14 @@ defword "undefined-comp", 14, undefined_comp // ( a u -- )
 defword "undefined", 9, undefined            // ( a u -- )
 	.int xt_type_question
 	.int xt_refill, xt_drop                  // discard the rest of input
+
+defword "div0", 4, div_zero         // ( x 0 -- )
+	.int xt_two_drop
+	.int xt_cstr_lit
+	.byte 8
+	.ascii "#DIV/0! "
+	.align 2
+	.int xt_type
 	.int xt_quit
 	// no exit
 
