@@ -1,5 +1,4 @@
 build: core
-	vim core.map core.list
 
 debug: core
 	gdb core
