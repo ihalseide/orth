@@ -889,51 +889,13 @@ defword "here", 4, here // current compilation address
 	.int xt_h, xt_fetch
 	.int xt_exit
 
-defword "[", 1+F_IMMEDIATE, bracket         // ( -- ) interpreter
+defword "[", 1+F_IMMEDIATE, bracket         // ( -- ) interpret mode
 	.int xt_false, xt_state, xt_store
 	.int xt_exit
 
-defword "]", 1, rbracket                    // ( -- ) compiler
+defword "]", 1, rbracket                    // ( -- ) compile mode
 	.int xt_true, xt_state, xt_store
-compile_loop:
-	.int xt_question_interpret, xt_zero_branch
-	label compile_done
-	.int xt_lit, xt_question_separator
-	.int xt_word, xt_ccount                 // ( a u )
-	.int xt_two_dup, xt_find                // ( a u link|0 )
-	.int xt_dup
-	.int xt_zero_branch
-	label compile_no_find
-	.int xt_nip, xt_nip
-	.int xt_dup, xt_question_immediate
-	.int xt_zero_branch
-	label compile_compile
-	.int xt_to_xt, xt_execute
-	.int xt_branch
-	label compile_loop
-compile_compile:
-	.int xt_to_xt, xt_comma
-	.int xt_branch
-	label compile_loop
-compile_no_find:
-	.int xt_drop
-	.int xt_two_dup
-	.int xt_str_to_d                      // ( a u d n|0 )
-	.int xt_zero_branch
-	label compile_num
-	.int xt_two_drop                      // ( a u )
-	.int xt_eundefc, xt_fetch, xt_execute
-	.int xt_branch
-	label compile_loop
-compile_num:                              // ( a u d )
-	.int xt_d_to_n                        // ( a u n )
-	.int xt_nip, xt_nip
-	.int xt_literal
-	.int xt_branch
-	label compile_loop
-compile_done:
-	.int xt_quit
-	// no exit
+	.int xt_exit
 
 defword "literal", 7, literal               // ( x -- )
 	.int xt_lit, xt_lit, xt_comma           // compile "lit"
@@ -1463,18 +1425,19 @@ defword "rdepth", 6, rdepth
 defword "type?", 5, type_question
 	.int xt_type
 	.int xt_lit, '?', xt_emit
-	.int xt_lit, ' ', xt_emit
+	.int xt_space
 	.int xt_exit
 
 defword "undefined-comp", 14, undefined_comp // ( a u -- )
 	.int xt_latest, xt_forget
 	.int xt_type_question
+	.int xt_refill, xt_drop         // discard the rest of input
 	.int xt_quit
-	// no exit
 
-defword "undefined", 9, undefined            // ( a u -- )
-	.int xt_type_question
-	.int xt_refill, xt_drop                  // discard the rest of input
+defword "undefined", 9, undefined   // ( a u -- )
+	.int xt_type_question           // prompt
+	.int xt_refill, xt_drop         // discard the rest of input
+	.int xt_quit
 
 defword "div0", 4, div_zero         // ( x 0 -- )
 	.int xt_two_drop
@@ -1484,7 +1447,6 @@ defword "div0", 4, div_zero         // ( x 0 -- )
 	.align 2
 	.int xt_type
 	.int xt_quit
-	// no exit
 
 defword "forget", 6, forget           // ( link -- )
 	.int xt_dup
@@ -1516,47 +1478,51 @@ paren_done:
 	.int xt_source_store           // ( a -- )
 	.int xt_exit
 
+defword "compile", 7, compile      // ( a u -- )
+	.int xt_two_drop
+	.int xt_exit
+
+defword "interpret", 9, interpret  // ( a u -- )
+	.int xt_two_dup
+	.int xt_find, xt_dup
+	.int xt_zero_branch            // ( a u link|0 )
+	label interpret_no_find
+	.int xt_nip, xt_nip
+	.int xt_to_xt, xt_execute
+	.int xt_exit
+interpret_no_find:
+	.int xt_drop
+	.int xt_two_dup                // ( a u a u )
+	.int xt_str_to_d               // ( a u d e|0 )
+	.int xt_zero_branch
+	label interpret_number
+	.int xt_two_drop               // ( a u d -- a u )
+	.int xt_eundef, xt_fetch, xt_execute
+	.int xt_exit
+interpret_number:
+	.int xt_d_to_n
+	.int xt_nip, xt_nip
+	.int xt_exit
+
 the_last_word:
 
 defword "quit", 4, quit
-	.int xt_break
 	.int xt_r_zero, xt_rp_store      // clear return stack
 	.int xt_false, xt_state, xt_store // interpret mode
 quit_interpret:
 	.int xt_lit, xt_question_separator
 	.int xt_word
 	.int xt_ccount                          // ( a u )
-	.int xt_dup, xt_zero_branch
-	label quit_empty
-	.int xt_two_dup
-	.int xt_find
-	.int xt_dup, xt_zero_branch             // ( a u link|0 )
-	label interpret_no_find
-	.int xt_nip, xt_nip
-	.int xt_to_xt
-	.int xt_execute
+	.int xt_question_interpret
+	.int xt_zero_branch
+	label quit_compile
+	.int xt_interpret
 	.int xt_branch
 	label quit_interpret
-interpret_no_find:
-	.int xt_drop
-	.int xt_two_dup
-	.int xt_str_to_d                        // ( a u1 d u2 )
-	.int xt_zero_branch                     // ( a u d )
-	label interpret_valid_number
-	.int xt_two_drop
-	.int xt_eundef, xt_fetch, xt_execute   // ( a u -- )
+quit_compile:
+	.int xt_compile
 	.int xt_branch
 	label quit_interpret
-interpret_valid_number:                     // ( a u1 )
-	.int xt_d_to_n
-	.int xt_nip, xt_nip
-	.int xt_branch
-	label quit_interpret
-quit_empty:
-	.int xt_two_drop
-	.int xt_branch
-	label quit_interpret
-	// no exit
 
 .align 2
 
