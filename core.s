@@ -1216,6 +1216,33 @@ defword "source", 6, source       // ( -- a u )
 	.int xt_minus
 	.int xt_exit
 
+// TODO: other input sources
+defword "source!", 7, source_store  // ( a1 -- )
+	.int xt_dup
+	.int xt_source
+	.int xt_minus_rot               // ( a1 u a1 a )
+	.int xt_minus
+	.int xt_less
+	.int xt_zero_branch             // ( a1 )
+	label source_fine
+	.int xt_refill                  // ( a1 f )
+	.int xt_two_drop
+	.int xt_exit
+source_fine:
+	.int xt_tib, xt_minus           // ( u )
+	.int xt_to_in, xt_store
+	.int xt_exit
+
+defword "?separator", 10, question_separator    // ( c -- f ) whitespace predicate
+	.int xt_dup, xt_lit, 0, xt_equals, xt_swap  // ( f c )
+	.int xt_dup, xt_lit, 9, xt_equals, xt_swap  // ( f f c )
+	.int xt_dup, xt_lit, 10, xt_equals, xt_swap // ( f f f c )
+	.int xt_dup, xt_lit, 13, xt_equals, xt_swap // ( f f f c )
+	.int xt_lit, 32, xt_equals                  // ( f f f f )
+	.int xt_or, xt_or, xt_or, xt_or             // ( f )
+	.int xt_exit
+
+// Warning: unbounded
 defword "skip", 4, skip       // ( a1 p -- a2 ) from char address a1, find 1st char that doesn't match p
 skip_loop:
 	.int xt_over, xt_c_fetch  // ( a p -- a p c )
@@ -1232,6 +1259,7 @@ skip_done:
 	.int xt_drop              // ( a2 p -- a2 )
 	.int xt_exit
 
+// Warning: unbounded
 defword "scan", 4, scan       // ( a1 p -- a2 ) start at char address a1, find 1st char that matches p
 scan_loop:
 	.int xt_over, xt_c_fetch  // ( a p -- a p c )
@@ -1249,15 +1277,6 @@ scan_done:
 	.int xt_drop              // ( a2 p -- a2 )
 	.int xt_exit
 
-defword "?separator", 10, question_separator    // ( c -- f )
-	.int xt_dup, xt_lit, 0, xt_equals, xt_swap  // ( f c )
-	.int xt_dup, xt_lit, 9, xt_equals, xt_swap  // ( f f c )
-	.int xt_dup, xt_lit, 10, xt_equals, xt_swap // ( f f f c )
-	.int xt_dup, xt_lit, 13, xt_equals, xt_swap // ( f f f c )
-	.int xt_lit, 32, xt_equals                  // ( f f f f )
-	.int xt_or, xt_or, xt_or, xt_or             // ( f )
-	.int xt_exit
-
 defword "word", 4, word           // ( p -- a1 )
 word_input:
 	.int xt_source                // ( p a u )
@@ -1270,26 +1289,20 @@ word_input:
 	label word_input
 word_copy:                        // ( p a2 u )
 	.int xt_minus_rot             // ( u p a2 )
-	.int xt_dup, xt_to_r          // ( R: a2 )
 	.int xt_over                  // ( u p a2 p )
 	.int xt_skip                  // ( u p a3 )
 	.int xt_tuck                  // ( u a3 p a3 )
 	.int xt_swap                  // ( u a3 a3 p )
 	.int xt_scan                  // ( u a3 a4 )
-	.int xt_dup, xt_to_r          // ( R: a2 a4 )
+	.int xt_dup, xt_source_store
 	.int xt_over                  // ( u a3 a4 a3 )
-	.int xt_swap, xt_minus        // ( u a3 u )
-	.int xt_rot, xt_max           // ( a3 u )
+	.int xt_minus                 // ( u a3 u )
+	.int xt_rot, xt_min           // ( a3 u )
 	.int xt_tuck                  // ( u a3 u )
 	.int xt_here, xt_one_plus     // ( u a3 u h+1 )
 	.int xt_swap                  // ( u a3 h+1 u )
 	.int xt_cmove                 // ( u )
 	.int xt_here, xt_c_store      // ( )
-	.int xt_r_from, xt_r_from     // ( a4 a2 R: )
-	.int xt_minus                 // ( u ) save scanned input to variable >in
-	.int xt_to_in, xt_fetch
-	.int xt_plus
-	.int xt_to_in, xt_store
 	.int xt_here                  // ( a1 )
 	.int xt_exit
 
@@ -1335,20 +1348,10 @@ defword "rdepth", 6, rdepth
 	.int xt_exit
 
 defword "test", 4+F_HIDDEN, test
-	.int xt_cstr_lit
-	.byte 3
-	.ascii "-12"
-	.align 2
-test1:
-	.int xt_str_to_d
-	.int xt_dot
-	.int xt_d_to_n
-	.int xt_dot
-
-	.int xt_quit
-
+	.int xt_lit, xt_question_separator
+	.int xt_word
+	.int xt_ccount, xt_type
 	.int xt_halt
-	// no exit
 
 defword "type?", 5, type_question
 	.int xt_type
