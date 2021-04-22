@@ -1,8 +1,8 @@
 // ----- Constants -----
 
-.set F_IMMEDIATE, 128
-.set F_HIDDEN,    64
-.set F_LENMASK,   31
+.set F_IMMEDIATE, 0b10000000
+.set F_HIDDEN,    0b01000000
+.set F_LENMASK,   0b00011111
 
 .set NAME_LEN, 31
 .set TIB_SIZE, 1024
@@ -99,6 +99,8 @@ dictionary:
 
 .text
 
+.align 2
+
 .global _start
 _start:
 	/* Save parameter stack base */
@@ -112,12 +114,6 @@ _start:
 	ldr r10, =init_code
 	NEXT
 init_code:
-	.int xt_cstr_lit
-	.byte 22
-	.ascii "orth v0.0.1 2021-04-21"
-	.align 2
-	.int xt_type
-	.int xt_line
 	.int xt_quit
 
 enter_colon:
@@ -395,12 +391,12 @@ defcode "c@", 2, c_fetch          // ( a -- c )
 	ldrb r9, [r9]
 	NEXT
 
-defcode "branch", 6, branch          // branch ( -- ) relative branch
+defcode "branch", 6, branch // branch ( -- ) relative branch
 	ldr r0, [r10]
 	add r10, r0
 	NEXT
 
-defcode "0branch", 7, zero_branch    // 0branch ( x -- )
+defcode "0branch", 7, zero_branch // 0branch ( x -- )
 	cmp r9, #0
 	ldreq r0, [r10]                  // Set the IP to the next codeword if 0,
 	addeq r10, r0
@@ -812,7 +808,7 @@ type_done:
 	.int xt_drop, xt_drop
 	.int xt_exit
 
-defword ";", 1, semicolon, F_IMMEDIATE
+defword ";", 1+F_IMMEDIATE
 	.int xt_lit, xt_exit, xt_comma      // compile exit code
 	.int xt_latest, xt_fetch, xt_hide   // make the word shown
 	.int xt_bracket                     // enter the immediate interpreter
@@ -898,7 +894,7 @@ defword "]", 1, rbracket                    // ( -- ) compile mode
 	.int xt_true, xt_state, xt_store
 	.int xt_exit
 
-defword "literal", 7, literal               // ( x -- )
+defword "literal", 7, literal, F_IMMEDIATE  // ( x -- )
 	.int xt_lit, xt_lit, xt_comma           // compile "lit"
 	.int xt_comma                           // compile x
 	.int xt_exit
@@ -911,15 +907,6 @@ defword "'", 1, tick                        // ( -- xt )
 	.int xt_lit, xt_question_separator
 	.int xt_word, xt_ccount
 	.int xt_find, xt_to_xt
-	.int xt_exit
-
-defword "postpone", 8, postpone, F_IMMEDIATE // ( -- )
-	.int xt_tick, xt_comma
-	.int xt_exit
-
-defword "allot", 5, allot                   // ( u -- a )
-	.int xt_here, xt_dup
-	.int xt_plus, xt_h, xt_store
 	.int xt_exit
 
 defword ">link", 5, to_link           // ( xt -- link )
@@ -1070,14 +1057,6 @@ defword ".", 1, dot                   // ( n -- )
 	.int xt_bl, xt_emit
 	.int xt_exit
 
-defword "?", 1, question              // ( a -- )
-	.int xt_fetch, xt_u_dot
-	.int xt_exit
-
-defword "c?", 2, c_question           // ( a -- )
-	.int xt_c_fetch, xt_u_dot
-	.int xt_exit
-
 defword "hide", 4, hide               // ( link -- )
 	.int xt_to_name
 	.int xt_dup, xt_c_fetch
@@ -1097,16 +1076,16 @@ defword "id.", 3, id_dot                     // ( link -- )
 	.int xt_space
 	.int xt_exit
 
+defword "CR", 2, cr
+	.int xt_lit, '\n'
+	.int xt_exit
+
 defword "BL", 2, bl
 	.int xt_lit, 32
 	.int xt_exit
 
 defword "space", 5, space
 	.int xt_bl, xt_emit
-	.int xt_exit
-
-defword "line", 4, line
-	.int xt_lit, 10, xt_emit
 	.int xt_exit
 
 defword "bool", 4, bool                // ( x -- f )
@@ -1189,9 +1168,10 @@ defword "0=", 2, zero_equals
 	.int xt_lit, 0, xt_equals
 	.int xt_exit
 
-defword "immediate", 9, immediate                // ( link -- )
+defword "immediate", 9, immediate, F_IMMEDIATE
+	.int xt_latest, xt_fetch
 	.int xt_to_name, xt_dup
-	.int xt_c_fetch, xt_fimmediate, xt_and
+	.int xt_c_fetch, xt_fimmediate, xt_xor
 	.int xt_swap, xt_c_store
 	.int xt_exit
 
@@ -1388,32 +1368,6 @@ words_skip_hidden:
 	label words_next
 words_done:
 	.int xt_drop
-	.int xt_exit
-
-defword "hex", 3, hex
-	.int xt_lit, 16, xt_base, xt_store
-	.int xt_exit
-
-defword "decimal", 7, decimal
-	.int xt_lit, 10, xt_base, xt_store
-	.int xt_exit
-
-defword "bin", 3, bin
-	.int xt_lit, 2, xt_base, xt_store
-	.int xt_exit
-
-defword "depth", 5, depth
-	.int xt_s_zero, xt_sp_fetch
-	.int xt_minus
-	.int xt_lit, 4, xt_slash
-	.int xt_one_minus
-	.int xt_exit
-
-defword "rdepth", 6, rdepth
-	.int xt_r_zero, xt_rp_fetch
-	.int xt_minus
-	.int xt_lit, 4, xt_slash
-	.int xt_one_minus
 	.int xt_exit
 
 defword "type?", 5, type_question
