@@ -1,8 +1,8 @@
 // ----- Constants -----
 
-.set F_IMMEDIATE, 0b10000000
-.set F_HIDDEN,    0b01000000
-.set F_LENMASK,   0b00011111
+.set F_IMMEDIATE, 128
+.set F_HIDDEN,    64
+.set F_LENMASK,   31
 
 .set NAME_LEN, 31
 .set TIB_SIZE, 1024
@@ -29,7 +29,7 @@ def_\label:
 	.set link, def_\label
 	.byte \len               // name field
 	.ascii "\name"
-	.space NAME_LEN-\len
+	.space NAME_LEN-(\len & F_LENMASK)
 	.align 2
 	.global xt_\label
 xt_\label:                   // code field
@@ -50,7 +50,7 @@ def_\label:
 	.set link, def_\label
 	.byte \len               // name field
 	.ascii "\name"
-	.space NAME_LEN-\len
+	.space NAME_LEN-(\len & F_LENMASK)
 	.align 2
 	.global xt_\label
 xt_\label:                   // do colon
