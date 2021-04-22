@@ -20,16 +20,16 @@
 
 // Define a code word (primitive)
 .set link, 0
-.macro defcode name, len, label
+.macro defcode name, len, label, flags=0
 	.data
 	.align 2                 // link field
 	.global def_\label
 def_\label:
 	.int link
 	.set link, def_\label
-	.byte \len               // name field
+	.byte \len+\flags         // name field
 	.ascii "\name"
-	.space NAME_LEN-(\len & F_LENMASK)
+	.space NAME_LEN-\len
 	.align 2
 	.global xt_\label
 xt_\label:                   // code field
@@ -41,16 +41,16 @@ code_\label:
 .endm
 
 // Define an indirect threaded word
-.macro defword name, len, label
+.macro defword name, len, label, flags=0
 	.data
 	.align 2                 // link field
 	.global def_\label
 def_\label:
 	.int link
 	.set link, def_\label
-	.byte \len               // name field
+	.byte \len+\flags        // name field
 	.ascii "\name"
-	.space NAME_LEN-(\len & F_LENMASK)
+	.space NAME_LEN-\len
 	.align 2
 	.global xt_\label
 xt_\label:                   // do colon
@@ -177,7 +177,7 @@ defcode "bye", 3, bye
 	swi #0
 	// unreachable
 
-defcode "lit", 3+F_HIDDEN, lit  // ( -- x )
+defcode "lit", 3, lit, F_HIDDEN  // ( -- x )
 	push {r9}                   // Push the next instruction value to the stack.
 	ldr r9, [r10], #4
 	NEXT
@@ -812,9 +812,9 @@ type_done:
 	.int xt_drop, xt_drop
 	.int xt_exit
 
-defword ";", 1+F_IMMEDIATE, izak_semicolon
+defword ";", 1, semicolon, F_IMMEDIATE
 	.int xt_lit, xt_exit, xt_comma      // compile exit code
-	.int xt_latest, xt_fetch, xt_show   // make the word shown
+	.int xt_latest, xt_fetch, xt_hide   // make the word shown
 	.int xt_bracket                     // enter the immediate interpreter
 	.int xt_exit
 
@@ -890,7 +890,7 @@ defword "here", 4, here // current compilation address
 	.int xt_h, xt_fetch
 	.int xt_exit
 
-defword "[", 1+F_IMMEDIATE, bracket         // ( -- ) interpret mode
+defword "[", 1, bracket, F_IMMEDIATE        // ( -- ) interpret mode
 	.int xt_false, xt_state, xt_store
 	.int xt_exit
 
@@ -903,7 +903,7 @@ defword "literal", 7, literal               // ( x -- )
 	.int xt_comma                           // compile x
 	.int xt_exit
 
-defword "[']", 3+F_IMMEDIATE, bracket_tick  // ( -- xt )
+defword "[']", 3, bracket_tick, F_IMMEDIATE  // ( -- xt )
 	.int xt_tick
 	.int xt_exit
 
@@ -913,7 +913,7 @@ defword "'", 1, tick                        // ( -- xt )
 	.int xt_find, xt_to_xt
 	.int xt_exit
 
-defword "postpone", 8+F_IMMEDIATE, postpone // ( -- )
+defword "postpone", 8, postpone, F_IMMEDIATE // ( -- )
 	.int xt_tick, xt_comma
 	.int xt_exit
 
@@ -1078,21 +1078,14 @@ defword "c?", 2, c_question           // ( a -- )
 	.int xt_c_fetch, xt_u_dot
 	.int xt_exit
 
-defword "hide", 4, hide               // ( a -- )
+defword "hide", 4, hide               // ( link -- )
 	.int xt_to_name
 	.int xt_dup, xt_c_fetch
-	.int xt_fhidden, xt_and
+	.int xt_fhidden, xt_xor
 	.int xt_swap, xt_c_store
 	.int xt_exit
 
-defword "show", 4, show               // ( a -- )
-	.int xt_to_name
-	.int xt_dup, xt_c_fetch
-	.int xt_fhidden, xt_not, xt_and
-	.int xt_swap, xt_c_store
-	.int xt_exit
-
-defword "recurse", 7+F_IMMEDIATE, recurse    // ( -- )
+defword "recurse", 7, recurse, F_IMMEDIATE  // ( -- )
 	.int xt_latest, xt_fetch
 	.int xt_to_xt, xt_comma
 	.int xt_exit
@@ -1455,14 +1448,14 @@ defword "forget", 6, forget           // ( link -- )
 	.int xt_h, xt_store
 	.int xt_exit	
 
-defword "?)", 2+F_HIDDEN, question_paren
+defword "?)", 2, question_paren, F_HIDDEN
 	.int xt_lit, ')', xt_equals
 	.int xt_exit
 
 defword ")", 1, rparen // do nothing
 	.int xt_exit
 
-defword "(", 1, paren
+defword "(", 1, paren, F_IMMEDIATE
 paren_scan:
 	.int xt_source
 	.int xt_lit, xt_question_paren
@@ -1489,7 +1482,6 @@ defword "compile", 7, compile      // ( a u -- )
 	.int xt_zero_branch
 	label compile_normal
 	.int xt_to_xt
-	.int xt_dup, xt_dot
 	.int xt_execute      // immediate
 	.int xt_exit
 compile_normal:
