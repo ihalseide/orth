@@ -1,23 +1,17 @@
-( Orth written in itself )
-
 : \ immediate refill drop ;
+
+: char: \ ( -- c )
+	['] ?separator word
+	ccount drop c@ ;
+
+char: * emit
+bye
 
 : backref, here - , ;
 
 : begin immediate here ;
 : again immediate ['] branch , backref, ;
 : until immediate ['] 0branch , backref, ;
-
-: dip ( a xt -- a )
-	swap >R execute R> ;
-: keep ( a xt -- xt.a a )
-	over >R execute R> ;
-: bi ( a xt1 xt2 -- xt1.a xt2.a )
-	['] keep dip execute ;
-: bi* ( a b xt1 xt2 -- xt1.a xt2.b )
-	['] dip dip execute ;
-: bi@ ( a b xt -- xt.a xt.b )
-	dup bi* ;
 
 : prep-forward-ref ( -- a )
 	here 0 , ;
@@ -31,8 +25,6 @@
 	swap resolve-forward-ref ;
 : then immediate
 	resolve-forward-ref ;
-
-: ? ( a -- ) @ . ;
 
 : unloop
 	R> R> R> 2drop >R ;
@@ -82,13 +74,37 @@
 : cells ( x1 -- x2 ) cell * ;
 : allot ( u -- a ) here + h store ;
 
+\ Output
 : line cr emit ;
+: u. ( u -- )
+	u>str type space ;
+: . ( n -- )
+	n>str type space ;
+: ? ( a -- ) @ . ;
+: id. ( link -- )
+	>name ccount flenmask and type space ;
+: words ( -- )
+	latest @
+	begin
+		dup ?hidden
+		not if
+			dup id.
+		then
+	dup 0=
+	until
+	drop ;
 
-: a 42 emit ;
-: b a a a a a ;
-: c b a b a b ;
-c
-' a >link hide
-' b >link hide
-' c >link hide
+: recurse immediate ( -- )
+	latest @ >xt , ;
 
+\ Combinators
+: dip ( a xt -- a )
+	swap >R execute R> ;
+: keep ( a xt -- xt.a a )
+	over >R execute R> ;
+: bi ( a xt1 xt2 -- xt1.a xt2.a )
+	['] keep dip execute ;
+: bi* ( a b xt1 xt2 -- xt1.a xt2.b )
+	['] dip dip execute ;
+: bi@ ( a b xt -- xt.a xt.b )
+	dup bi* ;

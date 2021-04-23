@@ -173,8 +173,8 @@ defcode "bye", 3, bye
 	swi #0
 	// unreachable
 
-defcode "lit", 3, lit, F_HIDDEN  // ( -- x )
-	push {r9}                   // Push the next instruction value to the stack.
+defcode "[']", 3, lit   // ( -- x )
+	push {r9}           // Push the next instruction value to the stack.
 	ldr r9, [r10], #4
 	NEXT
 
@@ -753,6 +753,11 @@ defcode "ediv0", 5, edivzero
 
 // ----- High-level words -----
 
+defword "literal", 7, literal, F_IMMEDIATE
+	.int xt_lit, xt_lit, xt_comma
+	.int xt_comma
+	.int xt_exit
+
 defword "entercolon", 10, entercolon
 	.int xt_lit, enter_colon
 	.int xt_exit
@@ -808,21 +813,21 @@ type_done:
 	.int xt_drop, xt_drop
 	.int xt_exit
 
-defword ";", 1+F_IMMEDIATE
+defword ";", 1, semicolon, F_IMMEDIATE
 	.int xt_lit, xt_exit, xt_comma      // compile exit code
-	.int xt_latest, xt_fetch, xt_hide   // make the word shown
+	.int xt_latest, xt_fetch, xt_hide   // toggle the hide flag to show the word
 	.int xt_bracket                     // enter the immediate interpreter
-	.int xt_exit
+	// no exit
 
 defword ":", 1, colon
 	.int xt_header
 	.int xt_entercolon, xt_comma        // make the word run docol
 	.int xt_latest, xt_fetch, xt_hide   // hide the word
 	.int xt_rbracket                    // enter the compiler
-	.int xt_exit
+	// no exit
 
 defword "link", 4, link                 // ( -- ) create link field
-	.int xt_align
+	.int xt_here, xt_align, xt_h, xt_store
 	.int xt_here                        // here = this new link address
 	.int xt_latest, xt_fetch, xt_comma  // link field points to previous word
 	.int xt_latest, xt_store            // make this link field address the latest word
@@ -873,13 +878,9 @@ defword "constant:", 9, constant_colon   // ( x -- ) constant with value x
 	.int xt_comma
 	.int xt_exit
 
-defword "aligned", 7, aligned                      // ( a1 -- a2 )
+defword "align", 5, align                          // ( -- )
 	.int xt_lit, 3, xt_plus
 	.int xt_lit, 3, xt_not, xt_and                 // a2 = (a1+(4-1)) & ~(4-1);
-	.int xt_exit
-
-defword "align", 5, align                          // ( -- ) align here
-	.int xt_here, xt_aligned, xt_h, xt_store
 	.int xt_exit
 
 defword "here", 4, here // current compilation address
@@ -887,27 +888,53 @@ defword "here", 4, here // current compilation address
 	.int xt_exit
 
 defword "[", 1, bracket, F_IMMEDIATE        // ( -- ) interpret mode
+	.int xt_state, xt_fetch
+	.int xt_zero_branch
+	label already_interpret
 	.int xt_false, xt_state, xt_store
+	.int xt_quit
+already_interpret:
 	.int xt_exit
 
-defword "]", 1, rbracket                    // ( -- ) compile mode
+defword "]", 1, rbracket                    // ( -- ) compiler
 	.int xt_true, xt_state, xt_store
-	.int xt_exit
-
-defword "literal", 7, literal, F_IMMEDIATE  // ( x -- )
-	.int xt_lit, xt_lit, xt_comma           // compile "lit"
-	.int xt_comma                           // compile x
-	.int xt_exit
-
-defword "[']", 3, bracket_tick, F_IMMEDIATE  // ( -- xt )
-	.int xt_tick
-	.int xt_exit
-
-defword "'", 1, tick                        // ( -- xt )
+compile:
 	.int xt_lit, xt_question_separator
-	.int xt_word, xt_ccount
-	.int xt_find, xt_to_xt
-	.int xt_exit
+	.int xt_word
+	.int xt_ccount                      // ( a u )
+	.int xt_two_dup
+	.int xt_find, xt_dup
+	.int xt_zero_branch            // ( a u link|0 )
+	label compile_no_find
+	.int xt_nip, xt_nip            // ( link )
+	.int xt_dup, xt_question_immediate
+	.int xt_zero_branch
+	label compile_normal
+	.int xt_to_xt
+	.int xt_execute      // immediate
+	.int xt_branch
+	label compile
+compile_normal:
+	.int xt_to_xt, xt_comma
+	.int xt_branch
+	label compile
+compile_no_find:
+	.int xt_drop
+	.int xt_two_dup                // ( a u a u )
+	.int xt_str_to_d               // ( a u d e|0 )
+	.int xt_zero_branch
+	label compile_number
+	.int xt_two_drop               // ( a u d -- a u )
+	.int xt_eundefc, xt_fetch, xt_execute
+	.int xt_branch
+	label compile
+compile_number:
+	.int xt_d_to_n
+	.int xt_lit, xt_lit, xt_comma // compiles "lit #"
+	.int xt_comma
+	.int xt_two_drop
+	.int xt_branch
+	label compile
 
 defword ">link", 5, to_link           // ( xt -- link )
 	.int xt_lit, 4+1+NAME_LEN, xt_minus
@@ -954,7 +981,7 @@ defword "str-lit", 7, str_lit   // ( R: a2 -- a1 u1 R: a3 ) load an embedded str
 	.int xt_r_from              // ( a2 R: )
 	.int xt_count               // ( a1 u1 )
 	.int xt_two_dup, xt_plus    // ( a1 u1 a3 )
-	.int xt_aligned             // round up to the next cell
+	.int xt_align               // round up to the next cell
 	.int xt_to_r                // ( a1 u1 R: a3 )
 	.int xt_exit
 
@@ -963,7 +990,7 @@ defword "cstr-lit", 8, cstr_lit // ( R: a2 -- a1 c1 R: a3 ) load a short embedde
 	.int xt_r_from              // ( a2 R: )
 	.int xt_ccount              // ( a1 c1 )
 	.int xt_two_dup, xt_plus    // ( a1 c1 a3 )
-	.int xt_aligned             // round up to the next cell
+	.int xt_align               // round up to the next cell
 	.int xt_to_r                // ( a1 c1 R: a3 )
 	.int xt_exit
 
@@ -972,7 +999,7 @@ defword "zstr-lit", 8, zstr_lit     // ( -- a1 u ) literal zero-terminated chara
 	.int xt_r_from, xt_dup, xt_dup  // ( a1 a1 a1 R: _ )
 	.int xt_lit, xt_zero_equals
 	.int xt_scan                    // ( a1 a1 a )
-	.int xt_dup, xt_one_plus, xt_aligned, xt_to_r
+	.int xt_dup, xt_one_plus, xt_align, xt_to_r
 	.int xt_swap, xt_minus          // ( a1 u )
 	.int xt_exit
 
@@ -1047,33 +1074,11 @@ n_positive:                           // ( n )
 	.int xt_u_to_str                  // ( a u )
 	.int xt_exit
 
-defword "u.", 2, u_dot                // ( u -- )
-	.int xt_u_to_str, xt_type
-	.int xt_bl, xt_emit
-	.int xt_exit
-
-defword ".", 1, dot                   // ( n -- )
-	.int xt_n_to_str, xt_type
-	.int xt_bl, xt_emit
-	.int xt_exit
-
 defword "hide", 4, hide               // ( link -- )
 	.int xt_to_name
 	.int xt_dup, xt_c_fetch
 	.int xt_fhidden, xt_xor
 	.int xt_swap, xt_c_store
-	.int xt_exit
-
-defword "recurse", 7, recurse, F_IMMEDIATE  // ( -- )
-	.int xt_latest, xt_fetch
-	.int xt_to_xt, xt_comma
-	.int xt_exit
-
-defword "id.", 3, id_dot                     // ( link -- )
-	.int xt_to_name, xt_ccount
-	.int xt_flenmask, xt_and
-	.int xt_type
-	.int xt_space
 	.int xt_exit
 
 defword "CR", 2, cr
@@ -1157,11 +1162,6 @@ find_found:
 find_no_find:
 	.int xt_two_drop, xt_drop
 	.int xt_false
-	.int xt_exit
-
-defword "?interpret", 10, question_interpret
-	.int xt_state, xt_fetch
-	.int xt_zero_equals
 	.int xt_exit
 
 defword "0=", 2, zero_equals
@@ -1348,28 +1348,6 @@ word_copy:                        // ( p a u )
 	.int xt_here                  // ( a1 )
 	.int xt_exit
 
-defword "words", 5, words
-	.int xt_latest, xt_fetch
-words_next:
-	.int xt_dup, xt_zero_branch
-	label words_done
-	.int xt_dup
-	.int xt_dup, xt_question_hidden
-	.int xt_not, xt_zero_branch
-	label words_skip_hidden
-	.int xt_id_dot
-	.int xt_fetch
-	.int xt_branch
-	label words_next
-words_skip_hidden:
-	.int xt_drop
-	.int xt_fetch
-	.int xt_branch
-	label words_next
-words_done:
-	.int xt_drop
-	.int xt_exit
-
 defword "type?", 5, type_question
 	.int xt_type
 	.int xt_lit, '?', xt_emit
@@ -1402,82 +1380,6 @@ defword "forget", 6, forget           // ( link -- )
 	.int xt_h, xt_store
 	.int xt_exit	
 
-defword "?)", 2, question_paren, F_HIDDEN
-	.int xt_lit, ')', xt_equals
-	.int xt_exit
-
-defword ")", 1, rparen // do nothing
-	.int xt_exit
-
-defword "(", 1, paren, F_IMMEDIATE
-paren_scan:
-	.int xt_source
-	.int xt_lit, xt_question_paren
-	.int xt_nscan                  // ( a )
-	.int xt_dup
-	.int xt_source, xt_plus        // ( a a src-end-a )
-	.int xt_less, xt_not, xt_zero_branch
-	label paren_done
-	.int xt_drop                   // ( a -- )
-	.int xt_refill
-	.int xt_branch
-	label paren_scan
-paren_done:
-	.int xt_source_store           // ( a -- )
-	.int xt_exit
-
-defword "compile", 7, compile      // ( a u -- )
-	.int xt_two_dup
-	.int xt_find, xt_dup
-	.int xt_zero_branch            // ( a u link|0 )
-	label compile_no_find
-	.int xt_nip, xt_nip            // ( link )
-	.int xt_dup, xt_question_immediate
-	.int xt_zero_branch
-	label compile_normal
-	.int xt_to_xt
-	.int xt_execute      // immediate
-	.int xt_exit
-compile_normal:
-	.int xt_to_xt, xt_comma
-	.int xt_exit
-compile_no_find:
-	.int xt_drop
-	.int xt_two_dup                // ( a u a u )
-	.int xt_str_to_d               // ( a u d e|0 )
-	.int xt_zero_branch
-	label compile_number
-	.int xt_two_drop               // ( a u d -- a u )
-	.int xt_eundefc, xt_fetch, xt_execute
-	.int xt_exit
-compile_number:
-	.int xt_d_to_n
-	.int xt_literal
-	.int xt_two_drop
-	.int xt_exit
-
-defword "interpret", 9, interpret  // ( a u -- )
-	.int xt_two_dup
-	.int xt_find, xt_dup
-	.int xt_zero_branch            // ( a u link|0 )
-	label interpret_no_find
-	.int xt_nip, xt_nip
-	.int xt_to_xt, xt_execute
-	.int xt_exit
-interpret_no_find:
-	.int xt_drop
-	.int xt_two_dup                // ( a u a u )
-	.int xt_str_to_d               // ( a u d e|0 )
-	.int xt_zero_branch
-	label interpret_number
-	.int xt_two_drop               // ( a u d -- a u )
-	.int xt_eundef, xt_fetch, xt_execute
-	.int xt_exit
-interpret_number:
-	.int xt_d_to_n
-	.int xt_nip, xt_nip
-	.int xt_exit
-
 the_last_word:
 
 defword "quit", 4, quit                 // ( -- R: i*x -- )
@@ -1487,14 +1389,27 @@ quit_interpret:
 	.int xt_lit, xt_question_separator
 	.int xt_word
 	.int xt_ccount                      // ( a u )
-	.int xt_question_interpret
-	.int xt_zero_branch
-	label quit_compile
-	.int xt_interpret
+	.int xt_two_dup
+	.int xt_find, xt_dup
+	.int xt_zero_branch            // ( a u link|0 )
+	label quit_no_find
+	.int xt_nip, xt_nip
+	.int xt_to_xt, xt_execute
 	.int xt_branch
 	label quit_interpret
-quit_compile:
-	.int xt_compile
+quit_no_find:
+	.int xt_drop
+	.int xt_two_dup                // ( a u a u )
+	.int xt_str_to_d               // ( a u d e|0 )
+	.int xt_zero_branch
+	label quit_number
+	.int xt_two_drop               // ( a u d -- a u )
+	.int xt_eundef, xt_fetch, xt_execute
+	.int xt_branch
+	label quit_interpret
+quit_number:
+	.int xt_d_to_n
+	.int xt_nip, xt_nip
 	.int xt_branch
 	label quit_interpret
 
