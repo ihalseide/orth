@@ -187,7 +187,7 @@ defcode ",", 1, comma   // ( x -- )
 	pop {r9}
 	NEXT
 
-defcode "c,", 1, c_comma
+defcode "c,", 2, c_comma
 	ldr r0, =var_h
 	cpy r1, r0
 	ldr r0, [r0]
@@ -327,7 +327,7 @@ defcode "=", 1, equals   // ( x1 x2 -- f )
 	mvneq r9, r9         // invert for true
 	NEXT
 
-defcode "<>", 1, not_equals   // ( x1 x2 -- f )
+defcode "<>", 2, not_equals   // ( x1 x2 -- f )
 	pop {r0}
 	cmp r9, r0
 	eor r9, r9           // 0 for false
@@ -977,30 +977,12 @@ defword "ccount", 6, ccount     // ( a1 -- a2 c )
 	.int xt_exit
 
 // compile-only
-defword "str-lit", 7, str_lit   // ( R: a2 -- a1 u1 R: a3 ) load an embedded string
-	.int xt_r_from              // ( a2 R: )
-	.int xt_count               // ( a1 u1 )
-	.int xt_two_dup, xt_plus    // ( a1 u1 a3 )
-	.int xt_align               // round up to the next cell
-	.int xt_to_r                // ( a1 u1 R: a3 )
-	.int xt_exit
-
-// compile-only
-defword "cstr-lit", 8, cstr_lit // ( R: a2 -- a1 c1 R: a3 ) load a short embedded string
+defword "[cstr]", 6, cstr_lit // ( R: a2 -- a1 c1 R: a3 ) load a short embedded string
 	.int xt_r_from              // ( a2 R: )
 	.int xt_ccount              // ( a1 c1 )
 	.int xt_two_dup, xt_plus    // ( a1 c1 a3 )
 	.int xt_align               // round up to the next cell
 	.int xt_to_r                // ( a1 c1 R: a3 )
-	.int xt_exit
-
-// compile-only
-defword "zstr-lit", 8, zstr_lit     // ( -- a1 u ) literal zero-terminated character string, messes with return adress
-	.int xt_r_from, xt_dup, xt_dup  // ( a1 a1 a1 R: _ )
-	.int xt_lit, xt_zero_equals
-	.int xt_scan                    // ( a1 a1 a )
-	.int xt_dup, xt_one_plus, xt_align, xt_to_r
-	.int xt_swap, xt_minus          // ( a1 u )
 	.int xt_exit
 
 defword "/mod", 4, slash_mod          // ( n m -- r q )
@@ -1417,5 +1399,5 @@ quit_number:
 
 data_end:
 
-	.space 2048
+	.space 4096
 
