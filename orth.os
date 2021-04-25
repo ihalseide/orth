@@ -1,11 +1,13 @@
-: \ immediate refill drop ;
+: \ immediate
+	refill drop ;
 
 : char: \ ( -- c )
 	['] ?separator word
 	ccount drop c@ ;
-
-char: * emit
-bye
+: find:
+	['] ?separator word
+	ccount find ;
+: ' find: >xt ;
 
 : backref, here - , ;
 
@@ -13,9 +15,9 @@ bye
 : again immediate ['] branch , backref, ;
 : until immediate ['] 0branch , backref, ;
 
-: prep-forward-ref ( -- a )
+: prep-forward-ref \ ( -- a )
 	here 0 , ;
-: resolve-forward-ref ( a -- )
+: resolve-forward-ref \ ( a -- )
 	here over - swap ! ;
 
 : if immediate
@@ -32,19 +34,21 @@ bye
 	['] swap ,
 	['] >R ,
 	['] >R ,
-	0 ( do )
-	here ( back reference ) ;
+	0 \ ( do )
+	here  \ ( back reference )
+	;
 : ?do immediate
 	['] 2dup ,
 	['] swap ,
-	['] >r ,
-	['] >r ,
+	['] >R ,
+	['] >R ,
 	['] <> ,
 	['] 0branch , prep-forward-ref
-	1 ( ?do )
-	here ( backref ) ;
+	1 \ ( ?do )
+	here \ ( backref )
+	;
 
-: bounds ( start len -- limit start )
+: bounds \ ( start len -- limit start )
 	over + swap ;
 
 : postpone: immediate \ force compile semantics for the next word
@@ -54,12 +58,12 @@ bye
 : decimal 10 base ! ;
 : bin 2 base ! ;
 
-: depth ( -- n )
+: depth \ ( -- n )
 	S0 SP@ -
 	4 /
 	2 - ; \ would be "1-" but the TOS is in a register...
 
-: rdepth ( -- n )
+: rdepth \ ( -- n )
 	R0 RP@ -
 	4 /
 	1- ;
@@ -71,40 +75,95 @@ bye
 	over , +
 	does> @ + ;
 
-: cells ( x1 -- x2 ) cell * ;
-: allot ( u -- a ) here + h store ;
+: cells \ ( x1 -- x2 )
+	cell * ;
+: allot \ ( u -- a )
+	here + h ! ;
 
 \ Output
-: line cr emit ;
-: u. ( u -- )
+: line CR emit ;
+: u. \ ( u -- )
 	u>str type space ;
-: . ( n -- )
+: . \ ( n -- )
 	n>str type space ;
-: ? ( a -- ) @ . ;
-: id. ( link -- )
+: ? \ ( a -- )
+	@ . ;
+: id. \ ( link -- )
 	>name ccount flenmask and type space ;
-: words ( -- )
+: words
 	latest @
 	begin
 		dup ?hidden
 		not if
 			dup id.
 		then
+		@
 	dup 0=
 	until
 	drop ;
 
-: recurse immediate ( -- )
+: recurse immediate
 	latest @ >xt , ;
 
 \ Combinators
-: dip ( a xt -- a )
+: dip \ ( a xt -- a )
 	swap >R execute R> ;
-: keep ( a xt -- xt.a a )
+: keep \ ( a xt -- xt.a a )
 	over >R execute R> ;
-: bi ( a xt1 xt2 -- xt1.a xt2.a )
+: bi \ ( a xt1 xt2 -- xt1.a xt2.a )
 	['] keep dip execute ;
-: bi* ( a b xt1 xt2 -- xt1.a xt2.b )
+: bi* \ ( a b xt1 xt2 -- xt1.a xt2.b )
 	['] dip dip execute ;
-: bi@ ( a b xt -- xt.a xt.b )
+: bi@ \ ( a b xt -- xt.a xt.b )
 	dup bi* ;
+
+: getc \ ( -- c )
+	begin
+		source \ ( a u )
+		if
+			dup 1+ source!
+			c@
+			exit
+		else
+			refill
+			2drop
+		then
+	again ;
+
+: ?interpret \ ( -- f )
+	state @ 0= ;
+
+: '"' [ char: " ] literal ;
+: ." immediate
+	getc drop \ trailing space
+	?interpret if
+		begin
+			getc
+			dup '"' = if
+				drop exit
+			then
+			emit
+		again
+	else
+		['] [cstr] , here 0 c,
+		here
+		begin
+			getc
+			dup '"' = if
+				drop true
+			else
+				c, false
+			then
+		until
+		here swap - \ write back the string length
+		swap c!
+		here align h !
+		['] type ,
+	then ;
+
+." Hello, interpreted!" line
+
+: hi ." Hello, compiled!" line ; hi
+
+bye
+
