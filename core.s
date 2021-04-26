@@ -1335,20 +1335,18 @@ word_copy:                        // ( p a u )
 	.int xt_here                  // ( a1 )
 	.int xt_exit
 
-defword "type?", 5, type_question
+defword "undefd-comp", 11, undefined_comp // ( a u -- )
+	.int xt_latest, xt_fetch, xt_forget
 	.int xt_type
 	.int xt_lit, '?', xt_emit
 	.int xt_space
-	.int xt_exit
-
-defword "undefined-comp", 14, undefined_comp // ( a u -- )
-	.int xt_latest, xt_fetch, xt_forget
-	.int xt_type_question
 	.int xt_refill, xt_drop         // discard the rest of input
 	.int xt_quit
 
-defword "undefined", 9, undefined   // ( a u -- )
-	.int xt_type_question           // prompt
+defword "undefd", 6, undefined   // ( a u -- )
+	.int xt_type
+	.int xt_lit, '?', xt_emit
+	.int xt_space
 	.int xt_refill, xt_drop         // discard the rest of input
 	.int xt_quit
 
