@@ -320,6 +320,16 @@ defcode "*", 1, star     // ( x1 x2 -- x3 )
 	mul r9, r1, r2       // x3 = x1 * x2
 	NEXT
 
+defcode "lsl", 3, lsl
+	pop {r0}
+	lsl r9, r0
+	NEXT
+
+defcode "lsr", 3, lsr
+	pop {r0}
+	lsr r9, r0
+	NEXT
+
 defcode "=", 1, equals   // ( x1 x2 -- f )
 	pop {r0}
 	cmp r9, r0
