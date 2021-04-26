@@ -871,15 +871,10 @@ defword "does>", 5, does
 	.int xt_to_params, xt_store                    // make the created word use that code
 	.int xt_exit
 
-defword "->variable:", 11, to_variable_colon       // ( x -- ) variable initialized to x
+defword "variable:", 9, to_variable_colon       // ( x -- ) variable initialized to x
 	.int xt_header                                 // get word name input
 	.int xt_entervariable, xt_comma                // make this word push it's parameter field
 	.int xt_comma
-	.int xt_exit
-
-defword "variable:", 9, variable_colon   // ( -- )
-	.int xt_lit, 0
-	.int xt_to_variable_colon
 	.int xt_exit
 
 defword "constant:", 9, constant_colon   // ( x -- ) constant with value x
@@ -1409,5 +1404,5 @@ quit_number:
 
 data_end:
 
-	.space 4096
+	.space 10240
 
