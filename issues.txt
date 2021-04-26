@@ -1,0 +1,5 @@
+= Issues =
+
+1. 2021-04-25
+The stack depth = 0 at the end of loading the source "orth.os". The stack depth should always be 1 or higher.
+
