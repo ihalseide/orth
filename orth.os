@@ -1,13 +1,24 @@
 : \ immediate
 	refill drop ;
 
+2021 04 25 \ build date: yyyy mm dd
+constant: build-day
+constant: build-month
+constant: build-year
+
+: >= < not ;
+: <= > not ;
+: 0> 0 > ;
+: 0>= 0 >= ;
+: 0<= 0 <= ;
+
 : char: \ ( -- c )
-	['] ?separator word
-	ccount drop c@ ;
+	['] ?separator word 1+ c@ ;
 : find:
 	['] ?separator word
 	ccount find ;
 : ' find: >xt ;
+: hide: find: hide ;
 
 : backref, here - , ;
 
@@ -28,28 +39,11 @@
 : then immediate
 	resolve-forward-ref ;
 
-: unloop
-	R> R> R> 2drop >R ;
-: do immediate
-	['] swap ,
-	['] >R ,
-	['] >R ,
-	0 \ ( do )
-	here  \ ( back reference )
-	;
-: ?do immediate
-	['] 2dup ,
-	['] swap ,
-	['] >R ,
-	['] >R ,
-	['] <> ,
-	['] 0branch , prep-forward-ref
-	1 \ ( ?do )
-	here \ ( backref )
-	;
-
-: bounds \ ( start len -- limit start )
-	over + swap ;
+: while immediate
+	['] 0branch , prep-forward-ref ;
+: repeat immediate
+	swap ['] branch ,
+	backref, resolve-forward-ref ;
 
 : postpone: immediate \ force compile semantics for the next word
 	' , ;
@@ -116,16 +110,25 @@
 	['] dip dip execute ;
 : bi@ \ ( a b xt -- xt.a xt.b )
 	dup bi* ;
+: times \ ( xt n -- i*x )
+	dup 0= if 2drop exit then
+	begin
+		>R dup >R
+		execute
+		R> R> 1-
+		dup
+	0= until
+	drop ;
 
 : getc \ ( -- c )
 	begin
-		source \ ( a u )
-		if
+		source
+		if \ ( a )
 			dup 1+ source!
 			c@
 			exit
 		else
-			refill
+			refill \ ( a f )
 			2drop
 		then
 	again ;
@@ -133,17 +136,23 @@
 : ?interpret \ ( -- f )
 	state @ 0= ;
 
+: ')' [ char: ) ] literal ;
+: ( immediate
+	begin
+		getc
+		')' = if exit then
+	again ;
+hide: ')'
+
 : '"' [ char: " ] literal ;
 : ." immediate
 	getc drop \ trailing space
 	?interpret if
 		begin
-			getc
-			dup '"' = if
-				drop exit
-			then
+			getc dup
+		'"' <> while
 			emit
-		again
+		repeat
 	else
 		['] [cstr] , here 0 c,
 		here
@@ -160,10 +169,19 @@
 		here align h !
 		['] type ,
 	then ;
+hide: '"'
 
-." Hello, interpreted!" line
+: bool? dup true = swap false = or ;
+: bool. if ." true" else ." false" then ;
 
-: hi ." Hello, compiled!" line ; hi
-
-bye
+: '-' [ char: - ] literal emit ;
+: '0' [ char: 0 ] literal emit ;
+: . ( u -- ) u>str type ; \ -trailing
+: 2. ( u -- ) dup 10 < if '0' then . ;
+: build. build-year . '-' build-month 2. '-' build-day 2. ;
+: version. ." orth" space build. ;
+hide: .
+hide: 2.
+hide: '-'
+hide: '0'
 
