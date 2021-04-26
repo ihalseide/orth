@@ -161,6 +161,115 @@ fn_divmod2:
 
 	bx lr
 
+// ----- Constants -----
+
+defcode "R0", 2, r_zero
+	push {r9}
+	ldr r0, =var_r_zero
+	ldr r9, [r0]
+	NEXT
+
+defcode "S0", 2, s_zero
+	push {r9}
+	ldr r0, =var_s_zero
+	ldr r9, [r0]
+	NEXT
+
+defcode "tib-size", 8, tib_size // constant
+	push {r9}
+	mov r9, #TIB_SIZE
+	NEXT
+
+defcode "tib", 3, tib          // constant
+	push {r9}
+	ldr r9, =input_buffer
+	NEXT
+
+defcode "fhidden", 7, fhidden
+	push {r9}
+	mov r9, #F_HIDDEN
+	NEXT
+
+defcode "fimmediate", 10, fimmediate
+	push {r9}
+	mov r9, #F_IMMEDIATE
+	NEXT
+
+defcode "flenmask", 8, flenmask
+	push {r9}
+	mov r9, #F_LENMASK
+	NEXT
+
+defcode "cell", 4, cell
+	push {r9}
+	mov r9, #4
+	NEXT
+
+defcode "true", 4, true // true = -1
+	push {r9}
+	eor r9, r9
+	mvn r9, r9
+	NEXT
+
+defcode "false", 5, false // false = 0
+	push {r9}
+	eor r9, r9
+	NEXT
+
+defcode "#name", 5, num_name
+	push {r9}
+	mov r9, #NAME_LEN
+	NEXT
+
+// ----- Variables -----
+
+defcode "#tib", 4, num_tib     // variable
+	push {r9}
+	ldr r9, =var_num_tib
+	NEXT
+
+defcode ">in", 3, to_in        // variable
+	push {r9}
+	ldr r9, =var_to_in
+	NEXT
+
+defcode "state", 5, state      // variable
+	push {r9}
+	ldr r9, =var_state
+	NEXT
+
+defcode "latest", 6, latest    // variable
+	push {r9}
+	ldr r9, =var_latest
+	NEXT
+
+defcode "h", 1, h              // variable that holds the current compilation address
+	push {r9}
+	ldr r9, =var_h
+	NEXT
+
+defcode "base", 4, base        // variable
+	push {r9}
+	ldr r9, =var_base
+	NEXT
+
+// -----  Exception variables -----
+
+defcode "eundef", 6, eundef
+	push {r9}
+	ldr r9, =var_eundef
+	NEXT
+
+defcode "eundefc", 7, eundefc
+	push {r9}
+	ldr r9, =var_eundefc
+	NEXT
+
+defcode "ediv0", 5, edivzero
+	push {r9}
+	ldr r9, =var_edivzero
+	NEXT
+
 // ----- Primitive words -----
 
 defcode "exit", 4, exit
@@ -302,6 +411,18 @@ defcode "2over", 5, two_over // ( x1 x2 x3 x4 -- x1 x2 x3 x4 x1 x2 )
 	push {r9}
 	push {r1}
 	mov r9, r2
+	NEXT
+
+defcode "max", 3, max                              // ( x1 x2 -- x1|x2 )
+	pop {r0}
+	cmp r9, r0
+	movlt r9, r0
+	NEXT
+
+defcode "min", 3, min                              // ( x1 x2 -- x1|x2 )
+	pop {r0}
+	cmp r9, r0
+	movgt r9, r0
 	NEXT
 
 defcode "+", 1, plus     // ( x1 x2 -- x3 )
@@ -472,52 +593,13 @@ cmove_from_check:
 	pop {r9}
 	NEXT
 
+// Warning: susceptible to division by zero
 defcode "(/mod)", 6, paren_slash_mod // ( n m -- r q ) division remainder and quotient
 	mov r1, r9
 	pop {r0}
 	bl fn_divmod
 	push {r0}
 	mov r9, r2
-	NEXT
-
-defcode "tib-size", 8, tib_size // constant
-	push {r9}
-	mov r9, #TIB_SIZE
-	NEXT
-
-defcode "tib", 3, tib          // constant
-	push {r9}
-	ldr r9, =input_buffer
-	NEXT
-
-defcode "#tib", 4, num_tib     // variable
-	push {r9}
-	ldr r9, =var_num_tib
-	NEXT
-
-defcode ">in", 3, to_in        // variable
-	push {r9}
-	ldr r9, =var_to_in
-	NEXT
-
-defcode "state", 5, state      // variable
-	push {r9}
-	ldr r9, =var_state
-	NEXT
-
-defcode "latest", 6, latest    // variable
-	push {r9}
-	ldr r9, =var_latest
-	NEXT
-
-defcode "h", 1, h              // variable that holds the current compilation address
-	push {r9}
-	ldr r9, =var_h
-	NEXT
-
-defcode "base", 4, base        // variable
-	push {r9}
-	ldr r9, =var_base
 	NEXT
 
 defcode "str>ud", 6, str_to_ud // ( a u1 -- ud u2 )
@@ -684,81 +766,6 @@ reverse:
 	ble reverse_body
 	/* done, return */
 	push {r5}       // second item on stack is the pad start address
-	NEXT
-
-defcode "R0", 2, r_zero
-	push {r9}
-	ldr r0, =var_r_zero
-	ldr r9, [r0]
-	NEXT
-
-defcode "S0", 2, s_zero
-	push {r9}
-	ldr r0, =var_s_zero
-	ldr r9, [r0]
-	NEXT
-
-defcode "max", 3, max                              // ( x1 x2 -- x1|x2 )
-	pop {r0}
-	cmp r9, r0
-	movlt r9, r0
-	NEXT
-
-defcode "min", 3, min                              // ( x1 x2 -- x1|x2 )
-	pop {r0}
-	cmp r9, r0
-	movgt r9, r0
-	NEXT
-
-defcode "fhidden", 7, fhidden
-	push {r9}
-	mov r9, #F_HIDDEN
-	NEXT
-
-defcode "fimmediate", 10, fimmediate
-	push {r9}
-	mov r9, #F_IMMEDIATE
-	NEXT
-
-defcode "flenmask", 8, flenmask
-	push {r9}
-	mov r9, #F_LENMASK
-	NEXT
-
-defcode "cell", 4, cell
-	push {r9}
-	mov r9, #4
-	NEXT
-
-defcode "true", 4, true
-	push {r9}
-	eor r9, r9
-	mvn r9, r9
-	NEXT
-
-defcode "false", 5, false
-	push {r9}
-	eor r9, r9
-	NEXT
-
-defcode "#name", 5, num_name
-	push {r9}
-	mov r9, #NAME_LEN
-	NEXT
-
-defcode "eundef", 6, eundef
-	push {r9}
-	ldr r9, =var_eundef
-	NEXT
-
-defcode "eundefc", 7, eundefc
-	push {r9}
-	ldr r9, =var_eundefc
-	NEXT
-
-defcode "ediv0", 5, edivzero
-	push {r9}
-	ldr r9, =var_edivzero
 	NEXT
 
 // ----- High-level words -----
