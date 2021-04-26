@@ -520,7 +520,7 @@ defcode "base", 4, base        // variable
 	ldr r9, =var_base
 	NEXT
 
-defcode "str>ud", 5, str_to_ud // ( a u1 -- ud u2 )
+defcode "str>ud", 6, str_to_ud // ( a u1 -- ud u2 )
 	pop {r0}                  // r0 = addr
 	eor r1, r1                // r1 = d.high
 	eor r2, r2                // r2 = d.low
