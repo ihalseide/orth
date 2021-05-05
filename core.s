@@ -8,14 +8,17 @@
 
 // ----- Constants -----
 
+// Word names
 .set F_IMMEDIATE, 0b10000000
 .set F_HIDDEN,    0b01000000
 .set F_COMPILE,   0b00100000
 .set F_LENMASK,   0b00011111
+.set NAME_LEN, 31 // characters
 
-.set NAME_LEN, 31   // chars
-.set TIB_SIZE, 1024 // chars
+// Input
+.set TIB_SIZE, 1024
 
+// Stacks
 .set RSTACK_SIZE, 512*4
 .set STACK_SIZE,  64*4
 
@@ -58,6 +61,7 @@ def_\label:
 	.ascii "\name"
 	.space NAME_LEN-\len
 	.align 2
+	.global xt_\label
 xt_\label:                   // do colon
 	.int enter_colon
 params_\label:               // parameter field
@@ -121,41 +125,38 @@ _start:
 	ldr r1, =var_r_zero
 	str r11, [r1]
 	/* Start up the inner interpreter */
-	ldr r10, =init_code
+	adr r10, #xt_quit + 4
 	NEXT
-init_code:
-	.int xt_lit, 0, xt_state, xt_store
-	.int xt_lit, init_code
-	.int xt_quit
 
 enter_colon:
-	str r10, [r11, #-4]!        // Save the return address to the return stack
-	add r10, r8, #4             // Get the next instruction
+	str r10, [r11, #-4]! // Save the return address to the return stack
+	add r10, r8, #4      // Get the next instruction
 	NEXT
 
-enter_variable:                 // A word whose parameter list is a 1-cell value
+enter_variable:    // A word whose parameter list is a 1-cell value
 	push {r9}
-	add r9, r8, #4              // Push the address of the value
+	add r9, r8, #4 // Push the address of the value
 	NEXT
 
-enter_constant:                 // A word whose parameter list is a 1-cell value
+enter_constant:      // A word whose parameter list is a 1-cell value
 	push {r9}
-	ldr r9, [r8, #4]            // Push the value
+	ldr r9, [r8, #4] // Push the value
 	NEXT
 
 enter_does:
-	str r10, [r11, #-4]!        // save the IP return address
-	ldr r10, [r8, #4]!          // load the behavior pointer into the IP
-	push {r9}                   // put the parameter on the stack for the behavior when it runs
+	str r10, [r11, #-4]! // save the IP return address
+	ldr r10, [r8, #4]!   // load the behavior pointer into the IP
+	push {r9}            // put the parameter on the stack for the behavior when it runs
 	add r9, r8, #4
 	NEXT
 
-// Function for integer division and modulo
-// copy from: https://github.com/organix/pijFORTHos, jonesforth.s
+// Subroutine for integer division and modulo
+// This algorithm for unsigned DIVMOD is extracted from
+// 'ARM Software Development Toolkit User Guide v2.50' published by ARM in 1997-1998
 // args: r0=numerator, r1=denominator
 // returns: r0=remainder, r1 = denominator, r2=quotient
+// There is no need to save any registers because this subroutine just uses R0-R3
 fn_divmod:
-	// No need to push anything because this just uses r0-r3
 	mov r3, r1
 	cmp r3, r0, LSR #1
 fn_divmod1:
@@ -170,7 +171,6 @@ fn_divmod2:
 	mov r3, r3, LSR #1
 	cmp r3, r1
 	bhs fn_divmod2
-
 	bx lr
 
 // ----- Constant Words -----
@@ -220,6 +220,10 @@ defcode "fcompile", 8, flenmask
 defcode "cell", 4, cell
 	push {r9}
 	mov r9, #4
+	NEXT
+
+defcode "cells", 4, cell
+	lsl r9, #2           // (x * 4) = (x << 2)
 	NEXT
 
 defcode "true", 4, true // true = -1
@@ -287,12 +291,6 @@ defcode "eundef", 6, eundef
 defcode "exit", 4, exit
 	ldr r10, [r11], #4          // ip = pop return stack
 	NEXT
-
-defcode "bye", 3, bye
-	eor r0, r0
-	mov r7, #1
-	swi #0
-	// unreachable
 
 defcode "[']", 3, lit   // ( -- x )
 	push {r9}           // Push the next instruction value to the stack.
@@ -461,24 +459,30 @@ defcode "*", 1, star  // ( x1 x2 -- x3 )
 	mul r9, r1, r2    // x3 = x1 * x2
 	NEXT
 
+// ( x1 x2 -- x3 ) where x3 = (x1 << x2)
 defcode "lsl", 3, lsl
 	pop {r0}
-	lsl r9, r0
+	lsl r0, r9
+	mov r9, r0
 	NEXT
 
+// ( x1 x2 -- x3 ) where x3 = (x1 >> x2)
 defcode "lsr", 3, lsr
 	pop {r0}
-	lsr r9, r0
+	lsr r0, r9
+	mov r9, r0
 	NEXT
 
-defcode "=", 1, equals // ( x1 x2 -- f )
+// ( x1 x2 -- f )
+defcode "=", 1, equals
 	pop {r0}
 	cmp r9, r0
 	eor r9, r9         // 0 for false
 	mvneq r9, r9       // invert for true
 	NEXT
 
-defcode "<>", 2, not_equals // ( x1 x2 -- f )
+// ( x1 x2 -- f )
+defcode "<>", 2, not_equals
 	pop {r0}
 	cmp r9, r0
 	eor r9, r9    // 0 for false
@@ -514,7 +518,7 @@ defcode "xor", 3, xor
 	eor r9, r9, r0
 	NEXT
 
-defcode "not", 3, not // invert bits
+defcode "not", 3, not
 	mvn r9, r9
 	NEXT
 
@@ -522,13 +526,15 @@ defcode "negate", 6, negate
 	neg r9, r9
 	NEXT
 
-defcode "!", 1, store // ( x a -- )
+// ( x a -- )
+defcode "!", 1, store
 	pop {r0}
 	str r0, [r9]
 	pop {r9}
 	NEXT
 
-defcode "+!", 2, plus_store // ( x a -- )
+// ( x a -- )
+defcode "+!", 2, plus_store
 	pop {r0}
 	ldr r1, [r9]
 	add r0, r1
@@ -536,26 +542,31 @@ defcode "+!", 2, plus_store // ( x a -- )
 	pop {r9}
 	NEXT
 
-defcode "c!", 2, c_store // ( c a -- )
+// ( c a -- )
+defcode "c!", 2, c_store
 	pop {r0}
 	strb r0, [r9]
 	pop {r9}
 	NEXT
 
-defcode "@", 1, fetch // ( a -- x )
+// ( a -- x )
+defcode "@", 1, fetch
 	ldr r9, [r9]
 	NEXT
 
-defcode "c@", 2, c_fetch // ( a -- c )
+// ( a -- c )
+defcode "c@", 2, c_fetch 
 	ldrb r9, [r9]
 	NEXT
 
-defcode "branch", 6, branch // branch ( -- ) relative branch
+// ( -- ) relative branch
+defcode "branch", 6, branch 
 	ldr r0, [r10]
 	add r10, r0
 	NEXT
 
-defcode "0branch", 7, zero_branch // 0branch ( x -- )
+// ( x -- )
+defcode "0branch", 7, zero_branch 
 	cmp r9, #0
 	ldreq r0, [r10]              // Set the IP to the next codeword if 0,
 	addeq r10, r0
@@ -563,35 +574,24 @@ defcode "0branch", 7, zero_branch // 0branch ( x -- )
 	pop {r9}                     // discard TOS
 	NEXT
 
-defcode "execute", 7, execute // ( xt -- )
+// ( xt -- )
+defcode "execute", 7, execute 
 	mov r8, r9                // r8 = the xt
 	ldr r0, [r8]              // (indirect threaded)
 	pop {r9}                  // pop the stack
 	bx r0
 	// no next
 
-defcode "key", 3, key // ( -- c )
-	push {r9}         // push down TOS
-	mov r7, #3        // read(fd, buf, len)
-	eor r0, r0        // stdin
-	push {r0}         // make buffer room
-	mov r1, sp
-	mov r2, #1        // 1 char
-	swi #0
-	pop {r9}          // move it to the TOS
+// ( -- c ) TODO
+defcode "key", 3, key 
 	NEXT
 
-defcode "emit", 4, emit // ( c -- )
-	mov r7, #4          // write(fd, buf, len)
-	mov r0, #1          // stdout
-	strb r9, [sp, #-1]  // use stack as the write buffer
-	sub r1, sp, #1      // buf = sp-1
-	cpy r2, r0
-	swi #0
-	pop {r9}
+// TODO ( c -- )
+defcode "emit", 4, emit
 	NEXT
 
-defcode "cmove", 5, cmove // ( a1 a2 u -- ) move u chars from a1 to a2
+// ( a1 a2 u -- ) move u chars from a1 to a2
+defcode "cmove", 5, cmove 
 	eor r0, r0            // r0 = index
 	pop {r2}              // r2 = a2
 	pop {r1}              // r1 = a1
@@ -606,7 +606,8 @@ cmove_check:
 	pop {r9}
 	NEXT
 
-defcode "cmove>", 6, cmove_from // ( a1 a2 u -- )
+// ( a1 a2 u -- )
+defcode "cmove>", 6, cmove_from 
 	mov r2, r9                  // r2 = index
 	pop {r1}                    // r1 = a2
 	pop {r0}                    // r0 = a1
@@ -621,8 +622,9 @@ cmove_from_check:
 	pop {r9}
 	NEXT
 
+// ( n m -- r q ) division remainder and quotient
 // Warning: susceptible to division by zero
-defcode "/mod", 4, slash_mod // ( n m -- r q ) division remainder and quotient
+defcode "/mod", 4, slash_mod 
 	mov r1, r9
 	pop {r0}
 	bl fn_divmod
@@ -631,7 +633,8 @@ defcode "/mod", 4, slash_mod // ( n m -- r q ) division remainder and quotient
 	NEXT
 
 // Warning: susceptible to division by zero
-defcode "/", 1, slash // ( n m -- q ) division remainder and quotient
+// ( n m -- q ) division remainder and quotient
+defcode "/", 1, slash 
 	mov r1, r9
 	pop {r0}
 	bl fn_divmod
@@ -639,7 +642,8 @@ defcode "/", 1, slash // ( n m -- q ) division remainder and quotient
 	NEXT
 
 // Warning: susceptible to division by zero
-defcode "mod", 3, mod // ( n m -- r ) division remainder and quotient
+// ( n m -- r ) division remainder and quotient
+defcode "mod", 3, mod 
 	mov r1, r9
 	pop {r0}
 	bl fn_divmod
@@ -647,7 +651,8 @@ defcode "mod", 3, mod // ( n m -- r ) division remainder and quotient
 	NEXT
 
 // convert string to unsigned double
-defcode "str>ud", 6, str_to_ud // ( a u1 -- ud u2 )
+// ( a u1 -- ud u2 )
+defcode "str>ud", 6, str_to_ud 
 	pop {r0}                   // r0 = addr
 	eor r1, r1                 // r1 = d.high
 	eor r2, r2                 // r2 = d.low
@@ -689,7 +694,8 @@ to_num_done:                   // number conversion done
 	NEXT
 
 // convert unsigned integer to string
-defcode "u>str", 5, u_to_str  // ( u1 -- a u2 )
+// ( u1 -- a u2 )
+defcode "u>str", 5, u_to_str  
 	/* Get the pad address and make an index into it */
 	mov r4, #0                // r4 = index
 	ldr r5, =var_h
@@ -910,7 +916,7 @@ defword "link", 4, link
 // ( -- ) create link and name field in dictionary
 defword "header:", 7, header
 	.int xt_link
-	.int xt_lit, xt_question_separator
+	.int xt_lit, xt_sep_q
 	.int xt_word                  // ( a )
 	.int xt_dup, xt_dup
 	.int xt_c_fetch               // ( a a len )
@@ -967,7 +973,7 @@ already_interpret:
 defword "]", 1, rbracket
 	.int xt_true, xt_state, xt_store
 compile:
-	.int xt_lit, xt_question_separator
+	.int xt_lit, xt_sep_q
 	.int xt_word
 	.int xt_ccount                      // ( a u )
 	.int xt_two_dup
@@ -1239,7 +1245,7 @@ defword "source", 6, source
 	.int xt_minus
 	.int xt_exit
 
-// TODO: other input sources
+// TODO: I made this word up and it could be dumb!
 // ( a1 -- )
 defword "source!", 7, source_store  
 	.int xt_dup
@@ -1361,7 +1367,7 @@ defword "quit", 4, quit
 	.int xt_r_zero, xt_rp_store // clear return stack
 	.int xt_bracket
 quit_interpret:
-	.int xt_lit, xt_question_separator, xt_word
+	.int xt_lit, xt_sep_q, xt_word
 	.int xt_ccount // ( a u )
 	.int xt_two_dup
 	.int xt_find, xt_dup
