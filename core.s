@@ -1,11 +1,10 @@
 // ----- Register reservations -----
-// * R0-R3 = temporary registers
-// * R4-R7 = user registers (TODO!!)
+// * R0-R7 = temporary registers
 // * R8 = current execution token (XT)
 // * R9 = top element of the stack
 // * R10 = virtual instruction pointer (IP)
 // * R11 = return stack pointer (RP)
-// * R13 a.k.a. SP = stack pointer (SP)
+// * R13 = stack pointer (SP)
 
 // ----- Constants -----
 
@@ -173,44 +172,6 @@ fn_divmod2:
 	bhs fn_divmod2
 
 	bx lr
-
-// Register words
-
-defcode "R4@", 3, r_four_at
-	push {r9}
-	mov r9, r4
-	NEXT
-defcode "R4!", 3, r_four_store
-	mov r4, r9
-	pop {r9}
-	NEXT
-
-defcode "R5@", 3, r_five_at
-	push {r9}
-	mov r9, r5
-	NEXT
-defcode "R5!", 3, r_five_store
-	mov r5, r9
-	pop {r9}
-	NEXT
-
-defcode "R6@", 3, r_six_at
-	push {r9}
-	mov r9, r6
-	NEXT
-defcode "R6!", 3, r_six_store
-	mov r6, r9
-	pop {r9}
-	NEXT
-
-defcode "R7@", 3, r_seven_at
-	push {r9}
-	mov r9, r7
-	NEXT
-defcode "R7!", 3, r_seven_store
-	mov r7, r9
-	pop {r9}
-	NEXT
 
 // ----- Constant Words -----
 
@@ -1392,13 +1353,6 @@ word_copy:                        // ( p a u )
 	.int xt_here, xt_c_store      // ( )
 	.int xt_here                  // ( a1 )
 	.int xt_exit
-
-// ( link -- )
-defword "forget", 6, forget           
-	.int xt_dup
-	.int xt_fetch, xt_latest, xt_store
-	.int xt_h, xt_store
-	.int xt_exit	
 
 the_last_word:
 
