@@ -1,9 +1,11 @@
-// ----- Register reservations -----
-// * R0-R7 = temporary registers
+// ----- Registers uses -----
+
+// * R0-R7 = scratch registers
 // * R8 = current execution token (XT)
 // * R9 = top element of the stack
 // * R10 = virtual instruction pointer (IP)
 // * R11 = return stack pointer (RP)
+// * R12 = UNUSED
 // * R13 = stack pointer (SP)
 
 // ----- Constants -----
@@ -12,8 +14,7 @@
 .equ F_IMMEDIATE, 0b10000000
 .equ F_HIDDEN,    0b01000000
 .equ F_COMPILE,   0b00100000
-.equ F_LENMASK,   0b00011111
-.equ NAME_LEN, 31 // characters
+.equ F_LENMASK,   0b00011111 // 31
 
 // Input
 .equ TIB_SIZE, 1024
@@ -24,14 +25,24 @@
 
 // ----- Macros -----
 
-// The inner interpreter
-.macro NEXT
-	ldr r8, [r10], #4       // r10 = the virtual instruction pointer
-	ldr r0, [r8]            // r8 = xt of current word
-	bx r0                   // (r0 = temp)
+// Push to return stack
+.macro rpush reg
+	str \reg, [r11, #-4]!
 .endm
 
-// Define a code word (primitive)
+// Pop from return stack
+.macro rpop reg
+	ldr \reg, [r11], #4
+.endm
+
+// The inner interpreter
+.macro NEXT
+	ldr r8, [r10], #4 // r10 = the virtual instruction pointer
+	ldr r0, [r8]      // r8 = xt of current word
+	bx r0             // (r0 = temp)
+.endm
+
+// Define an assembly word
 .set link, 0
 .macro defcode name, len, label, flags=0
 	.data
@@ -41,7 +52,7 @@ def_\label:
 	.set link, def_\label
 	.byte \len+\flags         // name field
 	.ascii "\name"
-	.space NAME_LEN-\len
+	.space F_LENMASK-\len
 	.align 2
 xt_\label:                   // code field
 	.int code_\label
@@ -53,18 +64,18 @@ code_\label:
 // Define a high-level word (indirect threaded)
 .macro defword name, len, label, flags=0
 	.data
-	.align 2                 // link field
+	.align 2              // link field
 def_\label:
 	.int link
 	.set link, def_\label
-	.byte \len+\flags        // name field
+	.byte \len+\flags     // name field
 	.ascii "\name"
-	.space NAME_LEN-\len
+	.space F_LENMASK-\len
 	.align 2
 	.global xt_\label
-xt_\label:                   // do colon
+xt_\label:                // xt: colon interpreter
 	.int enter_colon
-params_\label:               // parameter field
+params_\label:            // parameters
 .endm
 
 // Label for relative branches within "defword" macros
@@ -82,12 +93,13 @@ params_\label:               // parameter field
 var_eundefc: .int xt_quit
 var_eundef:  .int xt_quit
 
+var_dict:   .int dictionary // dictionary start
 var_base:   .int 10
 var_h:      .int free
 var_state:  .int 0 // interpret mode
 var_latest: .int the_last_word
 
-// stacks' base pointers (initialized later)
+// stack bases (initialized later)
 var_s_zero: .int 0
 var_r_zero: .int 0
 
@@ -106,6 +118,7 @@ stack_start:
 .space RSTACK_SIZE
 rstack_start:
 
+// Start of dictionary
 .align 2
 dictionary:
 
@@ -129,8 +142,8 @@ _start:
 	NEXT
 
 enter_colon:
-	str r10, [r11, #-4]! // Save the return address to the return stack
-	add r10, r8, #4      // Get the next instruction
+	rpush r10       // Save the return address to the return stack
+	add r10, r8, #4 // Get the next instruction
 	NEXT
 
 enter_variable:    // A word whose parameter list is a 1-cell value
@@ -144,7 +157,7 @@ enter_constant:      // A word whose parameter list is a 1-cell value
 	NEXT
 
 enter_does:
-	str r10, [r11, #-4]! // save the IP return address
+	rpush r10       // Save the return address to the return stack
 	ldr r10, [r8, #4]!   // load the behavior pointer into the IP
 	push {r9}            // put the parameter on the stack for the behavior when it runs
 	add r9, r8, #4
@@ -174,6 +187,12 @@ fn_divmod2:
 	bx lr
 
 // ----- Constant Words -----
+
+defcode "D0", 2, d_zero
+	push {r9}
+	ldr r0, =var_dict
+	ldr r9, [r0]
+	NEXT
 
 defcode "R0", 2, r_zero
 	push {r9}
@@ -239,7 +258,7 @@ defcode "false", 5, false // false = 0
 
 defcode "#name", 5, num_name
 	push {r9}
-	mov r9, #NAME_LEN
+	mov r9, #F_LENMASK
 	NEXT
 
 // ----- Variable Words -----
@@ -289,7 +308,7 @@ defcode "eundef", 6, eundef
 // ----- Primitive words -----
 
 defcode "exit", 4, exit
-	ldr r10, [r11], #4          // ip = pop return stack
+	rpop r10
 	NEXT
 
 defcode "[']", 3, lit   // ( -- x )
@@ -335,13 +354,13 @@ defcode "RP!", 3, rp_store
 	NEXT
 
 defcode ">R", 2, to_r     // ( -- x R: x -- )
-	str r9, [r11, #-4]!
+	rpush r9
 	pop {r9}
 	NEXT
 
 defcode "R>", 2, r_from   // ( x -- R: -- x )
 	push {r9}
-	ldr r9, [r11], #4
+	rpop r9
 	NEXT
 
 defcode "dup", 3, dup     // ( x -- x x )
@@ -700,7 +719,7 @@ defcode "u>str", 5, u_to_str
 	mov r4, #0                // r4 = index
 	ldr r5, =var_h
 	ldr r5, [r5]              // r5 = here (temporary space to write the digits)
-	add r5, #NAME_LEN+12      // leave a space for prefix minus sign
+	add r5, #F_LENMASK+12     // leave a space for prefix minus sign
 	// Get the number base
 	ldr r6, =var_base         // r6 = number base
 	ldr r6, [r6]
@@ -942,7 +961,7 @@ compile_number:
 
 // ( xt -- link )
 defword ">link", 5, to_link
-	.int xt_lit, 4+1+NAME_LEN, xt_minus
+	.int xt_lit, 4+1+F_LENMASK, xt_minus
 	.int xt_exit
 
 // ( link -- a )
@@ -952,13 +971,13 @@ defword ">name", 5, to_name
 
 // ( link -- xt )
 defword ">xt", 3, to_xt
-	.int xt_lit, 4+1+NAME_LEN
+	.int xt_lit, 4+1+F_LENMASK
 	.int xt_plus
 	.int xt_exit
 
 // ( link -- a2 )
 defword ">params", 7, to_params
-	.int xt_lit, 4+1+NAME_LEN+4, xt_plus
+	.int xt_lit, 4+1+F_LENMASK+4, xt_plus
 	.int xt_exit
 
 // ( link -- f )
@@ -1150,19 +1169,12 @@ defword "compilation", 11, compilation, F_IMMEDIATE
 // TODO: other input sources
 // ( -- f )
 defword "refill", 6, refill       
-	.int xt_tib                   // ( a )
-	.int xt_tib_size              // ( a u1 )
-	.int xt_accept                // ( u2 )
-	.int xt_num_tib, xt_store     // ( )
+	.int xt_tib, xt_tib_size, xt_accept // ( u1 )
+	.int xt_dup                         // ( u1 u1 )
+	.int xt_num_tib, xt_store
 	.int xt_lit, 0
 	.int xt_to_in, xt_store
-	.int xt_true
-	.int xt_exit
-
-// TODO: other input sources
-// ( -- 0|-1|id )
-defword "source-id", 9, source_id 
-	.int xt_lit, 0
+	.int xt_lit, 0, xt_equal, xt_not    // ( u1 -- f )
 	.int xt_exit
 
 // TODO: other input sources
@@ -1201,10 +1213,6 @@ defword "sep?", 4, sep_q
 	.int xt_dup, xt_lit, 13, xt_equals, xt_swap // ( f f f c )
 	.int xt_lit, 32, xt_equals                  // ( f f f f )
 	.int xt_or, xt_or, xt_or, xt_or             // ( f )
-	.int xt_exit
-
-defword "notsep?", 7 not_sep_q
-	.int xt_sep_q, xt_not
 	.int xt_exit
 
 // ( a1 u p -- a2 ) starting at address a1, skip at most u chars until char matches p
@@ -1292,16 +1300,16 @@ word_copy:                        // ( p a u )
 
 the_last_word:
 
-// ( -- R: i*x -- )
+// ( i*x R: j*x -- i*x R: )
 defword "quit", 4, quit 
-	.int xt_r_zero, xt_rp_store // clear return stack
+	.int xt_r_zero, xt_rp_store    // clear return stack
 	.int xt_bracket
 quit_interpret:
 	.int xt_lit, xt_sep_q, xt_word
-	.int xt_count // ( a u )
+	.int xt_count                  // ( a u )
 	.int xt_two_dup
 	.int xt_find, xt_dup
-	.int xt_zero_branch // ( a u link|0 )
+	.int xt_zero_branch            // ( a u link|0 )
 	label quit_no_find
 	.int xt_nip, xt_nip
 	.int xt_to_xt, xt_execute
@@ -1309,11 +1317,11 @@ quit_interpret:
 	label quit_interpret
 quit_no_find:
 	.int xt_drop
-	.int xt_two_dup // ( a u a u )
-	.int xt_str_to_d // ( a u d e|0 )
+	.int xt_two_dup                // ( a u a u )
+	.int xt_str_to_d               // ( a u d e|0 )
 	.int xt_zero_branch
 	label quit_number
-	.int xt_two_drop // ( a u d -- a u )
+	.int xt_two_drop               // ( a u d -- a u )
 	.int xt_eundef, xt_fetch, xt_execute
 	.int xt_branch
 	label quit_interpret
