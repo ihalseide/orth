@@ -1174,7 +1174,7 @@ defword "refill", 6, refill
 	.int xt_num_tib, xt_store
 	.int xt_lit, 0
 	.int xt_to_in, xt_store
-	.int xt_lit, 0, xt_equal, xt_not    // ( u1 -- f )
+	.int xt_lit, 0, xt_equals, xt_not    // ( u1 -- f )
 	.int xt_exit
 
 // TODO: other input sources
