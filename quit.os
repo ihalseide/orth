@@ -1,4 +1,4 @@
-\ The high-level source for the word "quit"
+\ The high-level version of the word "quit" as found in core.s
 : quit ( i*x R: j*x -- i*x R: )
 	R0 RP!
 	postpone: [
