@@ -116,15 +116,15 @@ dictionary:
 
 .global _start
 _start:
-	/* Init parameter stack */
+	// Init parameter stack
 	ldr sp, =stack_start
 	ldr r1, =var_s_zero
 	str sp, [r1]
-	/* Init return stack */
+	// Init return stack
 	ldr r11, =rstack_start
 	ldr r1, =var_r_zero
 	str r11, [r1]
-	/* Start up the inner interpreter */
+	// Start up the inner interpreter
 	adr r10, #xt_quit + 4
 	NEXT
 
@@ -680,7 +680,7 @@ to_num3:
 	blt to_num_done
 	mul r5, r1, r4             // multiply the high-word by the base
 	mov r1, r5
-	/* UMULL{S}{cond} RdLo, RdHi, Rn, Rm */
+	// UMULL{S}{cond} RdLo, RdHi, Rn, Rm
 	umull r5, r6, r2, r4       // multiply the low-word by the base and carry into high word
 	add r1, r6
 	add r2, r5, r3             // add the digit value to the low word (no need to carry)
@@ -695,16 +695,16 @@ to_num_done:                   // number conversion done
 
 // convert unsigned integer to string
 // ( u1 -- a u2 )
-defcode "u>str", 5, u_to_str  
-	/* Get the pad address and make an index into it */
+defcode "u>str", 5, u_to_str
+	// Make space for the number string
 	mov r4, #0                // r4 = index
 	ldr r5, =var_h
 	ldr r5, [r5]              // r5 = here (temporary space to write the digits)
-	add r5, #NAME_LEN+1       // leave a space for prefix minus sign
-	/* Get the number base */
+	add r5, #NAME_LEN+12      // leave a space for prefix minus sign
+	// Get the number base
 	ldr r6, =var_base         // r6 = number base
 	ldr r6, [r6]
-	/* Only proceed if the number base is valid */
+	// Early return for invalid base
 	cmp r6, #1
 	bgt good_base
 	push {r6}
@@ -712,111 +712,50 @@ defcode "u>str", 5, u_to_str
 	NEXT
 good_base:
 	cmp r9, #0
-	bne u_not_zero
-	/* Write a 0 to the pad if u is 0 */
+	bne base_div
+	// Write a 0 to the pad if u is 0
 	mov r0, #'0'
 	str r0, [r5]
 	push {r5}
 	mov r9, #1
 	NEXT
-u_not_zero:
-	/* Switch on the number base */
-	tst r6, #1     // the base can't be a power of 2 if it's odd
-	b base_other
-	cmp r6, #2
-	beq base2
-	cmp r6, #4
-	beq base4
-	cmp r6, #8
-	beq base8
-	cmp r6, #16
-	beq base16
-	cmp r6, #32
-	beq base32     // default case
-	b base_other
-base2_body:
-	and r0, r9, #1
-	strb r0, [r5, r4]
-	add r4, #1
-	lsr r9, r9, #1
-base2:
-	cmp r9, #0
-	bne base2_body
-	b base_done
-base4_body:
-	and r0, r9, #3
-	strb r0, [r5, r4]
-	add r4, #1
-	lsr r9, r9, #2
-base4:
-	cmp r9, #0
-	bne base4_body
-	b base_done
-base8_body:
-	and r0, r9, #7
-	strb r0, [r5, r4]
-	add r4, #1
-	lsr r9, r9, #3
-base8:
-	cmp r9, #0
-	bne base8_body
-	b base_done
-base16_body:
-	and r0, r9, #15
-	strb r0, [r5, r4]
-	add r4, #1
-	lsr r9, r9, #4
-base16:
-	cmp r9, #0
-	bne base16_body
-	b base_done
-base32_body:
-	and r0, r9, #31
-	strb r0, [r5, r4]
-	add r4, #1
-	lsr r9, r9, #5
-base32:
-	cmp r9, #0
-	bne base32_body
-	b base_done
-base_other_body:
+base_div_body:
 	mov r0, r9         // numerator = u (TOS)
 	mov r1, r6         // denominator = base
 	bl fn_divmod
-	mov r3, r0         // u % base -> rem
+	strb r3, [r5, r4]  // u % base -> pad[i]
 	mov r9, r2         // u / base -> u
-	strb r0, [r5, r4]  // rem -> pad[i]
 	add r4, #1
-base_other:
+base_div:
 	cmp r9, #0
-	bne base_other_body
+	bne base_div_body
 base_done:
-	/* Reverse the pad array */
+	// Reverse the pad array
 	mov r9, r4          // TOS = pad length
 	eor r0, r0          // r0 = pad index #1
 	sub r1, r4, #1      // r1 = pad index #2
 	b reverse
-reverse_body:
-	/* Get the characters on the opposite sides of the array */
+reverse:
+	// Get the characters on the opposite sides of the array
 	ldrb r2, [r5, r0]
 	ldrb r3, [r5, r1]
-	/* Convert values to digits */
+	// Convert values to digits
 	cmp r2, #9
 	addgt r2, #7
 	cmp r3, #9
 	addgt r3, #7
 	add r2, #'0'
 	add r3, #'0'
-	/* Swap characters */
+	// Swap characters
 	strb r2, [r5, r1]
 	strb r3, [r5, r0]
-	/* Move indices towards each other */
+	// Move indices towards each other
 	add r0, #1
 	sub r1, #1
-reverse:
+reverse_check:
 	cmp r0, r1
-	ble reverse_body
-	/* done, return */
+	ble reverse
+	// done, return
 	push {r5}       // second item on stack is the pad start address
 	NEXT
 
