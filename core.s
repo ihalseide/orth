@@ -34,7 +34,6 @@
 .macro defcode name, len, label, flags=0
 	.data
 	.align 2                 // link field
-	//.global def_\label
 def_\label:
 	.int link
 	.set link, def_\label
@@ -42,12 +41,10 @@ def_\label:
 	.ascii "\name"
 	.space NAME_LEN-\len
 	.align 2
-	//.global xt_\label
 xt_\label:                   // code field
 	.int code_\label
 	.text                    // start defining the code after the macro
 	.align 2
-	//.global code_\label
 code_\label:
 .endm
 
@@ -55,7 +52,6 @@ code_\label:
 .macro defword name, len, label, flags=0
 	.data
 	.align 2                 // link field
-	//.global def_\label
 def_\label:
 	.int link
 	.set link, def_\label
@@ -63,7 +59,6 @@ def_\label:
 	.ascii "\name"
 	.space NAME_LEN-\len
 	.align 2
-	//.global xt_\label
 xt_\label:                   // do colon
 	.int enter_colon
 params_\label:               // parameter field
