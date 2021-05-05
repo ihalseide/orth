@@ -9,18 +9,18 @@
 // ----- Constants -----
 
 // Word names
-.set F_IMMEDIATE, 0b10000000
-.set F_HIDDEN,    0b01000000
-.set F_COMPILE,   0b00100000
-.set F_LENMASK,   0b00011111
-.set NAME_LEN, 31 // characters
+.equ F_IMMEDIATE, 0b10000000
+.equ F_HIDDEN,    0b01000000
+.equ F_COMPILE,   0b00100000
+.equ F_LENMASK,   0b00011111
+.equ NAME_LEN, 31 // characters
 
 // Input
-.set TIB_SIZE, 1024
+.equ TIB_SIZE, 1024
 
 // Stacks
-.set RSTACK_SIZE, 512*4
-.set STACK_SIZE,  64*4
+.equ RSTACK_SIZE, 512*4
+.equ STACK_SIZE,  64*4
 
 // ----- Macros -----
 
@@ -83,7 +83,7 @@ var_eundefc: .int xt_quit
 var_eundef:  .int xt_quit
 
 var_base:   .int 10
-var_h:      .int data_end
+var_h:      .int free
 var_state:  .int 0 // interpret mode
 var_latest: .int the_last_word
 
@@ -98,7 +98,7 @@ input_buffer: .space TIB_SIZE
 
 // Parameter stack grows downward and underflows into the return stack
 .align 2
-.space PSTACK_SIZE
+.space STACK_SIZE
 stack_start:
 
 // Return stack grows downward
@@ -125,7 +125,7 @@ _start:
 	ldr r1, =var_r_zero
 	str r11, [r1]
 	// Start up the inner interpreter
-	adr r10, #xt_quit + 4
+	ldr r10, =xt_quit + 4
 	NEXT
 
 enter_colon:
@@ -212,7 +212,7 @@ defcode "flenmask", 8, flenmask
 	mov r9, #F_LENMASK
 	NEXT
 
-defcode "fcompile", 8, flenmask
+defcode "fcompile", 8, fcompile
 	push {r9}
 	mov r9, #F_COMPILE
 	NEXT
@@ -222,7 +222,7 @@ defcode "cell", 4, cell
 	mov r9, #4
 	NEXT
 
-defcode "cells", 4, cell
+defcode "cells", 5, cells
 	lsl r9, #2           // (x * 4) = (x << 2)
 	NEXT
 
@@ -865,15 +865,6 @@ defword "header:", 7, header
 	.int xt_h, xt_store
 	.int xt_exit
 
-// ( "name" -- )
-defword "create:", 7, create_colon
-	.int xt_header
-	.int xt_enterdoes, xt_comma
-	// TODO ????? no pass please
-	.int xt_lit, xt_pass, xt_cell, xt_plus
-	.int xt_comma
-	.int xt_exit
-
 // ( x -- ) variable initialized to x
 defword "variable:", 9, to_variable_colon
 	.int xt_header                        // get word name input
@@ -914,7 +905,7 @@ defword "]", 1, rbracket
 compile:
 	.int xt_lit, xt_sep_q
 	.int xt_word
-	.int xt_ccount                      // ( a u )
+	.int xt_count                      // ( a u )
 	.int xt_two_dup
 	.int xt_find, xt_dup
 	.int xt_zero_branch            // ( a u link|0 )
@@ -1119,7 +1110,7 @@ find_link:
 	.int xt_not, xt_zero_branch
 	label find_skip_hidden
 	.int xt_dup, xt_two_swap, xt_rot   // ( link a1 len1 link )
-	.int xt_to_name, xt_ccount         // ( link a1 len1 a2 len2 )
+	.int xt_to_name, xt_count         // ( link a1 len1 a2 len2 )
 	.int xt_flenmask, xt_and
 	.int xt_two_over                   // ( link a1 len1 a2 len2 a1 len1 )
 	.int xt_compare, xt_not
@@ -1307,7 +1298,7 @@ defword "quit", 4, quit
 	.int xt_bracket
 quit_interpret:
 	.int xt_lit, xt_sep_q, xt_word
-	.int xt_ccount // ( a u )
+	.int xt_count // ( a u )
 	.int xt_two_dup
 	.int xt_find, xt_dup
 	.int xt_zero_branch // ( a u link|0 )
@@ -1331,4 +1322,6 @@ quit_number:
 	.int xt_nip, xt_nip
 	.int xt_branch
 	label quit_interpret
+
+free:
 
