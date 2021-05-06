@@ -100,8 +100,8 @@ var_state:  .int 0 // interpret mode
 var_latest: .int the_last_word
 
 // stack bases (initialized later)
-var_s_zero: .int 0
-var_r_zero: .int 0
+var_s_zero: .int stack_start
+var_r_zero: .int rstack_start
 
 // Input buffer
 var_to_in:    .int 0
@@ -129,17 +129,12 @@ dictionary:
 
 .global _start
 _start:
-	// Init parameter stack
 	ldr sp, =stack_start
-	ldr r1, =var_s_zero
-	str sp, [r1]
-	// Init return stack
 	ldr r11, =rstack_start
-	ldr r1, =var_r_zero
-	str r11, [r1]
-	// Start up the inner interpreter
-	ldr r10, =xt_quit + 4
+	ldr r10, =code         // Start up the inner interpreter
 	NEXT
+code:
+	.int xt_quit
 
 enter_colon:
 	rpush r10       // Save the return address to the return stack
@@ -157,9 +152,9 @@ enter_constant:      // A word whose parameter list is a 1-cell value
 	NEXT
 
 enter_does:
-	rpush r10       // Save the return address to the return stack
-	ldr r10, [r8, #4]!   // load the behavior pointer into the IP
-	push {r9}            // put the parameter on the stack for the behavior when it runs
+	rpush r10          // Save the return address to the return stack
+	ldr r10, [r8, #4]! // load the behavior pointer into the IP
+	push {r9}          // put the parameter on the stack for the behavior when it runs
 	add r9, r8, #4
 	NEXT
 
@@ -307,6 +302,11 @@ defcode "eundef", 6, eundef
 
 // ----- Primitive words -----
 
+defcode "break", 5, break
+breakpoint:
+	mov r0, r0
+	NEXT
+
 defcode "exit", 4, exit
 	rpop r10
 	NEXT
@@ -345,7 +345,7 @@ defcode "SP!", 3, sp_store
 
 defcode "RP@", 3, rp_fetch
 	push {r9}
-	mov r9, r11
+	ldr r9, [r11]
 	NEXT
 
 defcode "RP!", 3, rp_store
@@ -603,10 +603,13 @@ defcode "execute", 7, execute
 
 // ( -- c ) TODO
 defcode "key", 3, key 
+	push {r9}
+	eor r9, r9
 	NEXT
 
 // TODO ( c -- )
 defcode "emit", 4, emit
+	pop {r9}
 	NEXT
 
 // ( a1 a2 u -- ) move u chars from a1 to a2
@@ -1303,6 +1306,7 @@ the_last_word:
 // ( i*x R: j*x -- i*x R: )
 defword "quit", 4, quit 
 	.int xt_r_zero, xt_rp_store    // clear return stack
+	.int xt_break
 	.int xt_bracket
 quit_interpret:
 	.int xt_lit, xt_sep_q, xt_word
