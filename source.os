@@ -1,12 +1,5 @@
 : \ [ immediate ]
 	refill drop ; \ Line comments
-: depth ( -- n )
-	S0 SP@ - 4 /
-	1- ; \ the TOS is cached in a register
-depth n>str type CR emit bye
-\ PRO TIP: you can string along word defs to be defined as the undefined word
-\ handler so that they can recognize new word syntaxes like beginning with a
-\ quote means a string literal!
 : backref,
 	here - , ;
 : begin [ immediate ]
@@ -85,6 +78,9 @@ char: " constant: '"'
 : NOT ( x -- f ) 0= ;
 : bool? ( x -- f ) dup true = swap false = or ;
 : bool. ( f -- ) if ." true" else ." false" then space ;
+: depth ( -- n )
+	S0 SP@ - 4 /
+	1- ; \ the TOS is cached in a register
 : rdepth ( -- n )
 	R0 RP@ -
 	4 /

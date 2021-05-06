@@ -89,23 +89,27 @@ params_\label:            // parameters
 
 .align 2
 
-// Errors vectored execution
-var_eundefc: .int xt_quit
-var_eundef:  .int xt_quit
+var_eundefc: .int xt_quit // Errors vectored execution
+var_eundef: .int xt_quit
 
-var_dict:   .int dictionary // dictionary start
-var_base:   .int 10
-var_h:      .int free
-var_state:  .int 0 // interpret mode
+var_dict: .int dictionary              // dictionary start
+var_base: .int 10
+var_h: .int free
+var_state: .int 0                      // interpret mode
 var_latest: .int the_last_word
 
-// stack bases (initialized later)
+// Input sources
+var_source_id: .int 1 // 0=keyboard, 1=in-memory
+var_source: .int source
+var_num_source: .int source_end-source
+
+// stack bases
 var_s_zero: .int stack_start
 var_r_zero: .int rstack_start
 
 // Input buffer
-var_to_in:    .int 0
-var_num_tib:  .int 0
+var_to_in: .int 0
+var_num_tib: .int 0
 input_buffer: .space TIB_SIZE
 
 // Parameter stack grows downward and underflows into the return stack
@@ -149,13 +153,6 @@ enter_variable:    // A word whose parameter list is a 1-cell value
 enter_constant:      // A word whose parameter list is a 1-cell value
 	push {r9}
 	ldr r9, [r8, #4] // Push the value
-	NEXT
-
-enter_does:
-	rpush r10          // Save the return address to the return stack
-	ldr r10, [r8, #4]! // load the behavior pointer into the IP
-	push {r9}          // put the parameter on the stack for the behavior when it runs
-	add r9, r8, #4
 	NEXT
 
 // Subroutine for integer division and modulo
@@ -808,10 +805,6 @@ defword "enterconstant", 13, enterconstant
 	.int xt_lit, enter_constant
 	.int xt_exit
 
-defword "enterdoes", 9, enterdoes
-	.int xt_lit, enter_does
-	.int xt_exit
-
 // ( a u1 -- u2 )
 defword "accept", 6, accept
 	.int xt_dup, xt_to_r             // ( a u1 R: u1 )
@@ -1335,5 +1328,10 @@ quit_number:
 	.int xt_branch
 	label quit_interpret
 
-free:
+free: .space 1024
+
+// Source can be overwritten later
+source: 
+.include "source.s"
+source_end:
 
