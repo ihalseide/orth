@@ -244,3 +244,10 @@
 : hide:
 	find: ?dup if hide then ;
 
+: sep? ( c -- f ) \ whitespace predicate
+    dup 0 = swap  ( f c )
+	dup 9 = swap  ( f f c )
+	dup 10 = swap ( f f f c )
+	dup 13 = swap ( f f f c )
+	BL =          ( f f f f )
+	or or or or ; ( f ) 
