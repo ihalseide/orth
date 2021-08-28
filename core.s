@@ -1121,35 +1121,68 @@ defword "compilation", 11, compilation, F_IMMEDIATE
 	.int xt_swap, xt_c_store
 	.int xt_exit
 
+defword "skip", 4, skip       // ( a1 c1 -- a2 ) find address, a2, of the next non-c1 char starting from a1
+skip_loop:
+	.int xt_over, xt_c_fetch  // ( a c1 c )
+	.int xt_over, xt_equals   // ( a c1 f )
+	.int xt_zero_branch
+	label skip_done
+	.int xt_swap              // a+1 -> a
+	.int xt_one_plus
+	.int xt_swap              // ( a c1 )
+	.int xt_branch
+	label skip_loop
+skip_done:
+	.int xt_drop              // ( a2 c1 -- a2 )
+	.int xt_exit
+
+defword "scan", 4, scan       // ( a1 c1 -- a2 ) find first occurance, a2, of char c1 starting from a1
+scan_loop:
+	.int xt_over, xt_c_fetch  // ( a c1 c )
+	.int xt_dup
+	.int xt_zero_branch
+	label scan_done
+	.int xt_over, xt_equals   // ( a c1 f )
+	.int xt_not
+	.int xt_zero_branch
+	label scan_done
+	.int xt_swap              // a+1 -> a
+	.int xt_one_plus
+	.int xt_swap              // ( a c1 )
+	.int xt_branch
+	label scan_loop
+scan_done:
+	.int xt_drop              // ( a2 c1 -- a2 )
+	.int xt_exit
+
 // ( c1 -- a1 ) scan source for word delimited by c1 and copy it to the memory pointed to by `here`
-defword "word", 4, word           
+defword "word", 4, word           // ( c1 -- a1 )
 word_input:
-	.int xt_source                // ( p a u )
+	.int xt_source                // ( c1 a u )
 	.int xt_dup, xt_zero_equals
-	.int xt_zero_branch           // ( p a u )
+	.int xt_zero_branch           // ( c1 a u )
 	label word_copy
-	.int xt_two_drop              // ( p )
-	.int xt_refill, xt_drop       // ( p )
+	.int xt_two_drop              // ( c1 )
+	.int xt_refill, xt_drop       // ( c1 )
 	.int xt_branch
 	label word_input
-word_copy:                        // ( p a u )
-	.int xt_rot                   // use nskip and nscan to extract the word
-	.int xt_three_dup
-	.int xt_nskip                 // ( a u p a2 )
-	.int xt_swap, xt_to_r         // ( a u a2 R: p )
-	.int xt_rot, xt_two_dup       // ( u a2 a a2 a R: p )
-	.int xt_minus, xt_nip         // ( u a2 u R: p )
-	.int xt_rot
-	.int xt_swap, xt_minus        // ( a2 u R: p )
-	.int xt_over, xt_swap         // ( a2 a2 u R: p )
-	.int xt_r_from
-	.int xt_nscan                 // ( a2 a3 )
-	.int xt_dup, xt_source_store
-	.int xt_over, xt_minus        // ( a2 u )
-	.int xt_tuck
-	.int xt_here, xt_one_plus
-	.int xt_swap
-	.int xt_cmove                 // ( u )
+word_copy:                        // ( c1 a u )
+	.int xt_to_r                  // ( c1 a R: u )   >R
+	.int xt_over                  // ( c1 a c1 )
+	.int xt_skip                  // ( c1 a3 )
+	.int xt_swap, xt_two_dup      // ( a3 c1 a3 c1 )
+	.int xt_scan                  // ( a3 c1 a4 )
+	.int xt_nip                   // ( a3 a4 )
+	.int xt_dup, xt_tib, xt_minus // update >in
+	.int xt_to_in, xt_store
+	.int xt_over, xt_minus        // ( a3 u )
+	.int xt_r_from, xt_max        // ( a3 u R: )      R>
+	.int xt_dup, xt_to_r          // ( a3 u R: u )   >R
+	.int xt_here                  // ( a3 u a1 )
+	.int xt_one_plus              // ( a3 u a1+1 )
+	.int xt_swap                  // ( a3 a1+1 u )
+	.int xt_cmove                 // ( )
+	.int xt_r_from                // ( u R: )         R>
 	.int xt_here, xt_c_store      // ( )
 	.int xt_here                  // ( a1 )
 	.int xt_exit
