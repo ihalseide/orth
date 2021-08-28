@@ -598,17 +598,6 @@ defcode "execute", 7, execute
 	bx r0
 	// no next
 
-// ( -- c ) TODO
-defcode "key", 3, key 
-	push {r9}
-	eor r9, r9
-	NEXT
-
-// TODO ( c -- )
-defcode "emit", 4, emit
-	pop {r9}
-	NEXT
-
 // ( a1 a2 u -- ) move u chars from a1 to a2
 defcode "cmove", 5, cmove 
 	eor r0, r0            // r0 = index
@@ -830,22 +819,6 @@ accept_done:
 	.int xt_swap, xt_minus
 	.int xt_exit
 
-// ( a u -- )
-defword "type", 4, type
-type_char:
-	.int xt_dup, xt_zero_branch
-	label type_done
-	.int xt_swap
-	.int xt_dup, xt_c_fetch, xt_emit
-	.int xt_one_plus
-	.int xt_swap
-	.int xt_one_minus
-	.int xt_branch
-	label type_char
-type_done:
-	.int xt_drop, xt_drop
-	.int xt_exit
-
 defword ";", 1, semicolon, F_COMPILE+F_IMMEDIATE
 	.int xt_lit, xt_exit, xt_comma      // compile exit code
 	.int xt_latest, xt_fetch, xt_hide   // toggle the hide flag to show the word
@@ -878,20 +851,6 @@ defword "header:", 7, header
 	.int xt_swap, xt_c_store      // ( a )
 	.int xt_num_name, xt_one_plus, xt_plus
 	.int xt_h, xt_store
-	.int xt_exit
-
-// ( x -- ) variable initialized to x
-defword "variable:", 9, to_variable_colon
-	.int xt_header                        // get word name input
-	.int xt_entervariable, xt_comma       // make this word push it's parameter field
-	.int xt_comma
-	.int xt_exit
-
-// ( x -- ) constant with value x
-defword "constant:", 9, constant_colon
-	.int xt_header                       // get word name input
-	.int xt_enterconstant, xt_comma      // make this word push it's parameter field
-	.int xt_comma
 	.int xt_exit
 
 // ( -- )
