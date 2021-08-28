@@ -1,5 +1,3 @@
-: \ [ immediate ]
-	refill drop ; \ Line comments
 : backref,
 	here - , ;
 : begin [ immediate ]
@@ -8,6 +6,7 @@
 	['] branch , backref, ;
 : until [ immediate ]
 	['] 0branch , backref, ;
+
 : prep-forward-ref \ ( -- a )
 	here 0 , ;
 : resolve-forward-ref \ ( a -- )
@@ -21,79 +20,47 @@
 	swap resolve-forward-ref ;
 : then [ immediate ]
 	resolve-forward-ref ;
-: getc \ ( -- c )
-	begin
-		source
-		if \ ( a )
-			dup 1+ source!
-			c@ exit
-		else
-			refill \ ( a f )
-			2drop
-		then
-	again ;
-: char: \ ( "<name>" -- c )
-	['] separator? word 1+ c@ ;
-char: ) constant: ')'
-char: " constant: '"'
-: ( [ immediate ]
-	begin getc
-	')' = until ; ( Comments )
+
+\ Variables and constants
+: variable: ( x -- )
+	header: entervariable , , ;
+: constant: ( x -- )
+	header: enterconstant , , ;
+: var: \ variable initialized to zero
+	header: entervariable , 0 , ;
+
+: char: ( "<word>" -- c )
+	word 1+ c@ ;
+
 : >= < not ;
 : <= > not ;
 : 0> 0 > ;
 : 0< 0 < ;
 : 0>= -1 > ;
 : 0<= 1 < ;
+
 \ More looping
 : recurse [ immediate ]
 	latest @ >xt , ;
+\ TODO - tail word for tail recursion to not eat up the return stack
 : while [ immediate ]
 	['] 0branch , prep-forward-ref ;
 : repeat [ immediate ]
 	swap ['] branch ,
 	backref, resolve-forward-ref ;
 : ?dup ( a -- a a | 0 ) dup if dup then ;
-\ Division math
-' pass variable: ediv0 \ exception
-: /mod ( n m -- q r )
-	?dup if
-		/mod
-	else ( num )
-		ediv0 @ execute
-	then ;
-: mod ( n m -- r ) /mod drop ;
-: / ( n m -- q ) /mod nip ;
+
 : interpret? ( -- f )
 	state @ 0= ;
+: does>
+	R> latest >params ! ;
+
 \ Memory allocation
 : cells ( x1 -- x2 )
 	cell * ;
 : allot ( n -- a )
 	here tuck + h ! ;
-: line CR emit ;
-: id. ( link -- ) name ccount flenmask and type space ;
-: >R> ( -- x R: x -- x ) R> dup >R ;
-: Rdrop ( R: x -- ) R> drop ;
-: NOT ( x -- f ) 0= ;
-: bool? ( x -- f ) dup true = swap false = or ;
-: bool. ( f -- ) if ." true" else ." false" then space ;
-: depth ( -- n )
-	S0 SP@ - 4 /
-	1- ; \ the TOS is cached in a register
-: rdepth ( -- n )
-	R0 RP@ -
-	4 /
-	1- ;
-\ Compilation and execution
-: find: ( "<word>" -- link-a )
-	['] separator? word
-	ccount find ;
-: ' ( "<name>" -- xt )
-	find: >xt ;
-: postpone: [ immediate ] \ force compilation of the next word
-	' , ;
-: ['], ['] ['] , ;
+
 \ Combinators
 : dip ( a xt -- a )
 	swap >R execute R> ;
@@ -151,6 +118,32 @@ char: " constant: '"'
 	swap ;
 : endcase [ immediate ] ( i*a #branches )
 	['] res-forward-ref swap times ;
+
+: line CR emit ;
+: id. ( link -- ) name ccount flenmask and type space ;
+: >R> ( -- x R: x -- x ) R> dup >R ;
+: Rdrop ( R: x -- ) R> drop ;
+: NOT ( x -- f ) 0= ;
+: bool? ( x -- f ) dup true = swap false = or ;
+: bool. ( f -- ) if ." true" else ." false" then space ;
+: depth ( -- n )
+	S0 SP@ - 4 /
+	1- ; \ the TOS is cached in a register
+: rdepth ( -- n )
+	R0 RP@ -
+	4 /
+	1- ;
+
+\ Compilation and execution
+: find: ( "<word>" -- link-a )
+	['] separator? word
+	ccount find ;
+: ' ( "<name>" -- xt )
+	find: >xt ;
+: postpone: [ immediate ] \ force compilation of the next word
+	' , ;
+: ['], ['] ['] , ;
+
 \ Fixed-size (cell) arrays and "iotas"
 : array ( n -- array ) dup 1+ cells allot tuck ! ;
 : buf ( array -- a ) 1+ ;
@@ -204,16 +197,17 @@ char: " constant: '"'
 	tuck cell + ! ! ;
 : car ( cons -- x ) @ ;
 : cdr ( cons -- x ) cell + @ ;
+
 \ Etc.
-: var: 0 variable: ;
 : u. ( u -- ) u>str type space ;
 : . ( n -- ) n>str type space ;
 : ? ( a -- ) @ . ;
-: does>
-	R> latest >params ! ;
+
+\ Number bases
 : hex 16 base ! ;
 : decimal 10 base ! ;
 : bin 2 base ! ;
+
 \ Inspection
 : next-link ( link1 -- link2 )
 	dup latest @ = if \ special case for latest word
@@ -249,7 +243,4 @@ char: " constant: '"'
 	drop ;
 : hide:
 	find: ?dup if hide then ;
-' ediv0-fail ediv0 !
-hide: '"'
-hide: ')'
 
