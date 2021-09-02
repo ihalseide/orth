@@ -1,3 +1,5 @@
+\ This file is pre-processed by 'asm-string.py'
+
 : backref,
 	here - , ;
 : begin [ immediate ]
@@ -7,9 +9,9 @@
 : until [ immediate ]
 	['] 0branch , backref, ;
 
-: prep-forward-ref \ ( -- a )
+: prep-forward-ref ( -- a )
 	here 0 , ;
-: resolve-forward-ref \ ( a -- )
+: resolve-forward-ref ( a -- )
 	here over - swap ! ;
 : if [ immediate ]
 	['] 0branch , prep-forward-ref ;
@@ -43,6 +45,7 @@
 : recurse [ immediate ]
 	latest @ >xt , ;
 \ TODO - tail word for tail recursion to not eat up the return stack
+: tail ;
 : while [ immediate ]
 	['] 0branch , prep-forward-ref ;
 : repeat [ immediate ]
@@ -120,7 +123,8 @@
 	['] res-forward-ref swap times ;
 
 : line CR emit ;
-: id. ( link -- ) name ccount flenmask and type space ;
+: type ;
+: id. ( link -- ) name ccount flenmask and type ;
 : >R> ( -- x R: x -- x ) R> dup >R ;
 : Rdrop ( R: x -- ) R> drop ;
 : NOT ( x -- f ) 0= ;
@@ -236,13 +240,11 @@
 	while
 		dup hidden?
 		not if
-			dup id.
+			dup id. space
 		then
 		@
 	repeat
 	drop ;
-: hide:
-	find: ?dup if hide then ;
 
 : sep? ( c -- f ) \ whitespace predicate
     dup 0 = swap  ( f c )
