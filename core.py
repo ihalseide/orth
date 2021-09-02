@@ -3,33 +3,12 @@
 import sys
 from array import array
 
-# Instruction pointer in memory
-ip = 0
-# Compilation pointer in memory
-h = 0
-# Parameter/data stack
-stack = array('q')
-# Return stack
-rstack = array('q')
-# Program memory (and code)
-memory = array('q')
-# List of defined words
-word_dict = {}
-# List of builtin functions
-builtins = []
-
 # Helper functions:
 
 def add_builtin (name, fn):
     i = len(builtins)
     builtins.append(fn)
     word_dict[name] = i
-
-def builtin (name):
-    def decorate (fn):
-        add_builtin(name, fn)
-        return fn
-    return decorate
 
 def push (x: int):
     stack.append(x)
@@ -55,107 +34,82 @@ def rpush (x: int):
 def rpop () -> int:
     return rstack.pop()
 
-def do_builtin (inst: int):
-    # Primitive operation
-    builtins[inst]()
-
-def do_enter (a: int):
-    global ip
-    rpush(ip)
-    ip = a
-
-def do_next ():
-    global ip
-    ip += 1
-
 # Built-in operations/instructions:
 
-@builtin(">R")
+# [enter|address]
+#   ^
+#   |_ ip
+def _enter ():
+    global ip
+    rpush(ip+2) # return to the next instruction, not the literal address value
+    ip = memory[ip+1]
+
 def _tor ():
     rpush(pop())
 
-@builtin("R>")
 def _rfrom ():
     push(rpop())
 
-@builtin('lit')
 def _lit ():
     global ip
     push(memory[ip+1])
     ip += 1
 
-@builtin('noop')
 def _noop ():
     pass
 
-@builtin('drop')
 def _drop ():
     stack.pop()
 
-@builtin('dup')
 def _dup ():
     push(top())
 
-@builtin('swap')
 def _swap ():
     x = pop()
     y = pop()
     push(x)
     push(y)
 
-@builtin('pick')
 def _pick ():
     push(pick(pop()))
 
-@builtin('+')
 def _add ():
     push(pop() + pop())
 
-@builtin('-')
 def _sub ():
     push(pop() - pop())
 
-@builtin('*')
 def _mul ():
     push(pop() * pop())
 
-@builtin('/')
 def _div ():
     push(pop() // pop())
 
-@builtin('@')
 def _fetch ():
     push(fetch(pop()))
 
-@builtin('!')
 def _store ():
     store(pop(), pop())
 
-@builtin('emit')
 def _emit ():
     c = chr(pop())
     sys.stdout.write(c)
 
-@builtin('getc')
 def _getc ():
     c = sys.stdin.read(1)
     push(ord(c))
 
-@builtin('exit')
 def _exit ():
     global ip
     ip = rpop()
 
-@builtin('branch')
 def _branch ():
     ip += memory[ip+1]
 
-@builtin('0branch')
 def _0branch ():
     if pop() == 0:
         _branch()
 
-@builtin('execute')
 def _execute ():
     x = pop()
     if x < len(builtins):
@@ -163,37 +117,63 @@ def _execute ():
     else:
         do_enter(x)
 
-@builtin('.')
 def _pnum ():
     print(pop())
 
-@builtin('stop')
 def _stop ():
     ip = len(memory)
     print("[STOP]")
 
-def main ():
-    global ip, memory
+# Instruction pointer in memory
+ip = 0
+# Compilation pointer in memory
+h = 0
+# Parameter/data stack
+stack = array('q')
+# Return stack
+rstack = array('q')
+# Program memory (and code)
+memory = array('q')
+# Map str to indices in the memory[]
+word_dict = {}
+# List of functions
+builtins = []
 
-    # Get program input
-    prog = ''
-    while (s := input()):
-        prog += s
-    words = prog.split()
-    convert = lambda x: word_dict[x] if (x in word_dict) else int(x)
-    memory = array('q', [convert(x) for x in words]+[0 for x in range(16)])
-    print('words:', words)
-    print('memory:', memory)
-    print('running...')
+# Add all the builtins
+add_builtin('noop', _noop)
+add_builtin('+', _add)
+add_builtin('-', _sub)
+add_builtin('*', _mul)
+add_builtin('/', _div)
+add_builtin('branch', _branch)
+add_builtin('0branch', _0branch)
+add_builtin('emit', _emit)
+add_builtin('getc', _getc)
+add_builtin('lit', _lit)
+add_builtin('enter', _enter)
+add_builtin('exit', _exit)
+add_builtin('stop', _stop)
+add_builtin('.', _pnum) # debug
 
-    # Execute
-    while ip < len(memory):
-        x = memory[ip]
-        if x < len(builtins):
-            do_builtin(x)
-        else:
-            do_enter(x)
+# Get program input
+prog = ''
+while (s := input()):
+    prog += ' ' + s
+words = prog.split()
+convert = lambda x: word_dict[x] if (x in word_dict) else int(x)
+memory = array('q', [convert(x) for x in words]+[0 for x in range(16)])
+print('words:', words)
+print('memory:', memory)
+print('running...')
 
-if __name__ == '__main__':
-    main()
+# Execute
+while ip < len(memory):
+    x = memory[ip]
+    try:
+        fn = builtins[x]
+        fn()
+    except IndexError:
+        print('ip=', x, 'out of range')
+        break
+    ip += 1
 
