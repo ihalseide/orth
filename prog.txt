@@ -1,8 +1,0 @@
-lit 42 emit
-lit 45 lit -50 + .
-enter 13
-enter 13
-stop
-lit 46 emit
-exit
-
