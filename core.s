@@ -1107,7 +1107,7 @@ defword "0=", 2, zero_equals
 	.int xt_lit, 0, xt_equals
 	.int xt_exit
 
-defword "immediate", 9, immediate, F_IMMEDIATE
+defword "immediate", 9, immediate // makes the most recently defined word immediate (word is not itself immediate)
 	.int xt_latest, xt_fetch
 	.int xt_to_name, xt_dup
 	.int xt_c_fetch, xt_fimmediate, xt_xor
