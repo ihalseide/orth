@@ -1,13 +1,21 @@
 #!/usr/bin/env python3
 
-import sys
+# Virtual Machine
+# * Shared memory for code and data
+# * Instructions - 1 byte
+# * Parameter stack - each entry 4 bytes
+# * Return stack - each entry 4 bytes
+
+from sys import stdout, stdin
 from array import array
 
 class VM:
 
+    # See line 188 where this tuple is populated
     funcs = tuple()
 
     def __init__(self, memory: bytearray):
+        self.halted = False
         # Program counter
         self.pc: int = 0
         # Memory bytes
@@ -18,15 +26,17 @@ class VM:
         self.rs = array('q')
 
     def run(self):
-        while 0 <= self.pc < len(self.mem):
+        while (not self.halted) and (0 <= self.pc < len(self.mem)):
             self.step()
 
     def steps(self, n):
-        while n > 0 and(0 <= self.pc < len(self.mem)):
+        while (not self.halted) and (n > 0) and (0 <= self.pc < len(self.mem)):
             self.step()
             n -= 1
 
     def step(self):
+        if self.halted:
+            return
         x = self.mem[self.pc]
         fn = self.funcs[x]
         fn(self)
@@ -104,10 +114,10 @@ class VM:
         self.mem[b:b+4] = a.to_bytes(4)
 
     def give(self):
-        sys.stdout.write(chr(self.pop()))
+        stdout.write(chr(self.pop()))
 
     def take(self):
-        self.push(ord(sys.stdin.read(1)))
+        self.push(ord(stdin.read(1)))
 
     def litc(self):
         # Literal char/byte
@@ -162,7 +172,7 @@ class VM:
         self.pc +=(0 if self.pop() else 1)
 
     def halt(self):
-        sys.exit(0)
+        self.halted = True
 
     def tor(self):
         self.rpush(self.pop())
@@ -175,7 +185,8 @@ class VM:
         a = self.pop()
         self.mem[a], self.mem[b] = self.mem[b], self.mem[a]
 
-VM.funcs =(
+# Populate the list of the VM's operation functions
+VM.funcs = (
     VM.rpush,
     VM.rpop,
     VM.push,
@@ -213,15 +224,47 @@ VM.funcs =(
     VM.mswap,
 )
 
+def encode (x) -> int:
+    '''Convert a VM function or int to an int'''
+    try:
+        i = VM.funcs.index(x)
+    except ValueError:
+        i = int(x)
+    if i > 255:
+        raise ValueError('x cannot fit into a single byte')
+    return i
+
+def encode_it (it) -> bytearray:
+    return bytearray((encode(x) for x in it))
+
+def run_it (it):
+    m = encode_it(it)
+    vm = VM(m)
+    vm.run()
+
 if __name__ == '__main__':
-    fns = (
-        VM.litc, 42,
-        VM.give,
+    # Print an '*' asterisk
+    run_it((
+        VM.litc, ord('*'), VM.give,
         VM.halt,
-    )
-    #print(fns)
-    b = bytearray([VM.funcs.index(x) if (x in VM.funcs) else int(x) for x in fns])
-    #print(b)
-    v = VM(b)
-    v.run()
+    ))
+
+    # Print out 'Hello, world!\n' to the terminal
+    run_it((
+        VM.litc, ord('H'), VM.give,
+        VM.litc, ord('e'), VM.give,
+        VM.litc, ord('l'), VM.give,
+        VM.litc, ord('l'), VM.give,
+        VM.litc, ord('o'), VM.give,
+        VM.litc, ord(','), VM.give,
+        VM.litc, ord(' '), VM.give,
+        VM.litc, ord('w'), VM.give,
+        VM.litc, ord('o'), VM.give,
+        VM.litc, ord('r'), VM.give,
+        VM.litc, ord('l'), VM.give,
+        VM.litc, ord('d'), VM.give,
+        VM.litc, ord('!'), VM.give,
+        VM.litc, ord('\n'), VM.give,
+        VM.halt,
+    ))
 
