@@ -84,53 +84,33 @@ params_\label:            // parameters
 .endm
 
 // ----- Core Data -----
-
 .data
-
 .align 2
-
-var_eundefc: .int xt_quit // Errors vectored execution
-var_eundef: .int xt_quit
-
-var_dict: .int dictionary              // dictionary start
-var_base: .int 10
-var_h: .int free
-var_state: .int 0                      // interpret mode
-var_latest: .int the_last_word
-
-// Input sources
-var_source_id: .int 1 // 0=keyboard, 1=in-memory
-var_source: .int source
-var_num_source: .int source_end-source
-
-// stack bases
-var_s_zero: .int stack_start
-var_r_zero: .int rstack_start
-
-// Input buffer
+var_eundef: .int xt_quit        // Word to execute if a word not in the dictionary is compiled
+var_dict: .int dictionary       // dictionary start
+var_base: .int 10               // number base
+var_h: .int free                // compilation pointer
+var_state: .int 0               // interpret mode
+var_latest: .int the_last_word  // latest word pointer
+var_source: .int source         // source addr
+var_s_zero: .int stack_start    // parameter stack base address
+var_r_zero: .int rstack_start   // return stack base address
 var_to_in: .int 0
 var_num_tib: .int 0
 input_buffer: .space TIB_SIZE
-
-// Parameter stack grows downward and underflows into the return stack
 .align 2
-.space STACK_SIZE
+.space STACK_SIZE               // Parameter stack grows downward and underflows into the return stack
 stack_start:
-
-// Return stack grows downward
 .align 2
-.space RSTACK_SIZE
+.space RSTACK_SIZE              // Return stack grows downward
 rstack_start:
-
-// Start of dictionary
 .align 2
-dictionary:
+dictionary:                     // Start of dictionary
 
 // ----- Core assembly code -----
 
 .text
 .align 2
-
 .global _start
 _start:
 	ldr sp, =stack_start
@@ -1221,10 +1201,5 @@ quit_number:
 	.int xt_branch
 	label quit_interpret
 
-free: .space 1024
-
-// Source can be overwritten later
-source: 
-.include "source.s"
-source_end:
+free: 
 
