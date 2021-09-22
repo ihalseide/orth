@@ -1,17 +1,17 @@
-build: core
+LD=arm-none-eabi-ld
+AS=arm-none-eabi-as
 
-debug: core
-	gdb core
+build: main
 
-interpret: core
-	cat orth.os - | ./core
+debug: main
+	gdb bin/main
 
-core: core.o
-	ld -o core core.o
+main: main.o
+	$(LD) -o bin/main bin/main.o
 
-core.o: source.s core.s
-	as -g -o core.o core.s
+main.o: main.s bin
+	$(AS) -o bin/main.o main.s
 
-source.s: source.os
-	python3 asm_string.py source.os -o source.s
+bin:
+	mkdir bin
 
