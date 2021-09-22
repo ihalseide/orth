@@ -7,6 +7,8 @@
 	// * R12 = 
 	// * R13 = stack pointer (SP)
 
+	// Constants:
+
 	.equ F_IMMEDIATE, 0b10000000 // immediate word flag bit
 	.equ F_HIDDEN,    0b01000000 // hidden word flag bit
 	.equ F_COMPILE,   0b00100000 // compile-only word flag bit
@@ -14,6 +16,8 @@
 	.equ TIB_SIZE, 1024          // (bytes) size of terminal input buffer
 	.equ RSTACK_SIZE, 512*4      // (bytes) size of the return stack
 	.equ STACK_SIZE, 64*4        // (bytes) size of the return stack
+
+	// Macros:
 
 	// Push to return stack
 	.macro rpush reg
@@ -68,6 +72,8 @@ xt_\label:                // xt: colon interpreter
 	params_\label:            // parameters
 	.endm
 
+	// Data:
+
 	// Label for relative branches within "defword" macros
 	.macro label name
 		.int \name - .
@@ -106,6 +112,8 @@ stack_start:
 rstack_start:
 	.align 2
 dictionary:                    // Start of dictionary
+
+	// Assembly:
 
 	.text
 	.align 2
@@ -744,6 +752,8 @@ reverse_check:
 	// done, return
 	push {r5}       // second item on stack is the pad start address
 	NEXT
+
+	// Code:
 
 	// ( x1 x2 x3 -- x1 x2 x3 x1 x2 x3 )
 	defword "3dup", 4, three_dup
