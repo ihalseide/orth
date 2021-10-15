@@ -2,6 +2,9 @@
 
 My forth for Raspberry Pi, ARM v71
 
+resource:
+[https://github.com/dwelch67/raspberrypi]
+
 ## System Features
 
 * buffered input

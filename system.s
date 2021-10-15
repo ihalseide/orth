@@ -1,13 +1,18 @@
+
+	.equ SYSTIMERCLO, 0x3F003004
+
 	.equ BCM_PERI_BASE, 0x3F000000
 	.equ BCM_GPIO_BASE, 0x3F200000
+	.equ GPU_MAIL_BASE, 0x3F00B880 // replaced 0x20... with 0x3F...
+
 	.equ GPFSEL3, 0x3F20000C
 	.equ GPFSEL4, 0x3F200010
 	.equ GPSET1, 0x3F200020
 	.equ GPCLR1, 0x3F20002C
 
-	/*
 	.section .data
 	.align 4
+	// Screen frame buffer
 	.global FrameBufferInfo
 FrameBufferInfo:
 	.int 1024 // #0 Physical Width
@@ -20,7 +25,6 @@ FrameBufferInfo:
 	.int 0 // #28 Y
 	.int 0 // #32 GPU - Pointer
 	.int 0 // #36 GPU - Size
-	*/
 
 	.section .init
 	.align 2
@@ -36,9 +40,9 @@ _start:
 	mov sp, #0x8000
 	b main
 
-halt:
+hang:
 	wfe
-	b halt
+	b hang
 
 	.section .text
 	.align 2
@@ -88,16 +92,44 @@ loop:
 
 	b loop
 
+	// Set led and hang
+error:
+
+	mov r5, #5
+
+	mov r0, #16
+	mov r1, #1
+	bl gpioSetFunction
+
+	mov r0, #16
+	mov r1, #0
+	bl gpioSet
+
+	b hang
+
+// Wait for some time to pass, proportional to N
+// Inputs:
+//     r0: N
+// Outputs:
+//     r0: 0 upon success, N upon error
 wait:
 	push {lr}
-	ldr r0, =#5000000
-waitLoop$:
-	sub r0, #1
+
+	// Validate input
 	cmp r0, #0
-	bne waitLoop$
+	poplt {pc}
+
+	// while n > 0, decrement n
+waitBegin$:
+	cmp r0, #0
+	beq waitEnd$
+	sub r0, #1
+	b waitBegin$
+waitEnd$:
+
+	// r0 is 0
 	pop {pc}
 
-/*
 	// Initialize screen buffer
 	mov r0, #1024
 	mov r1, #768
@@ -106,7 +138,7 @@ waitLoop$:
 
 	// Test if the screen init was successful
 	teq r0, #0
-	beq error$
+	beq error
 
 	fbInfoAddr .req r4
 	mov fbInfoAddr, r0
@@ -144,23 +176,8 @@ drawPixel$:
 	.unreq x
 	.unreq y
 
-error$:
-
-	mov r5, #5
-
-	mov r0, #16
-	mov r1, #1
-	bl gpioSetFunction
-	mov r0, #16
-	mov r1, #0
-	bl gpioSet
-
-errorLoop$:
-
-	b errorLoop$
-
 mailboxGetBase:
-	ldr r0, =0x2000B880
+	ldr r0, =GPU_MAIL_BASE
 	mov pc, lr
 
 // Write data to mailbox
@@ -360,7 +377,3 @@ gpioSet:
 	.unreq setBit
 	.unreq gpioAddr
 	pop {pc}
-
-*/
-
-b halt
