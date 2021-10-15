@@ -142,6 +142,7 @@ dictionary:                    // Start of dictionary
 	.align 2
 	.global _start
 _start:                        // MAIN entry point
+	b _start
 _interpreter:
 	ldr sp, =stack_start
 	ldr r11, =rstack_start

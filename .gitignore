@@ -4,15 +4,16 @@
 *.list
 *.lst
 *.o
+*.img
+*.map
+*.elf
+
+# Editor
+.exrc
 
 # Output directories
 bin/
 build/
-
-# Other temporary/output files
-core
-core.map
-source.s
 
 # Secrets
 rpi_2b_secret.txt
