@@ -6,16 +6,32 @@
 	// * R11 = return stack pointer (RP)
 	// * R12 = 
 	// * R13 = stack pointer (SP)
+	//
+	// * 32-bit register size = 4 bytes
 
 	// Constants:
 
 	.equ F_IMMEDIATE, 0b10000000 // immediate word flag bit
-	.equ F_HIDDEN,    0b01000000 // hidden word flag bit
-	.equ F_COMPILE,   0b00100000 // compile-only word flag bit
-	.equ F_LENMASK,   0b00011111 // 31
+	.equ F_HIDDEN, 0b01000000 // hidden word flag bit
+	.equ F_COMPILE, 0b00100000 // compile-only word flag bit
+	.equ F_LENMASK, 0b00011111 // 31
 	.equ TIB_SIZE, 1024          // (bytes) size of terminal input buffer
+	.equ TOB_SIZE, 1024          // (bytes) size of terminal output buffer
 	.equ RSTACK_SIZE, 512*4      // (bytes) size of the return stack
-	.equ STACK_SIZE, 64*4        // (bytes) size of the return stack
+	.equ STACK_SIZE, 64*4        // (bytes) size of the data stack
+
+	// Syscall constants:
+
+	.equ NR_EXIT, 1
+	.equ NR_FORK, 2
+	.equ NR_READ, 3
+	.equ NR_WRITE, 4
+	.equ NR_OPEN, 5
+	.equ NR_CLOSE, 6
+
+	.equ STDOUT, 0
+	.equ STDIN, 1
+	.equ STDERR, 2
 
 	// Macros:
 
@@ -99,11 +115,18 @@ var_s_zero:
 	.int stack_start    // parameter stack base address
 var_r_zero:
 	.int rstack_start   // return stack base address
-var_to_in:
+var_to_in:              // input buffer
 	.int 0
 var_num_tib:
 	.int 0
-input_buffer: .space TIB_SIZE
+var_to_out:             // output pointer
+	.int 0
+var_num_tob:
+	.int 0
+output_buffer:
+	.space TOB_SIZE
+input_buffer:
+	.space TIB_SIZE
 	.align 2
 	.space STACK_SIZE          // Parameter stack grows downward and underflows into the return stack
 stack_start:
@@ -115,16 +138,17 @@ dictionary:                    // Start of dictionary
 
 	// Assembly:
 
-	.text
+	.section .init
 	.align 2
 	.global _start
-code:
-	.int xt_quit
 _start:                        // MAIN entry point
+_interpreter:
 	ldr sp, =stack_start
 	ldr r11, =rstack_start
-	ldr r10, =code             // Start up the inner interpreter
+	ldr r10, =code               // Start up the inner interpreter
 	NEXT
+code:
+	.int xt_quit
 
 enter_colon:
 	rpush r10       // Save the return address to the return stack
@@ -184,14 +208,24 @@ fn_divmod2:
 	ldr r9, [r0]
 	NEXT
 
-	defcode "tib-size", 8, tib_size // constant
+	defcode "tib-size", 8, tib_size
 	push {r9}
 	mov r9, #TIB_SIZE
 	NEXT
 
-	defcode "tib", 3, tib          // constant
+	defcode "tib", 3, tib
 	push {r9}
 	ldr r9, =input_buffer
+	NEXT
+
+	defcode "tob-size", 8, tob_size
+	push {r9}
+	mov r9, #TOB_SIZE
+	NEXT
+
+	defcode "tob", 3, tob
+	push {r9}
+	ldr r9, =output_buffer
 	NEXT
 
 	defcode "fhidden", 7, fhidden
@@ -225,13 +259,12 @@ fn_divmod2:
 
 	defcode "true", 4, true // true = -1
 	push {r9}
-	eor r9, r9
-	mvn r9, r9
+	mov r9, #-1
 	NEXT
 
 	defcode "false", 5, false // false = 0
 	push {r9}
-	eor r9, r9
+	mov r9, #0
 	NEXT
 
 	defcode "#name", 5, num_name
@@ -272,11 +305,6 @@ fn_divmod2:
 	NEXT
 
 	// -----  Exception variable words -----
-
-	defcode "eundefc", 7, eundefc
-	push {r9}
-	ldr r9, =var_eundefc
-	NEXT
 
 	defcode "eundef", 6, eundef
 	push {r9}
@@ -753,6 +781,46 @@ reverse_check:
 	push {r5}       // second item on stack is the pad start address
 	NEXT
 
+	defcode "syscall0", 8, syscall0    // ( nr -- ret )
+	pop {r7}
+	swi #0
+	push {r0}
+	NEXT
+
+	defcode "syscall1", 8, syscall1    // ( arg0 nr -- ret )
+	pop {r7}
+	pop {r0}
+	swi #0
+	push {r0}
+	NEXT
+
+	defcode "syscall2", 8, syscall2    // ( arg1 arg0 nr -- ret )
+	pop {r7}
+	pop {r0}
+	pop {r1}
+	swi #0
+	push {r0}
+	NEXT
+
+	defcode "syscall3", 8, syscall3    // ( arg2 arg1 arg0 nr -- ret )
+	pop {r7}
+	pop {r0}
+	pop {r1}
+	pop {r2}
+	swi #0
+	push {r0}
+	NEXT
+
+	defcode "syscall4", 8, syscall4    // ( arg3 arg2 arg1 arg0 nr -- ret )
+	pop {r7}
+	pop {r0}
+	pop {r1}
+	pop {r2}
+	pop {r3}
+	swi #0
+	push {r0}
+	NEXT
+
 	// Code:
 
 	// ( x1 x2 x3 -- x1 x2 x3 x1 x2 x3 )
@@ -780,29 +848,28 @@ reverse_check:
 	.int xt_lit, enter_constant
 	.int xt_exit
 
-	// ( a u1 -- u2 )
-	defword "accept", 6, accept
-	.int xt_dup, xt_to_r             // ( a u1 R: u1 )
-accept_char:
-	.int xt_dup, xt_zero_branch
-	label accept_done
+	defword "osRead", 6, os_read     // ( u1 a1 fd )
+	.int xt_lit, NR_READ
+	.int xt_syscall3
+	.int xt_exit
+
+	defword "osWrite", 7, os_write   // ( u1 a1 fd )
+	.int xt_lit, NR_WRITE
+	.int xt_syscall3
+	.int xt_exit
+
+	// Read into buffer from input
+	defword "accept", 6, accept        // ( a u1 -- u2 )
 	.int xt_swap
-	.int xt_key                      // ( u a c R: u1 )
-	.int xt_dup, xt_lit, 10, xt_equals
-	.int xt_not, xt_zero_branch
-	label accept_break
-	.int xt_over, xt_store           // ( u a R: u1 )
-	.int xt_one_plus
+	.int xt_lit, STDIN
+	.int xt_os_read
+	.int xt_exit
+
+	// Print string to output
+	defword "print", 5, print         // ( a u )
 	.int xt_swap
-	.int xt_one_minus
-	.int xt_branch
-	label accept_char
-accept_break:
-	.int xt_drop
-accept_done:
-	.int xt_drop                     // ( u R: u1 )
-	.int xt_r_from
-	.int xt_swap, xt_minus
+	.int xt_lit, STDOUT
+	.int xt_os_write
 	.int xt_exit
 
 	defword ";", 1, semicolon, F_COMPILE+F_IMMEDIATE
@@ -829,7 +896,7 @@ accept_done:
 	// ( -- ) create link and name field in dictionary
 	defword "header:", 7, header
 	.int xt_link
-	.int xt_lit, xt_sep_q
+	.int xt_lit, ' '
 	.int xt_word                  // ( a )
 	.int xt_dup, xt_dup
 	.int xt_c_fetch               // ( a a len )
@@ -839,14 +906,64 @@ accept_done:
 	.int xt_h, xt_store
 	.int xt_exit
 
-	// ( -- )
-	defword "align", 5, align
+	defword "align", 5, align      // ( a1 -- a2 )
 	.int xt_lit, 3, xt_plus
 	.int xt_lit, 3, xt_not, xt_and // a2 = (a1+(4-1)) & ~(4-1);
 	.int xt_exit
 
 	defword "here", 4, here // current compilation address
 	.int xt_h, xt_fetch
+	.int xt_exit
+
+	defword "parse-string-lit", 12, parse_string_lit  // ( a1 u1 -- a2 u2 f ) u1 is max len
+	.int xt_c_fetch, xt_lit, '"', xt_equals
+	.int xt_zero_branch
+	label psl_then1
+	.int xt_lit, 1, xt_exit
+psl_then1:
+	.int xt_swap, xt_lit, 1, xt_plus
+	.int xt_swap, xt_lit, 1, xt_minus
+	.int xt_two_dup
+psl_begin:
+	.int xt_two_dup, xt_swap, xt_c_fetch
+	.int xt_lit, '"', xt_not_equals
+	.int xt_swap
+	.int xt_lit, 0, xt_not_equals
+	.int xt_and, xt_not
+	.int xt_zero_branch
+	label psl_end
+	.int xt_swap, xt_lit, 1, xt_plus
+	.int xt_swap, xt_lit, 1, xt_minus
+psl_end:
+	.int xt_over, xt_c_fetch
+	.int xt_lit, '"', xt_not_equal
+	.int xt_zero_branch
+	label psl_then2
+	.int xt_two_drop
+	.int xt_lit, 1
+	.int xt_exit
+psl_then2:
+	.int xt_drop, xt_nip
+	.int xt_over, xt_minus
+	.int xt_lit, 0
+	.int xt_exit
+
+	defword ",string", 7, compile_string_lit          // ( a1 u1 -- )
+	.int xt_dup, xt_align, xt_dup                     // ( a1 u1 u2 u2 )
+	.int xt_lit, xt_branch, xt_comma, xt_comma        // compile a jump over the str that will be placed in-line
+	.int xt_to_r
+	.int xt_dup, xt_to_r
+	.int xt_here
+	.int xt_cmove                                     // copy the string
+	.int xt_r_from, xt_r_from
+	.int xt_here, xt_dup, xt_to_r
+	.int xt_plus, xt_h, xt_store
+	.int xt_r_from
+	.int xt_literal, xt_literal
+	.int xt_exit
+	.int xt_cmove
+	.int xt_swap
+	.int xt_literal, xt_literal
 	.int xt_exit
 
 	// ( -- ) interpret mode
@@ -889,7 +1006,19 @@ compile_no_find:
 	.int xt_zero_branch
 	label compile_number
 	.int xt_two_drop               // ( a u d -- a u )
-	.int xt_eundefc, xt_fetch, xt_execute
+	.int xt_drop                   // ( -- a )
+	.int xt_lit, TIB_SIZE          // ( -- a u )
+	.int xt_parse_string_lit       // ( a u -- a2 u2 f )
+	.int xt_zero_branch
+	label compile_string
+	.int xt_two_drop
+	.int xt_lit, compile_msg
+	.int xt_lit, compile_msg_len
+	.int xt_print
+	.int xt_branch
+	label compile
+compile_string:
+	.int xt_compile_string_lit    // ( a u -- )
 	.int xt_branch
 	label compile
 compile_number:
@@ -899,6 +1028,8 @@ compile_number:
 	.int xt_two_drop
 	.int xt_branch
 	label compile
+compile_msg: .ascii " error: could not compile word"
+compile_msg_len: .int compile_msg_len - compile_msg
 
 	// ( xt -- link )
 	defword ">link", 5, to_link
@@ -991,9 +1122,30 @@ d_to_n_positive:
 	.int xt_over, xt_c_store          // ( u a )
 	.int xt_swap                      // ( a u )
 	.int xt_exit
-n_positive:                           // ( n )
+n_positive:                         // ( n )
 	.int xt_u_to_str                  // ( a u )
 	.int xt_exit
+
+	defword "emit", 4, emit           // ( c -- )
+	.int xt_lit, emit_buffer
+	.int xt_store
+	.int xt_lit, 1
+	.int xt_lit, emit_buffer
+	.int xt_lit, STDIN
+	.int xt_lit, NR_WRITE
+	.int xt_syscall3
+	.int xt_drop
+	.int xt_exit
+emit_buffer: .space 8
+
+	defword "getc", 4, getc           // ( -- c )
+	// TODO
+
+	defword "key", 3, key             // ( -- c )
+	// TODO
+
+	defword "k-poll", 6, poll           // ( -- ) poll keyboard
+	// TODO
 
 	// ( link -- )
 	defword "hide", 4, hide
@@ -1107,37 +1259,23 @@ find_no_find:
 	.int xt_swap, xt_c_store
 	.int xt_exit
 
+	defword "getChar", 7, get_char         // ( -- c )
+	.int xt_lit, to_in, xt_fetch
+	.int xt_lit, TIB_SIZE
+	.int xt_equal, xt_not, xt_zero_branch
+	label get_char_full
+get_char_full:                             // accept more input
+	.int xt_lit, input_buffer
+	.int xt_lit, 1
+	.int xt_accept, xt_dup
+	.int xt_lit, to_in, xt_store
+	.int xt_zero_branch                    // no characters gotten, so retry
+	label get_char_full
+	.int xt_lit, input_buffer
+	.int xt_exit
+
 	// ( c1 -- a1 ) scan source for word delimited by c1 and copy it to the memory pointed to by `here`
 	defword "word", 4, word           // ( c1 -- a1 )
-word_input:
-	.int xt_source                // ( c1 a u )
-	.int xt_dup, xt_zero_equals
-	.int xt_zero_branch           // ( c1 a u )
-	label word_copy
-	.int xt_two_drop              // ( c1 )
-	.int xt_refill, xt_drop       // ( c1 )
-	.int xt_branch
-	label word_input
-word_copy:                        // ( c1 a u )
-	.int xt_to_r                  // ( c1 a R: u )   >R
-	.int xt_over                  // ( c1 a c1 )
-	.int xt_skip                  // ( c1 a3 )
-	.int xt_swap, xt_two_dup      // ( a3 c1 a3 c1 )
-	.int xt_scan                  // ( a3 c1 a4 )
-	.int xt_nip                   // ( a3 a4 )
-	.int xt_dup, xt_tib, xt_minus // update >in
-	.int xt_to_in, xt_store
-	.int xt_over, xt_minus        // ( a3 u )
-	.int xt_r_from, xt_max        // ( a3 u R: )      R>
-	.int xt_dup, xt_to_r          // ( a3 u R: u )   >R
-	.int xt_here                  // ( a3 u a1 )
-	.int xt_one_plus              // ( a3 u a1+1 )
-	.int xt_swap                  // ( a3 a1+1 u )
-	.int xt_cmove                 // ( )
-	.int xt_r_from                // ( u R: )         R>
-	.int xt_here, xt_c_store      // ( )
-	.int xt_here                  // ( a1 )
-	.int xt_exit
 
 the_last_word:
 

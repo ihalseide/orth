@@ -1,17 +1,24 @@
-LD=arm-none-eabi-ld
-AS=arm-none-eabi-as
+ARMGNU=arm-none-eabi
+AS=$(ARMGNU)-as
+LD=$(ARMGNU)-ld
+OBJCOPY=$(ARMGNU)-objcopy
+OBJDUMP=$(ARMGNU)-objdump
 
-build: main
+build: kernel7.img kernel.list
 
-debug: main
-	gdb bin/main
+emulate: kernel.img
+	qemu-system-arm -m 256 -M raspi2 -serial stdio -kernel kernel.elf -no-reboot -no-shutdown -S -s &
+	gdb-multiarch -x gdbconfig
 
-main: main.o
-	$(LD) -o bin/main bin/main.o
+kernel.list: kernel.elf
+	$(OBJDUMP) -d kernel.elf > kernel.list
 
-main.o: main.s bin
-	$(AS) -o bin/main.o main.s
+kernel7.img: kernel.elf
+	$(OBJCOPY) kernel.elf -O binary kernel7.img
 
-bin:
-	mkdir bin
+kernel.elf: kernel.o linkerscript.ld
+	$(LD) --no-undefined -T linkerscript.ld -Map kernel.map -o kernel.elf kernel.o
+
+kernel.o: kernel.s
+	$(AS) -o kernel.o kernel.s
 
