@@ -10,7 +10,7 @@
 	.equ TIB_SIZE, 1024          // (bytes) size of terminal input buffer
 	.equ TOB_SIZE, 1024          // (bytes) size of terminal output buffer
 	.equ RSTACK_SIZE, 512*4      // (bytes) size of the return stack
-	.equ STACK_SIZE,  64*4       // (bytes) size of the data stack
+	.equ PSTACK_SIZE,  64*4      // (bytes) size of the data stack
 	.equ PAD_OFFSET, 256         // (byes) offset between H and PAD addresses
 
 	// Register name aliases:
