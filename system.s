@@ -1,4 +1,3 @@
-
 	.equ SYSTIMERCLO, 0x3F003004
 
 	.equ BCM_PERI_BASE, 0x3F000000
@@ -389,8 +388,6 @@ gpioSet:
 	// * R11 = return stack pointer (RP)
 	// * R12 = 
 	// * R13 = stack pointer (SP)
-	//
-	// * 32-bit register size = 4 bytes
 
 	// Constants:
 
@@ -403,20 +400,8 @@ gpioSet:
 	.equ RSTACK_SIZE, 512*4      // (bytes) size of the return stack
 	.equ STACK_SIZE, 64*4        // (bytes) size of the data stack
 
-	// Syscall constants:
-
-	.equ NR_EXIT, 1
-	.equ NR_FORK, 2
-	.equ NR_READ, 3
-	.equ NR_WRITE, 4
-	.equ NR_OPEN, 5
-	.equ NR_CLOSE, 6
-
-	.equ STDOUT, 0
-	.equ STDIN, 1
-	.equ STDERR, 2
-
 	// Macros:
+	.set link, 0
 
 	// Push to return stack
 	.macro rpush reg
@@ -436,7 +421,6 @@ gpioSet:
 	.endm
 
 	// Define an assembly word
-	.set link, 0
 	.macro defcode name, len, label, flags=0
 	.data
 	.align 2                 // link field
