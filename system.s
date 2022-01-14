@@ -14,8 +14,15 @@
 	.equ PAD_OFFSET, 256         // (byes) offset between H and PAD addresses
 
 	// Register name aliases:
+	// * R0-R7 = scratch registers
+	// * R8 = current execution token (XT)
+	// * R9 = top element of the stack
+	// * R10 = virtual instruction pointer (VIP)
+	// * R11 = return stack pointer (RP)
+	// * R12 = 
+	// * R13 = stack pointer (SP)
 	tos    .req r9   // Top of stack register
-	rstack .req r11  // Return stack pointer
+	rp .req r11  // Return stack pointer
 	xt     .req r8   // Current execution token address
 	vip    .req r10  // (virtual) instruction pointer
 
@@ -25,12 +32,12 @@
 
 	// Push to return stack
 	.macro rpush reg
-		str \reg, [rstack, #-4]!
+		str \reg, [rp, #-4]!
 	.endm
 
 	// Pop from return stack
 	.macro rpop reg
-		ldr \reg, [rstack], #4
+		ldr \reg, [rp], #4
 	.endm
 
 	// The inner interpreter
@@ -121,7 +128,7 @@ _start:
 	// Start up the interpreter
 forth:
 	ldr sp, =stack_start
-	ldr rstack, =rstack_start
+	ldr rp, =rstack_start
 	ldr vip, =_code_
 	NEXT
 _code_:
@@ -240,7 +247,7 @@ fn_divmod2:
 
 	// clear return stack
 	defcode "rclear", 6, rclear
-	ldr rstack, =rstack_start
+	ldr rp, =rstack_start
 	NEXT
 
 	// ( -- x R: x -- )
