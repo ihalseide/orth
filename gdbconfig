@@ -1,4 +1,4 @@
-file system.elf
+file build/system.elf
 target remote localhost:1234
 
 

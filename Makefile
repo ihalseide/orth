@@ -1,14 +1,12 @@
-ARMGNU=arm-none-eabi
-AS=$(ARMGNU)-as
-LD=$(ARMGNU)-ld
-OBJCOPY=$(ARMGNU)-objcopy
-OBJDUMP=$(ARMGNU)-objdump
 BUILDPATH=build
+TOOLS=arm-none-eabi
+
+AS=$(TOOLS)-as
+LD=$(TOOLS)-ld
+OBJCOPY=$(TOOLS)-objcopy
+OBJDUMP=$(TOOLS)-objdump
 
 build: builddir kernel7.img system.list
-
-builddir:
-	mkdir -p -v $(BUILDPATH)
 
 emulate: kernel7.img
 	qemu-system-arm -m 256 -M raspi2 -serial stdio -kernel $(BUILDPATH)/kernel7.elf -no-reboot -no-shutdown -S -s &
