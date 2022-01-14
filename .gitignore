@@ -16,6 +16,7 @@ bin/
 build/
 
 # Secrets
+.env
 rpi_2b_secret.txt
 
 # Reference documents
